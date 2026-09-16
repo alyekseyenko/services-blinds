@@ -2,29 +2,17 @@
 
 A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with an internal CRM and built **offline-first** for technicians on the road.
 
-<p align="center">
-  <img src="docs/screenshots/login-desktop.png" alt="Sign-in screen" width="720" />
-</p>
-
-<p align="center">
-  <img src="public/icon-512.png" alt="App icon" width="96" />
-  <img src="public/icon-192.png" alt="PWA icon" width="64" />
-</p>
-
-**Live demo:** authentication required — clone the repo and point `TWENTY_*` env vars to your CRM instance.
-
 ---
 
 ## Table of contents
 
 1. [Why we built this](#why-we-built-this)
 2. [Features](#features)
-3. [Screenshots](#screenshots)
-4. [Architecture](#architecture)
-5. [Tech stack](#tech-stack)
-6. [Getting started](#getting-started)
-7. [Project structure](#project-structure)
-8. [Documentation](#documentation)
+3. [Architecture](#architecture)
+4. [Tech stack](#tech-stack)
+5. [Getting started](#getting-started)
+6. [Project structure](#project-structure)
+7. [Documentation](#documentation)
 
 ---
 
@@ -113,32 +101,6 @@ All roles sync with the **internal CRM** (Twenty). Offline mutations queue in In
 - Circuit breaker, transactional outbox, 76+ unit tests, Playwright e2e
 - GitHub Actions CI: type-check, test, build, smoke e2e
 - RBAC: admin, CEO, technician, warehouse
-
----
-
-## Screenshots
-
-### Sign-in (CRM-backed roles)
-
-Desktop and mobile entry — profile is resolved from the CRM workspace role.
-
-<p align="center">
-  <img src="docs/screenshots/login-desktop.png" alt="Desktop login" width="700" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/login-mobile.png" alt="Mobile login" width="320" />
-</p>
-
-### Customer self-service portals
-
-Token-gated public pages — invalid links are rejected before any CRM mutation.
-
-| Invalid rating link | Rating form UI | Cancellation guard |
-|:---:|:---:|:---:|
-| ![Invalid rating link](docs/screenshots/public-rating-invalid-link.png) | ![Rating form](docs/screenshots/public-rating-form.png) | ![Cancellation portal](docs/screenshots/public-cancellation-invalid-link.png) |
-
-> **Tip:** Run `node scripts/capture-readme-screenshots.mjs` with `SCREENSHOT_ADMIN_EMAIL` / `SCREENSHOT_ADMIN_PASSWORD` in `.env.local` to refresh authenticated admin, CEO, and technician captures.
 
 ---
 
@@ -255,12 +217,6 @@ npm run test:e2e:smoke
 npm run build       # production build
 ```
 
-### Refresh README screenshots
-
-```bash
-node scripts/capture-readme-screenshots.mjs
-```
-
 ---
 
 ## Project structure
@@ -278,9 +234,7 @@ src/
 ├── components/
 ├── hooks/                # useSync, useSyncQueue
 └── lib/crm/              # GraphQL integration + contract layer
-docs/
-├── adrs/                 # Architecture decision records
-└── screenshots/          # README captures
+docs/adrs/                # Architecture decision records
 ```
 
 ---

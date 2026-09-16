@@ -5,6 +5,9 @@ import tempfile
 import time
 import paramiko
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from deploy_helpers import CONTAINER_APP, CONTAINER_NGINX, migrate_legacy_containers
+
 hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
 username = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("VPS_USER", "root")
 password = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("VPS_PASSWORD")
@@ -12,9 +15,6 @@ local_root = sys.argv[4] if len(sys.argv) > 4 else os.path.dirname(os.path.dirna
 
 if not all([hostname, password]):
     raise SystemExit("Set VPS_PASSWORD and pass hostname")
-
-CONTAINER_APP = os.environ.get("CONTAINER_APP", "technician-app")
-CONTAINER_NGINX = os.environ.get("CONTAINER_NGINX", "technician-nginx")
 
 EXCLUDE_DIRS = {
     "node_modules", ".next", ".git", "terminals", ".cursor",
@@ -97,6 +97,11 @@ os.remove(tar_path)
 run(client, f"cd {remote_dir} && tar -xzf {remote_tar}")
 run(client, f"rm -f {remote_tar}")
 
+def remote_run(cmd: str, timeout: int = 600) -> None:
+    run(client, cmd, timeout=timeout)
+
+migrate_legacy_containers(remote_run)
+
 # Build and restart only app container (host nginx handles :80)
 code, _, err = run(
     client,
@@ -109,7 +114,6 @@ if code != 0:
     sys.exit(1)
 
 run(client, f"cd {remote_dir} && docker compose up -d app-tecnicos redis")
-run(client, f"docker stop {CONTAINER_NGINX} 2>/dev/null; docker update --restart=no {CONTAINER_NGINX} 2>/dev/null || true")
 
 time.sleep(8)
 run(client, 'curl -sS -o /tmp/h.out -w "local3005 HTTP %{http_code}\\n" http://localhost:3005/api/health; cat /tmp/h.out')

@@ -16,7 +16,7 @@ services:
       - TWENTY_API_URL=http://twenty-server-1:3000
       - REDIS_URL=redis://redis:6379
     networks:
-      - technician-network
+      - app-network
     depends_on:
       - redis
 
@@ -27,7 +27,7 @@ services:
     expose:
       - "6379"
     networks:
-      - technician-network
+      - app-network
 
   nginx:
     image: nginx:alpine
@@ -38,11 +38,11 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
-      - technician-network
+      - app-network
     depends_on:
       - app-tecnicos
 
 networks:
-  technician-network:
-    external: true # Assume que o Twenty CRM já está a correr nesta rede Docker
+  app-network:
+    external: true # Twenty CRM runs on this Docker network
     name: twenty_default

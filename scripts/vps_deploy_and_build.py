@@ -5,11 +5,14 @@ import tempfile
 import time
 import paramiko
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from deploy_helpers import CONTAINER_APP, migrate_legacy_containers
+
 hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
 password = os.environ.get("VPS_PASSWORD")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
-container_app = os.environ.get("CONTAINER_APP", "technician-app")
+container_app = CONTAINER_APP
 health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
 local_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 remote_dir = "/root/app-tecnicos"
@@ -56,10 +59,11 @@ sftp.close()
 os.remove(tar_path)
 
 run(f"cd {remote_dir} && tar -xzf {remote_tar} && rm -f {remote_tar}")
+migrate_legacy_containers(run)
 code = run(f"cd {remote_dir} && docker compose build --no-cache app-tecnicos 2>&1 | tail -25")
 if code != 0:
     print("WARN: build exit code", code)
-run(f"cd {remote_dir} && docker compose up -d app-tecnicos")
+run(f"cd {remote_dir} && docker compose up -d app-tecnicos redis")
 time.sleep(12)
 run(f"curl -sS {health_url}")
 run(f'docker inspect {container_app} --format "{{{{.Created}}}}"')

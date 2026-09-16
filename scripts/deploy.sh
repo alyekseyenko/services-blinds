@@ -19,9 +19,16 @@ else
   echo "Aviso: sem repositório git — a usar código local."
 fi
 
+echo "==> Migrar contentores legados (se existirem)"
+for legacy in habitarmos-app habitarmos-redis habitarmos-nginx; do
+  docker stop "$legacy" 2>/dev/null || true
+  docker rm "$legacy" 2>/dev/null || true
+done
+docker stop technician-nginx 2>/dev/null || true
+
 echo "==> Build e restart dos contentores"
 docker compose build app-tecnicos
-docker compose up -d --remove-orphans
+docker compose up -d app-tecnicos redis
 
 echo "==> Health check"
 sleep 5

@@ -3,6 +3,13 @@
 Keep real domains, branding, and secrets **only** on the VPS in `.env.local`.
 The Git repository uses generic placeholders so nothing sensitive is published.
 
+## Container names (Docker)
+
+Production uses: `technician-app`, `technician-redis`, `technician-nginx`.
+
+Deploy scripts automatically stop/remove legacy containers (`habitarmos-*`) before starting the new stack.
+Expect ~30 seconds downtime during the first migration deploy.
+
 ## Required on the server
 
 Copy from `.env.example` and set your real values:

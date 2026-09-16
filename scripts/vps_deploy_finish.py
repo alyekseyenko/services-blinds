@@ -3,8 +3,12 @@ import sys
 import time
 import paramiko
 
-hostname = sys.argv[1]
-password = os.environ["VPS_PASSWORD"]
+hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
+password = os.environ.get("VPS_PASSWORD")
+health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
+container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+if not hostname or not password:
+    raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
 remote_dir = "/root/app-tecnicos"
 
 client = paramiko.SSHClient()
@@ -31,7 +35,7 @@ run(f"cd {remote_dir} && docker compose up -d app-tecnicos redis")
 run("docker stop habitarmos-nginx 2>/dev/null; docker update --restart=no habitarmos-nginx 2>/dev/null || true")
 time.sleep(10)
 run('curl -sS http://localhost:3005/api/health')
-run('curl -sS https://tecnicos.estoresrainha.com/api/health')
-run('docker inspect habitarmos-app --format "{{.Created}}"')
+run(f"curl -sS {health_url}")
+run(f'docker inspect {container_app} --format "{{{{.Created}}}}"')
 run('docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -8')
 client.close()

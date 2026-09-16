@@ -12,7 +12,7 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
       console.log('Step 1: Trying Nominatim (Free)...');
       const nominatimResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`, {
         headers: {
-          'User-Agent': 'HabitarmosTechApp/1.0'
+          'User-Agent': 'BlindsTechApp/1.0'
         }
       });
       

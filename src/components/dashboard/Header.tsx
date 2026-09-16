@@ -66,7 +66,7 @@ export default function Header({
             {userName || "Técnico"}
           </h1>
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
-            ESTORESRAINHA Pro • {tasksCount} Tarefas
+            {process.env.NEXT_PUBLIC_APP_SHORT_NAME || "Blinds Pro"} • {tasksCount} Tarefas
           </p>
         </div>
       </div>

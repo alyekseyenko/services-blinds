@@ -1,14 +1,15 @@
 import "./globals.css";
 import PWARegistration from "@/components/PWARegistration";
+import { APP_NAME, APP_SHORT_NAME } from "@/lib/branding";
 
 export const viewport = {
   themeColor: "#3b82f6",
 };
 
 export const metadata = {
-  title: "ESTORESRAINHA Pro",
-  description: "Sistema de Gestão Técnica & Produção ESTORESRAINHA",
-  manifest: "/manifest.json",
+  title: APP_NAME,
+  description: `Field operations platform — ${APP_NAME}`,
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/favi_64.png", sizes: "64x64", type: "image/png" },
@@ -22,7 +23,7 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ESTORESRAINHA",
+    title: APP_SHORT_NAME,
   },
 };
 

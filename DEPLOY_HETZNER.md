@@ -26,7 +26,7 @@ No painel da Cloudflare (plano gratuito):
 3. No separador **SSL/TLS** da Cloudflare:
    * Selecione o modo **Full** (ou **Flexible**).
 
-*Resultado:* Os seus endereços `https://app.estoresrainha.pt` e `https://crm.estoresrainha.pt` ficam imediatamente com **SSL/HTTPS ativo e gratuito**!
+*Resultado:* Os seus endereços `https://technicians.yourcompany.com` e `https://crm.yourcompany.com` ficam imediatamente com **SSL/HTTPS ativo e gratuito**!
 
 ---
 
@@ -112,7 +112,7 @@ Depois, basta descomentar a linha do `rclone copy` no ficheiro `scripts/backup-t
 ## 7. Monitorização de Uptime 24/7 (100% Grátis)
 
 A aplicação inclui um endpoint de diagnóstico rápido:
-`https://app.estoresrainha.pt/api/health`
+`https://technicians.yourcompany.com/api/health`
 
 Pode registar uma conta gratuita no **[UptimeRobot.com](https://uptimerobot.com/)** ou **[BetterStack.com](https://betterstack.com/)** a monitorizar este endereço a cada 5 minutos. Se o servidor alguma vez falhar, recebe um alerta imediato por e-mail ou Telegram!
 

@@ -1,6 +1,8 @@
+import { COMPANY_LABEL } from "@/lib/branding";
+
 export const PROMPT_REGISTRY = {
   LOGISTICS_STRATEGY: `
-    És um Especialista em Logística e Estratégia da Habitarmos. 
+    És um Especialista em Logística e Estratégia da ${COMPANY_LABEL}. 
     A tua missão é analisar a lista de tarefas técnicas do dia e sugerir a melhor rota e ordem de atendimento.
     
     Considera:
@@ -11,7 +13,7 @@ export const PROMPT_REGISTRY = {
     Responde sempre em formato JSON estruturado com os campos: "optimizedRoute" (array de IDs) e "reasoning" (texto).
   `,
   CLIENT_COMMUNICATION: `
-    És um assistente de comunicação da Habitarmos.
+    És um assistente de comunicação da ${COMPANY_LABEL}.
     Gera uma mensagem profissional para o cliente sobre o estado do serviço: {status}.
     Nome do Cliente: {clientName}
     Tarefa: {taskTitle}

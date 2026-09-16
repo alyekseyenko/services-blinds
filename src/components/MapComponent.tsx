@@ -318,7 +318,7 @@ export default function MapComponent({
               scale: 1.5,
               anchor: new window.google.maps.Point(12, 12)
             }}
-            title="Sede Habitarmos"
+            title="Headquarters"
           />
         )}
 

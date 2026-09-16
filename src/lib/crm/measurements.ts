@@ -50,7 +50,7 @@ export async function saveMeasurements(taskId: string, opportunityId: string, me
       markdownSummary += `\n---\n`;
     });
 
-    markdownSummary += `\n*Relatório gerado automaticamente pela App Técnica Habitarmos.*`;
+    markdownSummary += `\n*Relatório gerado automaticamente pela App Técnica ${process.env.NEXT_PUBLIC_APP_NAME || "Blinds Technical Services"}.*`;
     const cleanedExistingNotes = existingNotes.replace(/<!--\s*\[JSON_MEASUREMENTS\].*?\s*-->/g, '').trim();
     const finalNotes = `<!-- [JSON_MEASUREMENTS]${JSON.stringify(measurements)} -->\n${markdownSummary}\n\n${cleanedExistingNotes}`;
 

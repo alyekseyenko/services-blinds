@@ -109,7 +109,8 @@ run(client, "docker stop habitarmos-nginx 2>/dev/null; docker update --restart=n
 
 time.sleep(8)
 run(client, 'curl -sS -o /tmp/h.out -w "local3005 HTTP %{http_code}\\n" http://localhost:3005/api/health; cat /tmp/h.out')
-run(client, 'curl -sS -o /tmp/h2.out -w "prod HTTPS HTTP %{http_code}\\n" https://tecnicos.estoresrainha.com/api/health; cat /tmp/h2.out')
+health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
+run(client, f'curl -sS -o /tmp/h2.out -w "prod health HTTP %{{http_code}}\\n" {health_url}; cat /tmp/h2.out')
 run(client, 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -8')
 
 client.close()

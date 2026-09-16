@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Star, Send, CheckCircle2, MessageSquare, Heart, AlertTriangle } from "lucide-react";
 import { submitEvaluationAction } from "@/actions/public-portal-actions";
+import { COMPANY_LABEL, COMPANY_WEBSITE } from "@/lib/branding";
 
 export default function ClienteAvaliacao() {
   const { id } = useParams<{ id: string }>();
@@ -57,7 +58,7 @@ export default function ClienteAvaliacao() {
           <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-slate-900 mb-3">Link inválido</h1>
           <p className="text-slate-600 text-sm">
-            Este link de avaliação expirou ou não é válido. Contacte a Habitarmos se precisar de ajuda.
+            Este link de avaliação expirou ou não é válido. Contacte {COMPANY_LABEL} se precisar de ajuda.
           </p>
         </div>
       </div>
@@ -73,7 +74,7 @@ export default function ClienteAvaliacao() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-4">Obrigado pelo seu Feedback!</h1>
           <p className="text-slate-600 mb-8 leading-relaxed">
-            A sua opinião é fundamental para mantermos a excelência nos nossos serviços Habitarmos.
+            A sua opinião é fundamental para mantermos a excelência nos nossos serviços.
           </p>
           <div className="flex justify-center gap-1 mb-8">
             {[1, 2, 3, 4, 5].map((star) => (
@@ -86,7 +87,7 @@ export default function ClienteAvaliacao() {
           <button
             type="button"
             onClick={() => {
-              window.location.href = "https://habitarmos.pt";
+              window.location.href = COMPANY_WEBSITE;
             }}
             className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
           >
@@ -183,7 +184,7 @@ export default function ClienteAvaliacao() {
           </button>
 
           <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            Habitarmos - Qualidade e Confiança
+            {COMPANY_LABEL} — Qualidade e Confiança
           </p>
         </form>
       </div>

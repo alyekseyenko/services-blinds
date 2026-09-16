@@ -444,8 +444,8 @@ graph LR
 graph LR
     subgraph "Hetzner Cloud VPS (Alemanha - CPX21 / Ubuntu 24.04)"
         CF["Cloudflare Edge SSL (TLS 1.3 Strict)"] --> NGINX["Nginx Reverse Proxy (:80/:443)"]
-        NGINX -->|app.estoresrainha.pt| APP["Next.js 16 WebApp Container (:3000)"]
-        NGINX -->|crm.estoresrainha.pt| CRM_SRV["Twenty CRM Core Container (:3000)"]
+        NGINX -->|technicians.yourcompany.com| APP["Next.js 16 WebApp Container (:3000)"]
+        NGINX -->|crm.yourcompany.com| CRM_SRV["Twenty CRM Core Container (:3000)"]
         CRM_SRV --> PG["PostgreSQL Dedicated Database (:5432)"]
     end
     

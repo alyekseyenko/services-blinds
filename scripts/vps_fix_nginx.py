@@ -11,7 +11,7 @@ if not all([hostname, username, password]):
 
 APP_NGINX = """server {
     listen 80;
-    server_name app.estoresrainha.pt;
+    server_name technicians.yourcompany.com;
 
     client_max_body_size 50M;
 
@@ -32,7 +32,7 @@ APP_NGINX = """server {
 
 server {
     listen 80;
-    server_name crm.estoresrainha.pt;
+    server_name crm.yourcompany.com;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -87,10 +87,9 @@ run("nginx -t")
 run("systemctl reload nginx")
 
 # 4. Verificações
-run('curl -sS -o /tmp/h.out -w "HTTP %{http_code}\\n" -H "Host: app.estoresrainha.pt" http://127.0.0.1/api/health; cat /tmp/h.out')
-run('curl -sS -o /dev/null -w "HTTP %{http_code}\\n" -H "Host: crm.estoresrainha.pt" http://127.0.0.1/ || true')
-run(f'curl -sS -o /dev/null -w "HTTP %{{http_code}}\\n" -H "Host: app.estoresrainha.pt" http://{hostname}/api/health')
-run("cat /etc/nginx/sites-available/estoresrainha 2>/dev/null | head -40 || true")
+health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
+run(f'curl -sS -o /tmp/h.out -w "HTTP %{{http_code}}\\n" {health_url}; cat /tmp/h.out')
+run(f'curl -sS -o /dev/null -w "HTTP %{{http_code}}\\n" {health_url}')
 run('docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -10')
 
 client.close()

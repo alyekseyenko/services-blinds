@@ -1,10 +1,10 @@
 async function testWebhook() {
-  const url = 'http://localhost:5678/webhook-test/habitarmos-notifications';
+  const url = 'http://localhost:5678/webhook-test/app-notifications';
   const data = {
     event: 'appointment_scheduled',
     title: 'Teste de Conexão',
     dueAt: new Date().toISOString(),
-    pointOfContactEmail: 'teste@habitarmos.pt',
+    pointOfContactEmail: 'test@example.com',
     cancelUrl: 'http://localhost:3000/cancelamento/teste',
     evaluationUrl: 'http://localhost:3000/avaliacao/teste'
   };

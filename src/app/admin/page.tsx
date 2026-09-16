@@ -391,7 +391,7 @@ export default function Admin() {
     optEuclidean += distToHQ;
     setSavingRatio(optEuclidean > 0 ? (unoptEuclidean / optEuclidean) : 1);
     
-    setOptimizedRoute([...result, { id: 'return-to-hq', title: 'Regresso à Sede', client: 'Habitarmos HQ', coordinates: HQ_LOCATION.coordinates, distanceFromLast: (distToHQ * 111).toFixed(1), isReturn: true }]);
+    setOptimizedRoute([...result, { id: 'return-to-hq', title: 'Regresso à Sede', client: 'HQ', coordinates: HQ_LOCATION.coordinates, distanceFromLast: (distToHQ * 111).toFixed(1), isReturn: true }]);
     setIsOptimizing(false);
   };
 

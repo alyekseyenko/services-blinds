@@ -26,7 +26,7 @@ describe('Twenty auth role mapping', () => {
         workspaceMembers: [
           {
             id: 'member-1',
-            userEmail: 'ana@habitarmos.com',
+            userEmail: 'ana@example.com',
             name: { firstName: 'Ana', lastName: 'Ferreira' },
           },
         ],
@@ -37,7 +37,7 @@ describe('Twenty auth role mapping', () => {
         workspaceMembers: [
           {
             id: 'tech-1',
-            userEmail: 'tecnico@habitarmos.com',
+            userEmail: 'technician@example.com',
             name: { firstName: 'Técnico', lastName: 'Um' },
           },
         ],

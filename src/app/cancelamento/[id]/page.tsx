@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { XCircle, Send, CheckCircle2, AlertTriangle, Home } from "lucide-react";
 import { cancelAppointmentAction } from "@/actions/public-portal-actions";
+import { COMPANY_LABEL, COMPANY_WEBSITE } from "@/lib/branding";
 
 export default function ClienteCancelamento() {
   const { id } = useParams<{ id: string }>();
@@ -54,7 +55,7 @@ export default function ClienteCancelamento() {
           <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-slate-900 mb-3">Link inválido</h1>
           <p className="text-slate-600 text-sm">
-            Este link de cancelamento expirou ou não é válido. Contacte a Habitarmos se precisar de ajuda.
+            Este link de cancelamento expirou ou não é válido. Contacte {COMPANY_LABEL} se precisar de ajuda.
           </p>
         </div>
       </div>
@@ -75,7 +76,7 @@ export default function ClienteCancelamento() {
           <button
             type="button"
             onClick={() => {
-              window.location.href = "https://habitarmos.pt";
+              window.location.href = COMPANY_WEBSITE;
             }}
             className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
           >
@@ -145,7 +146,7 @@ export default function ClienteCancelamento() {
           </button>
 
           <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest pt-2">
-            Habitarmos - Assistência Técnica 2026
+            {COMPANY_LABEL} — Assistência Técnica
           </p>
         </form>
       </div>

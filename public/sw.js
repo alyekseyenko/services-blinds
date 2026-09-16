@@ -1,7 +1,7 @@
-const CACHE_NAME = 'habitarmos-cache-v2';
+const CACHE_NAME = 'technician-app-cache-v3';
 const urlsToCache = [
   '/',
-  '/manifest.json',
+  '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png'
 ];
@@ -58,7 +58,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Habitarmos Técnica', options)
+      self.registration.showNotification(data.title || 'Technical Services', options)
     );
   }
 });

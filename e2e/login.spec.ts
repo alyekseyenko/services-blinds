@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('login page loads and has correct title', async ({ page }) => {
   await page.goto('http://localhost:3000');
-  await expect(page).toHaveTitle(/ESTORESRAINHA/);
+  await expect(page).toHaveTitle(/Blinds|Technical|Services/i);
 });
 
 test('shows simplified twenty login form', async ({ page }) => {

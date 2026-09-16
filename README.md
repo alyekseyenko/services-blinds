@@ -248,6 +248,16 @@ docs/adrs/                # Architecture decision records
 
 ---
 
+## Security & privacy (GitHub)
+
+- **Never commit** `.env.local` — it holds API keys, secrets, and real domains.
+- The repo uses **generic placeholders** (`yourcompany.com`, `Blinds Technical Services`).
+- Production branding and URLs are set **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md).
+- Keep the repository **Private** if you want extra protection.
+- Deploy scripts read `VPS_HOST`, `VPS_PASSWORD`, and `DEPLOY_HEALTH_URL` from your **local environment**, not from Git.
+
+---
+
 ## License
 
 Private — all rights reserved.

@@ -18,8 +18,8 @@ commands = [
     'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20',
     'curl -sS -o /tmp/health3005.out -w "HTTP %{http_code} time %{time_total}s\\n" http://localhost:3005/api/health; echo ---; cat /tmp/health3005.out',
     'curl -sS -o /dev/null -w "HTTP %{http_code}\\n" http://localhost/api/health || true',
-    'curl -sS -o /dev/null -w "HTTP %{http_code}\\n" -H "Host: app.estoresrainha.pt" http://127.0.0.1/api/health || true',
-    'curl -sS -o /dev/null -w "HTTP %{http_code}\\n" https://app.estoresrainha.pt/api/health || true',
+    'curl -sS -o /dev/null -w "HTTP %{http_code}\\n" http://127.0.0.1:3000/api/health || true',
+    f'curl -sS -o /dev/null -w "HTTP %{{http_code}}\\n" {os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")} || true',
     'ss -tlnp | grep -E ":80|:3005|:3000" || true',
 ]
 

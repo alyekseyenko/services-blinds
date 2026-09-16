@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     log(`A iniciar criação de Serviço Completo de Exemplo (Executado por: ${session.user.name || session.user.email})...`);
 
     const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
-    const clientEmail = `carlos.mendes.qa${randomSuffix}@estoresrainha.pt`;
+    const clientEmail = `carlos.mendes.qa${randomSuffix}@example.com`;
     const nsiNumber = 950000 + randomSuffix;
 
     // 2. Criar Cliente (Person) com dados completos

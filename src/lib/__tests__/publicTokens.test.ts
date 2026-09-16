@@ -47,7 +47,7 @@ describe("publicTokens", () => {
   });
 
   it("gera URLs com query token", () => {
-    const baseUrl = "https://tecnicos.estoresrainha.com";
+    const baseUrl = "https://technicians.example.com";
     const evaluationUrl = buildEvaluationUrl("550e8400-e29b-41d4-a716-446655440000", baseUrl);
     const cancellationUrl = buildCancellationUrl("6ba7b810-9dad-11d1-80b4-00c04fd430c8", baseUrl);
 

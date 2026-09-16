@@ -13,7 +13,7 @@ export interface NotificationResponse {
  * Server Action to trigger notifications with Outbox Guarantee and Idempotency
  */
 export async function serverTriggerNotification(event: string, data: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/habitarmos-notifications';
+  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/blinds-notifications';
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   try {
@@ -46,7 +46,7 @@ export async function serverTriggerNotification(event: string, data: Record<stri
  * Server Action to trigger measurements report generation (PDF/Excel)
  */
 export async function serverTriggerMeasurementsReport(payload: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/habitarmos-measurements';
+  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/blinds-measurements';
   const id = payload.opportunityId || payload.taskId || 'measurements';
   const idempotencyKey = `idemp_meas_report_${id}_${Date.now()}`;
   
@@ -68,7 +68,7 @@ export async function serverTriggerMeasurementsReport(payload: Record<string, an
  * Server Action to trigger a full service report with photos and organized storage
  */
 export async function serverTriggerServiceReport(payload: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_REPORTS || 'http://localhost:5678/webhook-test/habitarmos-service-reports';
+  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_REPORTS || 'http://localhost:5678/webhook-test/blinds-service-reports';
   const id = payload.opportunityId || payload.taskId || 'report';
   const idempotencyKey = `idemp_svc_report_${id}_${Date.now()}`;
   

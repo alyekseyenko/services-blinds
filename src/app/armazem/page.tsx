@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { LogOut, Package, RefreshCw, Loader2, Search, AlertCircle, CheckCircle, Crown, Layers, CheckSquare, Clock } from "lucide-react";
 import { fetchPreparationList, updateOpportunityStage } from "@/lib/crm/opportunities";
 import PreparationCard, { Service } from "@/components/warehouse/PreparationCard";
+import { APP_NAME, APP_SHORT_NAME } from "@/lib/branding";
 
 export default function WarehouseDashboard() {
   const router = useRouter();
@@ -130,10 +131,10 @@ export default function WarehouseDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black uppercase tracking-tighter text-[#090d16]">
-                  ESTORES<span className="text-[#84cc16]">RAINHA</span>
+                  {APP_NAME}
                 </h1>
                 <span className="bg-[#121622] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md border border-slate-800">
-                  PRO
+                  {APP_SHORT_NAME}
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Gestão de Produção & Armazém</p>
@@ -162,7 +163,7 @@ export default function WarehouseDashboard() {
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-[#84cc16] animate-ping" />
             <p className="text-slate-700 text-sm font-semibold">
-              Sincronizado em tempo real com o CRM central <span className="text-[#090d16] font-bold">ESTORESRAINHA</span>.
+              Sincronizado em tempo real com o CRM central.
             </p>
           </div>
           <span className="text-xs text-slate-500 font-medium">
@@ -257,12 +258,12 @@ export default function WarehouseDashboard() {
         )}
       </main>
 
-      {/* Footer Branding - ESTORESRAINHA */}
+      {/* Footer */}
       <footer className="fixed bottom-0 left-0 w-full glass-panel-light border-t border-slate-200 py-5 px-6 text-center z-40">
         <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] flex items-center justify-center gap-2">
           <span>Sistema de Controlo de Produção</span>
           <Crown className="w-3.5 h-3.5 text-[#84cc16]" />
-          <span className="text-slate-400">ESTORESRAINHA v4.0</span>
+          <span className="text-slate-400">Warehouse v4.0</span>
         </p>
       </footer>
     </div>

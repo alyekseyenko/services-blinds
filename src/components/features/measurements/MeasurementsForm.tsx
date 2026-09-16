@@ -6,6 +6,7 @@ import { useMeasurements } from "@/hooks/useMeasurements";
 import { ProductGroupCard } from "./ProductGroupCard";
 
 import { useToast } from "@/components/ui/ToastContext";
+import { COMPANY_LABEL } from "@/lib/branding";
 
 interface MeasurementsFormProps {
   task?: Task;
@@ -119,7 +120,7 @@ export default function MeasurementsForm({ task, onSave, isAdmin = false }: Meas
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Ficha Técnica de Medição</h1>
-            <p className="text-xl font-bold text-slate-500 mt-1 uppercase tracking-widest">Habitarmos - Soluções para Janelas</p>
+            <p className="text-xl font-bold text-slate-500 mt-1 uppercase tracking-widest">{COMPANY_LABEL}</p>
           </div>
           <div className="text-right">
             <div className="bg-slate-900 text-white px-6 py-2 rounded-xl text-xl font-black">NSI #{task?.nsi || 'N/A'}</div>

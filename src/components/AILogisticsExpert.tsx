@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Send, X, MessageSquare, Sparkles, Loader2 } from 'lucide-react';
 import { askExpertAgent } from '@/lib/expertAgentAction';
+import { COMPANY_LABEL } from '@/lib/branding';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -22,7 +23,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Olá! Sou o seu Expert em Logística Habitarmos. Como posso ajudar com os pedidos e agendamentos hoje?',
+      content: `Olá! Sou o seu Expert em Logística ${COMPANY_LABEL}. Como posso ajudar com os pedidos e agendamentos hoje?`,
       timestamp: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
     }
   ]);

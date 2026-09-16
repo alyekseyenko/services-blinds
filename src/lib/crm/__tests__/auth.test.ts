@@ -27,12 +27,12 @@ describe('validateUserCredentials', () => {
       id: 'member-1',
       userId: 'user-1',
       name: 'Ana Ferreira',
-      email: 'ana@habitarmos.com',
+      email: 'ana@example.com',
       role: 'admin',
       twentyRoleLabel: 'Member',
     });
 
-    const user = await validateUserCredentials('ana@habitarmos.com', 'secret');
+    const user = await validateUserCredentials('ana@example.com', 'secret');
     expect(user?.name).toBe('Ana Ferreira');
     expect(user?.role).toBe('admin');
   });
@@ -42,7 +42,7 @@ describe('validateUserCredentials', () => {
       new TwentyAuthError('Credenciais inválidas', 'INVALID_CREDENTIALS')
     );
 
-    const user = await validateUserCredentials('ana@habitarmos.com', 'wrong');
+    const user = await validateUserCredentials('ana@example.com', 'wrong');
     expect(user).toBeNull();
   });
 
@@ -51,7 +51,7 @@ describe('validateUserCredentials', () => {
       new TwentyAuthError('Sem permissão', 'NO_APP_ROLE')
     );
 
-    const user = await validateUserCredentials('unknown@habitarmos.com', 'secret');
+    const user = await validateUserCredentials('unknown@example.com', 'secret');
     expect(user).toBeNull();
   });
 });

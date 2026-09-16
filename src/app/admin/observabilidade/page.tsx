@@ -34,6 +34,7 @@ import {
   Layers
 } from "lucide-react";
 import type { QADiagnosticReport } from "@/lib/qaDiagnostics";
+import { APP_NAME } from "@/lib/branding";
 
 
 interface TelemetryData {
@@ -359,7 +360,7 @@ export default function ObservabilityDashboard() {
               </span>
             </div>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Habitarmos Core Engine • Status: Operacional • Uptime: {telemetry ? `${Math.floor(telemetry.uptimeSeconds / 60)}m` : '...'}
+              {APP_NAME} Core Engine • Status: Operacional • Uptime: {telemetry ? `${Math.floor(telemetry.uptimeSeconds / 60)}m` : '...'}
             </p>
           </div>
         </div>

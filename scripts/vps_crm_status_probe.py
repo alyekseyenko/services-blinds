@@ -2,8 +2,11 @@ import os
 import sys
 import paramiko
 
-hostname = sys.argv[1] if len(sys.argv) > 1 else "167.233.121.62"
-password = os.environ["VPS_PASSWORD"]
+hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
+password = os.environ.get("VPS_PASSWORD")
+container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+if not hostname or not password:
+    raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
 
 node_script = r"""
 const k = process.env.TWENTY_API_KEY;
@@ -66,8 +69,8 @@ with sftp.file("/tmp/crm_status_probe.js", "w") as f:
 sftp.close()
 
 _, stdout, stderr = client.exec_command(
-    "docker cp /tmp/crm_status_probe.js habitarmos-app:/tmp/crm_status_probe.js && "
-    "docker exec habitarmos-app node /tmp/crm_status_probe.js",
+    f"docker cp /tmp/crm_status_probe.js {container_app}:/tmp/crm_status_probe.js && "
+    f"docker exec {container_app} node /tmp/crm_status_probe.js",
     timeout=120,
 )
 print(stdout.read().decode("utf-8", errors="replace"))

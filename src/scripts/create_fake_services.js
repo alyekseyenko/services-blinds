@@ -1,5 +1,10 @@
-const TWENTY_MCP_URL = 'http://localhost:3001';
-const TWENTY_API_KEY = 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImM0MDZmY2IzLTU2ZjYtNDRlOC1hYWRjLWMxOWE1NjIwZTIyZiJ9.eyJzdWIiOiIzY2UxYmFlZi1jMTk5LTQwYjgtOWFmNS0zZWYwZjk2NDFhNmMiLCJ0eXBlIjoiQVBJX0tFWSIsIndvcmtzcGFjZUlkIjoiM2NlMWJhZWYtYzE5OS00MGI4LTlhZjUtM2VmMGY5NjQxYTZjIiwiaWF0IjoxNzgyNDgzMDQzLCJleHAiOjQ5MzYwODMwNDIsImp0aSI6ImU3ODA4YWU5LTcwNTItNDAxOS1iYjI2LTlhMmMzOTJmMDQ1ZCJ9.s_ensyu3uOpBOjIOEhDaqlJQQTh-d1vdwv2D4zWroJbb4MU8xVDJDn3RMynNqmo6oeuzow7vC9olY_5fHt7-ig';
+const TWENTY_MCP_URL = process.env.TWENTY_MCP_URL || 'http://localhost:3001';
+const TWENTY_API_KEY = process.env.TWENTY_API_KEY;
+
+if (!TWENTY_API_KEY) {
+  console.error('Set TWENTY_API_KEY in the environment.');
+  process.exit(1);
+}
 
 async function createOpp(name, type, personId, address, amount, notes, nsi) {
   const query = `mutation createOpp($data: OpportunityCreateInput!) {

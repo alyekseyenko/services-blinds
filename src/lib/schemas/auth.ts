@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const AppRoleSchema = z.enum(["admin", "technician", "warehouse", "ceo"]);
+export const AppRoleSchema = z.enum(["admin", "member", "technician", "warehouse", "ceo"]);
 export type AppRole = z.infer<typeof AppRoleSchema>;
 
 export const AuthenticatedAppUserSchema = z.object({

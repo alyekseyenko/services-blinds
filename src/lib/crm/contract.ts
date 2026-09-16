@@ -237,11 +237,11 @@ export const TWENTY_ROLE_LABELS = {
   WAREHOUSE: 'Armazem',
 } as const;
 
-export type AppRole = 'admin' | 'technician' | 'warehouse' | 'ceo';
+export type AppRole = 'admin' | 'member' | 'technician' | 'warehouse' | 'ceo';
 
 export const TWENTY_ROLE_TO_APP_ROLE: Record<string, AppRole> = {
   ADMIN: 'admin',
-  // Twenty "Member" is a CRM default role — not app admin (no CEO/SRE/admin panel).
+  MEMBER: 'member',
   TECNICOS: 'technician',
   TECNICO: 'technician',
   CEO: 'ceo',
@@ -250,6 +250,7 @@ export const TWENTY_ROLE_TO_APP_ROLE: Record<string, AppRole> = {
 
 export const APP_ROLE_HOME: Record<AppRole, string> = {
   admin: '/admin',
+  member: '/admin',
   technician: '/dashboard',
   warehouse: '/armazem',
   ceo: '/ceo',

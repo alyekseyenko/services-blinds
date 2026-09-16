@@ -184,10 +184,13 @@ export default function Admin() {
     if (sessionStatus === "loading") return;
 
     const userRole = (session?.user as any)?.role;
-    if (!session || (userRole !== "admin" && userRole !== "ceo")) {
+    if (!session || (userRole !== "admin" && userRole !== "member" && userRole !== "ceo")) {
       router.replace("/");
     } else {
-      setUserName(session?.user?.name || (userRole === "ceo" ? "CEO Executivo" : "Administrador"));
+      setUserName(
+        session?.user?.name ||
+          (userRole === "ceo" ? "CEO Executivo" : userRole === "member" ? "Membro" : "Administrador")
+      );
     }
   }, [session, sessionStatus, router]);
 

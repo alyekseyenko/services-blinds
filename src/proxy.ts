@@ -23,7 +23,7 @@ export default withAuth(
 
       if (
         pathname.startsWith("/api/opportunities/maintenance") &&
-        !hasRole(role, ["admin", "ceo"])
+        !hasRole(role, ["admin", "member", "ceo"])
       ) {
         return NextResponse.json(
           { error: "Acesso não autorizado." },
@@ -31,7 +31,7 @@ export default withAuth(
         );
       }
 
-      const strictAdminApis = ["/api/qa", "/api/members", "/api/observability", "/api/sync-telemetry"];
+      const strictAdminApis = ["/api/qa", "/api/observability", "/api/sync-telemetry"];
       if (strictAdminApis.some((prefix) => pathname.startsWith(prefix)) && role !== "admin") {
         return NextResponse.json(
           { error: "Acesso não autorizado. Apenas administradores podem aceder a esta API." },
@@ -47,7 +47,7 @@ export default withAuth(
       return NextResponse.redirect(new URL(fallback, req.url));
     }
 
-    if (pathname.startsWith("/admin") && !hasRole(role, ["admin", "ceo"])) {
+    if (pathname.startsWith("/admin") && !hasRole(role, ["admin", "member", "ceo"])) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 

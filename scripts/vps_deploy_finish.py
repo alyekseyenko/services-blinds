@@ -6,7 +6,8 @@ import paramiko
 hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
 password = os.environ.get("VPS_PASSWORD")
 health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
-container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+container_app = os.environ.get("CONTAINER_APP", "technician-app")
+container_nginx = os.environ.get("CONTAINER_NGINX", "technician-nginx")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
 remote_dir = "/root/app-tecnicos"
@@ -32,7 +33,7 @@ if code != 0:
     print("BUILD may have failed, exit:", code)
 
 run(f"cd {remote_dir} && docker compose up -d app-tecnicos redis")
-run("docker stop habitarmos-nginx 2>/dev/null; docker update --restart=no habitarmos-nginx 2>/dev/null || true")
+run(f"docker stop {container_nginx} 2>/dev/null; docker update --restart=no {container_nginx} 2>/dev/null || true")
 time.sleep(10)
 run('curl -sS http://localhost:3005/api/health')
 run(f"curl -sS {health_url}")

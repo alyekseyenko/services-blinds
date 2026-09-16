@@ -1,6 +1,7 @@
 import { crmFetch } from "./client";
 import { CRM_STAGES, CRM_TASK_STATUS } from "./contract";
 import { recentYears, yearToUtcRange } from "./dateFilters";
+import { HQ_COORDINATES } from "@/lib/hq";
 import { 
   CeoMetrics, 
   CeoMetricsSchema, 
@@ -55,9 +56,6 @@ const MONTH_SHORTS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez"
 ];
-
-// Coordenadas da Sede (Caldas da Rainha)
-const HQ_COORDINATES: [number, number] = [39.41595, -9.13266];
 
 function haversineDistanceKm(coord1: [number, number], coord2: [number, number]): number {
   const R = 6371; // Raio da Terra em km

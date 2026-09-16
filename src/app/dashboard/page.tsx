@@ -25,14 +25,11 @@ import Header from "@/components/dashboard/Header";
 import BottomNav from "@/components/dashboard/BottomNav";
 import TaskCard from "@/components/dashboard/TaskCard";
 import TaskDetailsDrawer from "@/components/dashboard/TaskDetailsDrawer";
+import { getHqLocation } from "@/lib/hq";
 
 const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false });
 
-const HQ_LOCATION = {
-  address: "R. Dr. Artur Figueiroa Rego 60, 2500-187 Caldas da Rainha",
-  coordinates: [39.41595, -9.13266] as [number, number],
-  name: "Sede - Caldas da Rainha"
-};
+const HQ_LOCATION = getHqLocation();
 
 const locales = {
   'pt-PT': pt

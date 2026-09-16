@@ -25,11 +25,16 @@ NEXT_PUBLIC_COMPANY_WEBSITE=https://your-company.com
 NEXT_PUBLIC_COMPANY_LABEL=Your Company Name
 NEXT_PUBLIC_LOGIN_EMAIL_PLACEHOLDER=user@yourcompany.com
 NEXT_PUBLIC_HQ_LABEL=Your HQ Name
+NEXT_PUBLIC_HQ_ADDRESS=Your full HQ address
+NEXT_PUBLIC_HQ_LAT=39.41595
+NEXT_PUBLIC_HQ_LNG=-9.13266
 
 # Optional deploy scripts (local machine only — do not commit)
 # VPS_HOST=your.server.ip
 # VPS_PASSWORD=...
 # DEPLOY_HEALTH_URL=https://technicians.your-real-domain.com/api/health
+# CONTAINER_APP=technician-app
+# CONTAINER_NGINX=technician-nginx
 ```
 
 ## Deploy scripts

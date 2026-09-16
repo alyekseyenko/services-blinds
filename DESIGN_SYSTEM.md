@@ -1,4 +1,4 @@
-# Estores Rainha Pro - Design System & Ergonomic Guidelines
+# Blinds Technical Services - Design System & Ergonomic Guidelines
 
 Este documento serve como a **Fonte Única de Verdade (Single Source of Truth)** para a identidade visual, padrões de UI e design system do ecossistema **Blinds Technical Services** (nome configurável via `NEXT_PUBLIC_APP_NAME` em produção). 
 Todas as futuras alterações, novos ecrãs, componentes ou agentes de IA devem seguir estas diretrizes com rigor absoluto.

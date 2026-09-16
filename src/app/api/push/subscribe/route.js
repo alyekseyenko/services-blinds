@@ -10,7 +10,7 @@ export async function POST(request) {
     console.log(`[Push] New subscription received for user: ${userName} (${userId})`);
     
     // Forward to n8n for management
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_PUSH || 'http://localhost:5678/webhook-test/habitarmos-push-subscription';
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_PUSH || 'http://localhost:5678/webhook-test/app-push-subscription';
     
     await fetch(n8nWebhookUrl, {
       method: 'POST',

@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     `;
     const oppData = await crmFetch<any>(createOppMutation, {
       data: {
-        name: `Serviço Exemplar QA - Moradia Rainha ${randomSuffix}`,
+        name: `Serviço Exemplar QA - Moradia ${randomSuffix}`,
         nsi: nsiNumber,
         tipoDeServico: ["INSTALACAO", "TIRAR_MEDIDAS"],
         pointOfContactId: personId,
@@ -100,15 +100,15 @@ export async function POST(request: NextRequest) {
         moradaDeServico: {
           addressStreet1: "Avenida Silva Gaio, Nº 42, 2º Dto",
           addressStreet2: "Frente ao Parque D. Carlos I",
-          addressCity: "Caldas da Rainha",
-          addressPostcode: "2500-285",
-          addressState: "Leiria",
+          addressCity: "Example City",
+          addressPostcode: "1000-001",
+          addressState: "Example Region",
           addressCountry: "Portugal",
           addressLat: 39.4055,
           addressLng: -9.1333
         },
         notasImportantes: {
-          markdown: "## Exemplo de Sucesso QA\n- **Cliente:** Carlos Mendes\n- **Contacto:** 912345678\n- **Preferência:** Contacto no período da manhã (09:00 - 12:00)\n- **Tipo de Estores:** Alumínio térmico RAL 7016 com motorização Somfy RTS."
+          markdown: "## Exemplo de Sucesso QA\n- **Cliente:** Example Client\n- **Contacto:** 900000000\n- **Preferência:** Contacto no período da manhã (09:00 - 12:00)\n- **Tipo:** Alumínio térmico RAL 7016 com motorização."
         }
       }
     });
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       oppId,
       personId,
       "Nota Inicial de Acompanhamento (Exemplo QA)",
-      "Contacto inicial realizado com sucesso. Cliente confirmou interesse em orçamento completo para 6 estores térmicos com acionamento por comando à distância. Aguarda visita técnica ou envio de proposta."
+      "Contacto inicial realizado com sucesso. Cliente confirmou interesse em orçamento completo para 6 unidades térmicas com acionamento por comando à distância. Aguarda visita técnica ou envio de proposta."
     );
     log(`Nota criada e associada à Oportunidade e Cliente com sucesso (ID: ${note?.id || 'OK'})`);
 

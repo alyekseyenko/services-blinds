@@ -44,6 +44,7 @@ import { CeoMetrics, CeoServiceItem, ClientFollowUp, TechnicianRanking } from "@
 import { useToast } from "@/components/ui/ToastContext";
 import { canAccessCeoPanel } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
+import { HQ_LABEL } from "@/lib/branding";
 
 export default function CeoDashboard() {
   const { data: session, status: sessionStatus } = useSession();
@@ -167,7 +168,7 @@ export default function CeoDashboard() {
             <div className="w-16 h-16 flex items-center justify-center relative shrink-0">
               <Image 
                 src="/favi_64.png" 
-                alt="Estores Rainha Logo" 
+                alt="Company logo" 
                 width={64} 
                 height={64} 
                 className="w-14 h-14 object-contain drop-shadow-sm"
@@ -968,7 +969,7 @@ export default function CeoDashboard() {
                   <div className="flex items-center gap-2">
                     <span className="bg-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-blue-600" />
-                      Ponto de Partida: Sede (Caldas da Rainha)
+                      Ponto de Partida: {HQ_LABEL}
                     </span>
                   </div>
                   <h2 className="text-xl font-black text-[#090d16] tracking-tight uppercase italic flex items-center gap-2 mt-2">

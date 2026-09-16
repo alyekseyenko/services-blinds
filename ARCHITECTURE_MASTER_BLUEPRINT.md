@@ -1,5 +1,5 @@
 # 🏛️ Blueprint Mestre de Arquitetura & Engenharia de Sistemas
-## Sistema Integrado de Gestão Técnica, Logística e IA Cognitiva — Habitarmos
+## Sistema Integrado de Gestão Técnica, Logística e IA Cognitiva — Blinds Technical Services
 
 ---
 
@@ -23,12 +23,12 @@
 
 ## 1. Visão Executiva & Princípios de Engenharia
 
-O ecossistema **Habitarmos Técnica** é uma plataforma de missão crítica desenhada para operar **24 horas por dia, 7 dias por semana, com tolerância total a falhas**.
+O ecossistema **Blinds Technical Services Técnica** é uma plataforma de missão crítica desenhada para operar **24 horas por dia, 7 dias por semana, com tolerância total a falhas**.
 O sistema assegura a continuidade de negócio em operações de terreno, blindando a aplicação contra indisponibilidades de rede móvel, falhas de APIs externas ou alterações estruturais no Twenty CRM.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          HABITARMOS CORE PLATFORM                           │
+│                          FIELD OPS CORE PLATFORM                           │
 ├──────────────────┬───────────────────────────┬──────────────────────────────┤
 │ CRM CONTRACT BUS │     OFFLINE-FIRST SYNC    │     TRANSACTIONAL OUTBOX     │
 │ Zero-Coupling    │   Dexie.js + Auto-Retry   │  At-Least-Once Delivery + GC │
@@ -53,13 +53,13 @@ O sistema assegura a continuidade de negócio em operações de terreno, blindan
 
 ```mermaid
 C4Context
-  title Contexto de Sistema - Habitarmos Técnica
+  title Contexto de Sistema - Blinds Technical Services Técnica
 
   Person(admin, "Administrador / Gestor", "Planeamento de rotas, agendamento de visitas e monitorização da operação.")
   Person(tech, "Técnico no Terreno", "Consulta de agenda, navegação GPS, registo de medições e relatórios fotográficos.")
   Person(wh, "Responsável de Armazém", "Gestão de estado das peças, conferência de material e preparação de encomendas.")
 
-  System(app, "Habitarmos WebApp (PWA)", "Next.js 16 App Router com suporte offline, Contract Layer e motor SRE.")
+  System(app, "Blinds Technical Services WebApp (PWA)", "Next.js 16 App Router com suporte offline, Contract Layer e motor SRE.")
   
   System_Ext(crm, "Twenty CRM", "Repositório central de dados (GraphQL): Oportunidades, Tarefas, Pessoas e Itens.")
   System_Ext(n8n, "n8n Automation Engine", "Automação de notificações, relatórios em PDF/Excel e envio para Google Drive.")
@@ -277,7 +277,7 @@ sequenceDiagram
     autonumber
     actor Tech as Técnico no Terreno
     participant UI as Interface React
-    participant IDB as Dexie.js (HabitarmosDB)
+    participant IDB as Dexie.js (Blinds Technical ServicesDB)
     participant Sync as SyncQueue Worker
     participant Server as Next.js Server Action
     participant CRM as Twenty CRM
@@ -460,7 +460,7 @@ graph LR
 
 ## 🏁 Conclusão
 
-A arquitetura do **Habitarmos Técnica** estabelece um padrão de **engenharia de software de classe empresarial**:
+A arquitetura do **Blinds Technical Services Técnica** estabelece um padrão de **engenharia de software de classe empresarial**:
 - **Zero-Coupling:** Contrato único para fácil manutenção do Twenty CRM.
 - **Zero Data-Loss:** IndexedDB offline e Outbox Queue transacional com retenção controlada.
 - **Zero-Downtime:** Circuit Breaker com auto-recuperação e observabilidade SRE em tempo real.

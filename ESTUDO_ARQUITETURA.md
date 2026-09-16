@@ -1,12 +1,12 @@
-# Estudo de Arquitetura: Habitarmos Técnica
+# Estudo de Arquitetura: Blinds Technical Services
 
-Este documento apresenta uma análise profunda de ponta a ponta (A a Z) da arquitetura, fluxo de dados, segurança, integridade e resiliência offline do sistema **Habitarmos Técnica**.
+Este documento apresenta uma análise profunda de ponta a ponta (A a Z) da arquitetura, fluxo de dados, segurança, integridade e resiliência offline do sistema **Blinds Technical Services**.
 
 ---
 
 ## 1. Visão Geral do Sistema
 
-O **Habitarmos Técnica** é um sistema avançado de Gestão Técnica e Logística desenhado para dispositivos móveis (PWA) e desktops, com foco em técnicos de campo, gestores de armazém e administradores.
+O **Blinds Technical Services** é um sistema avançado de Gestão Técnica e Logística desenhado para dispositivos móveis (PWA) e desktops, com foco em técnicos de campo, gestores de armazém e administradores.
 
 Os pilares fundamentais do sistema são:
 1. **Fidelidade de Dados Real**: Integração direta com o **Twenty CRM** via GraphQL/REST, eliminando mocks.

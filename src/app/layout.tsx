@@ -13,7 +13,7 @@ export const metadata = {
   icons: {
     icon: [
       { url: "/favi_64.png", sizes: "64x64", type: "image/png" },
-      { url: "/logo-estores.png", sizes: "any", type: "image/png" },
+      { url: "/logo.png", sizes: "any", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],

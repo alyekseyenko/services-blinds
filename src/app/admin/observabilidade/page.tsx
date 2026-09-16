@@ -187,7 +187,7 @@ export default function ObservabilityDashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `HABITARMOS_QA_360_REPORT_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    a.download = `QA_360_REPORT_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };

@@ -3,7 +3,7 @@
  *
  * Uso:
  *   node scripts/purge-legacy-appauths.mjs
- *   docker exec habitarmos-app node /app/scripts/purge-legacy-appauths.mjs
+ *   docker exec technician-app node /app/scripts/purge-legacy-appauths.mjs
  */
 
 const TWENTY_API_URL = process.env.TWENTY_API_URL || 'http://twenty-server-1:3000';

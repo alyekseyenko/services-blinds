@@ -4,7 +4,7 @@ import paramiko
 
 hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
 password = os.environ.get("VPS_PASSWORD")
-container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+container_app = os.environ.get("CONTAINER_APP", "technician-app")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
 

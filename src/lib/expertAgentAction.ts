@@ -1,11 +1,9 @@
 import { getLearnings, saveLearning } from './agentMemory';
 import { semanticAiCache } from './ai/semanticCache';
+import { COMPANY_LABEL } from './branding';
+import { getHqLocation } from './hq';
 
-const HQ_LOCATION = {
-  address: "R. Dr. Artur Figueiroa Rego 60, 2500-187 Caldas da Rainha",
-  coordinates: [39.41595, -9.13266] as [number, number],
-  name: "Sede - Caldas da Rainha"
-};
+const HQ_LOCATION = getHqLocation();
 
 export interface ExpertAgentContext {
   opportunities: any[];
@@ -23,7 +21,7 @@ export interface ExpertAgentResponse {
 }
 
 /**
- * Agente Especialista em Logística Habitarmos 2026 com Cache Semântico
+ * Agente Especialista em Logística com Cache Semântico
  */
 export async function askExpertAgent(userMessage: string, context: ExpertAgentContext): Promise<ExpertAgentResponse> {
   try {
@@ -62,7 +60,7 @@ export async function askExpertAgent(userMessage: string, context: ExpertAgentCo
       finalResponse: ""
     };
 
-    // Dicionário de distâncias aproximadas a partir das Caldas
+    // Dicionário de distâncias aproximadas a partir da sede
     const destinations: Record<string, { dist: number; tolls: number; coords: [number, number] }> = {
       "lisboa": { dist: 95, tolls: 15, coords: [38.7223, -9.1393] },
       "porto": { dist: 250, tolls: 45, coords: [41.1579, -8.6291] },
@@ -99,7 +97,7 @@ export async function askExpertAgent(userMessage: string, context: ExpertAgentCo
         return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
       });
 
-      reaction.reasoning = `Pesquisa de oportunidades no corredor Caldas -> ${cityName}. Detetadas ${waypoints.length} paragens possíveis.`;
+      reaction.reasoning = `Pesquisa de oportunidades no corredor sede -> ${cityName}. Detetadas ${waypoints.length} paragens possíveis.`;
       reaction.finalResponse = `OPORTUNIDADES AO CAMINHO: ${cityName}\n` +
                                `──────────────────────\n` +
                                (waypoints.length > 0 ? 
@@ -154,7 +152,7 @@ export async function askExpertAgent(userMessage: string, context: ExpertAgentCo
     }
     else {
       reaction.reasoning = "Resposta padrão para saudação ou dúvida genérica.";
-      reaction.finalResponse = `ESPECIALISTA LOGÍSTICO HABITARMOS\n` +
+      reaction.finalResponse = `ESPECIALISTA LOGÍSTICO ${COMPANY_LABEL}\n` +
                                `──────────────────────\n` +
                                `Olá! Sou o seu consultor de IA.\n\n` +
                                `Experimente perguntar:\n` +

@@ -44,12 +44,9 @@ import { Calendar, dateFnsLocalizer, View } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { getHqLocation } from "@/lib/hq";
 
-const HQ_LOCATION = {
-  address: "R. Dr. Artur Figueiroa Rego 60, 2500-187 Caldas da Rainha",
-  coordinates: [39.41595, -9.13266] as [number, number],
-  name: "Sede - Caldas da Rainha"
-};
+const HQ_LOCATION = getHqLocation();
 
 const locales = { 'pt-PT': pt };
 const localizer = dateFnsLocalizer({

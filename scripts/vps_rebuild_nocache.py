@@ -24,7 +24,7 @@ run("cd /root/app-tecnicos && docker compose build --no-cache app-tecnicos 2>&1 
 run("cd /root/app-tecnicos && docker compose up -d app-tecnicos")
 time.sleep(12)
 health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
-container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+container_app = os.environ.get("CONTAINER_APP", "technician-app")
 run(f"curl -sS {health_url}")
 run(f'docker inspect {container_app} --format "{{{{.Created}}}}"')
 client.close()

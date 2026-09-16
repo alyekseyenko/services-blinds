@@ -4,7 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/app/app-tecnicos}"
 cd "$APP_DIR"
 
-echo "==> Deploy Habitarmos App Técnicos"
+echo "==> Deploy Technician App"
 echo "    Diretório: $APP_DIR"
 
 if [ ! -f ".env.local" ]; then

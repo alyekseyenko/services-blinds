@@ -9,6 +9,9 @@ password = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("VPS_PASSWORD")
 if not all([hostname, username, password]):
     raise SystemExit("Set VPS_HOST, VPS_USER, VPS_PASSWORD")
 
+CONTAINER_NGINX = os.environ.get("CONTAINER_NGINX", "technician-nginx")
+NGINX_SITE = os.environ.get("NGINX_SITE_NAME", "technician-app.conf")
+
 APP_NGINX = """server {
     listen 80;
     server_name technicians.yourcompany.com;
@@ -67,21 +70,21 @@ def run(cmd: str, timeout: int = 120) -> tuple[str, str, int]:
     return out, err, exit_code
 
 # 1. Diagnóstico
-run("docker logs habitarmos-nginx --tail 20 2>&1 || true")
+run(f"docker logs {CONTAINER_NGINX} --tail 20 2>&1 || true")
 run("ls -la /etc/nginx/sites-enabled/ 2>/dev/null || true")
 run("nginx -t 2>&1 || true")
 
 # 2. Parar nginx Docker em crash loop (porta 80 pertence ao host)
-run("docker stop habitarmos-nginx 2>/dev/null || true")
-run("docker update --restart=no habitarmos-nginx 2>/dev/null || true")
+run(f"docker stop {CONTAINER_NGINX} 2>/dev/null || true")
+run(f"docker update --restart=no {CONTAINER_NGINX} 2>/dev/null || true")
 
 # 3. Configurar nginx do host
 sftp = client.open_sftp()
-with sftp.file("/etc/nginx/sites-available/habitarmos.conf", "w") as f:
+with sftp.file(f"/etc/nginx/sites-available/{NGINX_SITE}", "w") as f:
     f.write(APP_NGINX)
 sftp.close()
 
-run("ln -sf /etc/nginx/sites-available/habitarmos.conf /etc/nginx/sites-enabled/habitarmos.conf")
+run(f"ln -sf /etc/nginx/sites-available/{NGINX_SITE} /etc/nginx/sites-enabled/{NGINX_SITE}")
 run("rm -f /etc/nginx/sites-enabled/default")
 run("nginx -t")
 run("systemctl reload nginx")

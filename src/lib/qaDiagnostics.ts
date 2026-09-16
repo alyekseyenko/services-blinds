@@ -165,7 +165,7 @@ export async function runQA360Diagnostic(): Promise<QADiagnosticReport> {
   const aiStart = Date.now();
   try {
     log('4.1 Testando motor de IA e Cache Semântico em memória...');
-    const testQuery = `Quanto tempo demora a entrega para Caldas da Rainha? [QA_PROBE_${Date.now()}]`;
+    const testQuery = `Quanto tempo demora a entrega para Example City? [QA_PROBE_${Date.now()}]`;
     const mockResponse = { estimateDays: 3, routeViable: true, confidence: 0.98 };
 
     // 1. Gravar no cache semântico

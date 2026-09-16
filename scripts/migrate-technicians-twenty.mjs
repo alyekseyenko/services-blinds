@@ -3,7 +3,7 @@
  * e faz backfill de assigneeId nas tarefas antigas.
  *
  * Uso no VPS:
- *   docker exec habitarmos-app node /app/scripts/migrate-technicians-twenty.mjs
+ *   docker exec technician-app node /app/scripts/migrate-technicians-twenty.mjs
  */
 
 const TWENTY_API_URL = process.env.TWENTY_API_URL || 'http://twenty-server-1:3000';

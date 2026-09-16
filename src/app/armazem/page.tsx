@@ -122,7 +122,7 @@ export default function WarehouseDashboard() {
             <div className="w-14 h-14 flex items-center justify-center group shrink-0">
               <Image 
                 src="/favi_64.png" 
-                alt="Estores Rainha Logo" 
+                alt="Company logo" 
                 width={56} 
                 height={56} 
                 className="w-14 h-14 object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-sm" 

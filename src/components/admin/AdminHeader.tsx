@@ -39,7 +39,7 @@ export default function AdminHeader({
             <div className="w-10 h-10 flex items-center justify-center group shrink-0">
               <Image 
                 src="/favi_64.png" 
-                alt="Estores Rainha Logo" 
+                alt="Company logo" 
                 width={40} 
                 height={40} 
                 className="w-10 h-10 object-contain group-hover:scale-105 transition-transform drop-shadow-sm" 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigation, Brain, Sparkles, Loader2, MapPin, Trash2, ShieldCheck } from "lucide-react";
 import { RouteStop, RouteData } from '@/types/admin';
+import { HQ_LABEL } from '@/lib/branding';
 
 interface RouteSidebarProps {
   selectedForRoute: RouteStop[];
@@ -186,7 +187,7 @@ export default function RouteSidebar({
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-lime-700 uppercase tracking-widest">Partida do Roteiro</p>
-                    <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">Sede - Caldas da Rainha</p>
+                    <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">{HQ_LABEL}</p>
                   </div>
                 </div>
 

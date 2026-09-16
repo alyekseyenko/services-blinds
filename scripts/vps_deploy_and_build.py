@@ -9,7 +9,7 @@ hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VPS_HOST")
 password = os.environ.get("VPS_PASSWORD")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST (or pass hostname arg) and VPS_PASSWORD")
-container_app = os.environ.get("CONTAINER_APP", "habitarmos-app")
+container_app = os.environ.get("CONTAINER_APP", "technician-app")
 health_url = os.environ.get("DEPLOY_HEALTH_URL", "http://127.0.0.1:3000/api/health")
 local_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 remote_dir = "/root/app-tecnicos"

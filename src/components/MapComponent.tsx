@@ -94,7 +94,7 @@ export default function MapComponent({
     if (firstTask) {
       return { lat: firstTask.coordinates[0], lng: firstTask.coordinates[1] };
     }
-    return { lat: 39.41595, lng: -9.13266 }; // Caldas
+    return { lat: 38.7223, lng: -9.1393 }; // generic fallback
   }, [hqLocation, tasks]);
 
   const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);

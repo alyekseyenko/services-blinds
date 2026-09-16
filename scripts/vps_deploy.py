@@ -13,6 +13,9 @@ local_root = sys.argv[4] if len(sys.argv) > 4 else os.path.dirname(os.path.dirna
 if not all([hostname, password]):
     raise SystemExit("Set VPS_PASSWORD and pass hostname")
 
+CONTAINER_APP = os.environ.get("CONTAINER_APP", "technician-app")
+CONTAINER_NGINX = os.environ.get("CONTAINER_NGINX", "technician-nginx")
+
 EXCLUDE_DIRS = {
     "node_modules", ".next", ".git", "terminals", ".cursor",
     "agent-transcripts", "coverage", ".turbo",
@@ -51,7 +54,8 @@ client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 client.connect(hostname, username=username, password=password, timeout=30)
 
 # Discover project path on VPS
-_, out, _ = run(client, "docker inspect habitarmos-app --format '{{range .Mounts}}{{.Source}} {{end}}' 2>/dev/null || true")
+inspect_fmt = "'{{range .Mounts}}{{.Source}} {{end}}'"
+_, out, _ = run(client, f"docker inspect {CONTAINER_APP} --format {inspect_fmt} 2>/dev/null || true")
 remote_dir = None
 for candidate in [
     "/app/app-tecnicos",
@@ -105,7 +109,7 @@ if code != 0:
     sys.exit(1)
 
 run(client, f"cd {remote_dir} && docker compose up -d app-tecnicos redis")
-run(client, "docker stop habitarmos-nginx 2>/dev/null; docker update --restart=no habitarmos-nginx 2>/dev/null || true")
+run(client, f"docker stop {CONTAINER_NGINX} 2>/dev/null; docker update --restart=no {CONTAINER_NGINX} 2>/dev/null || true")
 
 time.sleep(8)
 run(client, 'curl -sS -o /tmp/h.out -w "local3005 HTTP %{http_code}\\n" http://localhost:3005/api/health; cat /tmp/h.out')

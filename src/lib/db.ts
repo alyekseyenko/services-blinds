@@ -19,12 +19,12 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
-export class HabitarmosDB extends Dexie {
+export class FieldOpsDB extends Dexie {
   tasks!: Table<LocalTask>;
   syncQueue!: Table<SyncQueueItem>;
 
   constructor() {
-    super('HabitarmosDB');
+    super('FieldOpsDB');
     this.version(2).stores({
       tasks: '++id, twentyId, status, lastSync',
       syncQueue: '++id, taskId, status, timestamp'
@@ -32,4 +32,4 @@ export class HabitarmosDB extends Dexie {
   }
 }
 
-export const db = new HabitarmosDB();
+export const db = new FieldOpsDB();

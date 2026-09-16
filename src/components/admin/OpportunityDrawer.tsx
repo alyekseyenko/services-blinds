@@ -317,7 +317,7 @@ export default function OpportunityDrawer({
                   <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Relatório do Técnico</p>
                 </div>
                 <p className="text-amber-900 text-sm font-medium leading-relaxed italic">
-                  "{selectedOpportunity.technicianReport}"
+                  &ldquo;{selectedOpportunity.technicianReport}&rdquo;
                 </p>
               </div>
             )}
@@ -338,7 +338,7 @@ export default function OpportunityDrawer({
                 </div>
                 {selectedOpportunity.clientFeedback && (
                   <p className="text-slate-700 text-sm font-medium leading-relaxed italic mt-1 bg-white/50 p-2 rounded-xl border border-blue-100/50">
-                    "{selectedOpportunity.clientFeedback}"
+                    &ldquo;{selectedOpportunity.clientFeedback}&rdquo;
                   </p>
                 )}
               </div>

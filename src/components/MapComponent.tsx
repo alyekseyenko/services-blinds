@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
 import { getServiceTypeColor } from '@/lib/techniciansConfig';
 import { resolveTaskOverdue } from '@/lib/taskUtils';
@@ -86,6 +86,17 @@ export default function MapComponent({
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [techLiveRouteDirections, setTechLiveRouteDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral | null>(null);
+  const [renderNow, setRenderNow] = useState(() => Date.now());
+  const onRouteUpdateRef = useRef(onRouteUpdate);
+
+  useEffect(() => {
+    onRouteUpdateRef.current = onRouteUpdate;
+  }, [onRouteUpdate]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setRenderNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const center = useMemo(() => {
     if (hqLocation && hqLocation.coordinates) {
@@ -98,31 +109,23 @@ export default function MapComponent({
     return { lat: HQ_LAT, lng: HQ_LNG };
   }, [hqLocation, tasks]);
 
-  const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);
-
-  // Inicializar o centro do mapa uma vez no carregamento
-  useEffect(() => {
-    if (!mapCenter && center) {
-      setMapCenter(center);
-    }
-  }, [center, mapCenter]);
+  const hasCenteredOnUserRef = useRef(false);
 
   // Centralizar dinamicamente na localização do técnico APENAS na primeira vez que estiver disponível
   useEffect(() => {
-    if (userLocation && map && !hasCenteredOnUser) {
-      const coords = { lat: userLocation.lat, lng: userLocation.lng };
-      setMapCenter(coords);
-      map.panTo(coords);
-      setHasCenteredOnUser(true);
+    if (userLocation && map && !hasCenteredOnUserRef.current) {
+      map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      hasCenteredOnUserRef.current = true;
     }
-  }, [userLocation, map, hasCenteredOnUser]);
+  }, [userLocation, map]);
 
   // Centralizar na tarefa selecionada
   useEffect(() => {
-    if (selectedMarker && selectedMarker.coordinates && map) {
-      const coords = { lat: selectedMarker.coordinates[0], lng: selectedMarker.coordinates[1] };
-      setMapCenter(coords);
-      map.panTo(coords);
+    if (selectedMarker?.coordinates && map) {
+      map.panTo({
+        lat: selectedMarker.coordinates[0],
+        lng: selectedMarker.coordinates[1],
+      });
     }
   }, [selectedMarker, map]);
 
@@ -177,12 +180,18 @@ export default function MapComponent({
     });
   }, [selectedTechMarker, allOpportunities, tasks]);
 
+  const shouldComputeTechLiveRoute = Boolean(
+    selectedTechMarker && isLoaded && techAssignedTasks.length > 0
+  );
+  const shouldComputeOptimizedRoute = Boolean(
+    optimizedRoute && optimizedRoute.length > 0 && hqLocation && isLoaded
+  );
+  const displayTechLiveRouteDirections = shouldComputeTechLiveRoute ? techLiveRouteDirections : null;
+  const displayDirectionsResponse = shouldComputeOptimizedRoute ? directionsResponse : null;
+
   // Calcular trajeto contínuo em tempo real (Posição Atual -> Paragem 1 -> Paragem 2...)
   useEffect(() => {
-    if (!selectedTechMarker || !isLoaded || techAssignedTasks.length === 0) {
-      setTechLiveRouteDirections(null);
-      return;
-    }
+    if (!shouldComputeTechLiveRoute) return;
 
     const directionsService = new window.google.maps.DirectionsService();
 
@@ -229,12 +238,11 @@ export default function MapComponent({
         }
       );
     }
-  }, [selectedTechMarker, techAssignedTasks, isLoaded]);
+  }, [shouldComputeTechLiveRoute, selectedTechMarker, techAssignedTasks, isLoaded]);
 
   useEffect(() => {
-    if (!optimizedRoute || optimizedRoute.length === 0 || !hqLocation || !isLoaded) {
-      setDirectionsResponse(null);
-      onRouteUpdate(null);
+    if (!shouldComputeOptimizedRoute) {
+      onRouteUpdateRef.current(null);
       return;
     }
 
@@ -267,7 +275,7 @@ export default function MapComponent({
             w.toLowerCase().includes('pago')
           );
           
-          onRouteUpdate({
+          onRouteUpdateRef.current({
             distanceKm: totalDistance,
             durationMin: Math.round(totalDuration),
             hasTolls
@@ -277,7 +285,7 @@ export default function MapComponent({
         }
       }
     );
-  }, [optimizedRoute, hqLocation, isLoaded]);
+  }, [shouldComputeOptimizedRoute, optimizedRoute, hqLocation, isLoaded]);
 
   if (!isLoaded) return <div className="h-full w-full bg-slate-900 flex items-center justify-center text-white">Carregando Google Maps...</div>;
 
@@ -341,7 +349,7 @@ export default function MapComponent({
 
         {/* Marcadores dos Técnicos no Terreno (Visão Admin Premium) */}
         {techniciansLocations && techniciansLocations.map((tech) => {
-          const updateAgeMinutes = Math.round((Date.now() - new Date(tech.lastUpdate).getTime()) / (60 * 1000));
+          const updateAgeMinutes = Math.round((renderNow - new Date(tech.lastUpdate).getTime()) / (60 * 1000));
           const timeLabel = updateAgeMinutes <= 1 ? "Agora mesmo" : `Há ${updateAgeMinutes} min`;
           
           // Ícone SVG personalizado de carrinha técnica com glow e contraste
@@ -697,9 +705,9 @@ export default function MapComponent({
         )}
 
         {/* Renderização do Trajeto em Tempo Real do Técnico Selecionado */}
-        {techLiveRouteDirections && (
+        {displayTechLiveRouteDirections && (
           <DirectionsRenderer
-            directions={techLiveRouteDirections}
+            directions={displayTechLiveRouteDirections}
             options={{
               polylineOptions: {
                 strokeColor: "#0284c7",
@@ -712,9 +720,9 @@ export default function MapComponent({
         )}
 
         {/* Renderização da Rota Otimizada de Agendamento */}
-        {directionsResponse && (
+        {displayDirectionsResponse && (
           <DirectionsRenderer
-            directions={directionsResponse}
+            directions={displayDirectionsResponse}
             options={{
               polylineOptions: {
                 strokeColor: "#2563eb",
@@ -728,7 +736,7 @@ export default function MapComponent({
       </GoogleMap>
 
       {/* Overlay de Info de Rota */}
-      {directionsResponse && optimizedRoute && (
+      {displayDirectionsResponse && optimizedRoute && (
         <div className="absolute bottom-6 left-6 bg-slate-950/95 backdrop-blur shadow-2xl rounded-2xl p-4 border border-slate-800 z-10 animate-in fade-in slide-in-from-bottom-4 duration-500 text-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-emerald-500 p-2 rounded-lg">
@@ -738,7 +746,7 @@ export default function MapComponent({
               <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Tempo Total (Google Maps)</div>
               <div className="text-xl font-black text-white">
                 {(() => {
-                  const totalSecs = directionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.duration?.value || 0), 0);
+                  const totalSecs = displayDirectionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.duration?.value || 0), 0);
                   return totalSecs / 60 > 60 
                     ? `${Math.floor(totalSecs / 3600)}h ${Math.round((totalSecs % 3600) / 60)}min`
                     : `${Math.round(totalSecs / 60)} min`;
@@ -750,13 +758,13 @@ export default function MapComponent({
             <div>
               <div className="text-[10px] font-bold text-slate-400 uppercase">Distância</div>
               <div className="text-sm font-bold text-slate-200">
-                {(directionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.distance?.value || 0), 0) / 1000).toFixed(1)} km
+                {(displayDirectionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.distance?.value || 0), 0) / 1000).toFixed(1)} km
               </div>
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-400 uppercase">Custo Combustível</div>
               <div className="text-sm font-bold text-emerald-500">
-                {((directionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.distance?.value || 0), 0) / 1000) * (fuelConsumption / 100) * fuelPrice).toFixed(2)}€
+                {((displayDirectionsResponse.routes[0].legs.reduce((acc, leg) => acc + (leg.distance?.value || 0), 0) / 1000) * (fuelConsumption / 100) * fuelPrice).toFixed(2)}€
               </div>
             </div>
           </div>

@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f5fa; /* Fundo cinza ultra suave limpo estilo iDraft */
+  --foreground: #090d16; /* Carvão escuro profundo para textos principais */
+  --primary: #84cc16; /* Verde Lima/Neon vibrante de alta visibilidade */
+  --primary-foreground: #090d16;
+  --secondary: #121622; /* Cinza Carvão Escuro Secundário para cards de alto contraste */
+  --secondary-foreground: #f8fafc; /* Texto claro para cards de alto contraste */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b; /* Cinza para textos secundários */
+  --accent: #84cc16;
+  --accent-foreground: #090d16;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0; /* Borda clara elegante */
+  --input: #ffffff;
+  --ring: #84cc16;
+  --radius: 1.75rem; /* Cantos arredondados generosos iDraft */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: 'Inter', var(--font-geist-sans), sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar Premium */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 20px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a3e635;
+}
+
+/* Glassmorphism iDraft Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03);
+}
+
+.glass-panel-dark {
+  background: rgba(18, 22, 34, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.04);
+}
+
+/* Fix for PWA/Mobile input issues */
+input, textarea, select {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  pointer-events: auto !important;
+  border-radius: var(--radius);
+}
+
+/* Smooth Transitions sem quebrar layout (removemos o '*' global que causava a tremura) */
+.smooth-transition {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

@@ -29,7 +29,7 @@ export function isStrictAdminRole(role: AppRole): boolean {
   return role === 'admin';
 }
 
-/** Painel executivo CEO — Admin e CEO do Twenty. */
+/** Painel executivo CEO — Twenty Admin ou role CEO dedicada. */
 export function canAccessCeoPanel(role: AppRole): boolean {
-  return isAdminRole(role);
+  return role === 'admin' || role === 'ceo';
 }

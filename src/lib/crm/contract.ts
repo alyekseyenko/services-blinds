@@ -241,7 +241,7 @@ export type AppRole = 'admin' | 'technician' | 'warehouse' | 'ceo';
 
 export const TWENTY_ROLE_TO_APP_ROLE: Record<string, AppRole> = {
   ADMIN: 'admin',
-  MEMBER: 'admin',
+  // Twenty "Member" is a CRM default role — not app admin (no CEO/SRE/admin panel).
   TECNICOS: 'technician',
   TECNICO: 'technician',
   CEO: 'ceo',

@@ -2,6 +2,8 @@ import React from 'react';
 import Image from 'next/image';
 import { LogOut, ShieldCheck, RefreshCw, Filter, Map as MapIcon, Calendar as CalendarIcon, History, Activity, TrendingUp } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { canAccessCeoPanel, isStrictAdminRole } from "@/lib/auth/session";
+import type { AppRole } from "@/lib/schemas/auth";
 
 interface AdminHeaderProps {
   opportunitiesCount: number;
@@ -31,6 +33,7 @@ export default function AdminHeader({
   setView
 }: AdminHeaderProps) {
   const { data: session } = useSession();
+  const userRole = (session?.user as { role?: AppRole } | undefined)?.role;
   return (
     <div className="bg-white/95 backdrop-blur-xl border-b border-slate-200 p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-30 gap-4 shrink-0">
       <div className="flex items-center justify-between w-full md:w-auto gap-4">
@@ -118,7 +121,7 @@ export default function AdminHeader({
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
         </button>
 
-        {session && ["admin", "ceo"].includes((session.user as { role?: string })?.role || "") && (
+        {session && userRole && canAccessCeoPanel(userRole) && (
           <button
             onClick={() => router.push("/ceo")}
             className="p-3 bg-white text-slate-800 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-lime-500/50 transition-all shadow-sm flex items-center gap-2 animate-in fade-in"
@@ -129,7 +132,7 @@ export default function AdminHeader({
           </button>
         )}
 
-        {session && (session.user as { role?: string })?.role === "admin" && (
+        {session && userRole && isStrictAdminRole(userRole) && (
           <button
             onClick={() => router.push("/admin/observabilidade")}
             className="p-3 bg-slate-900 text-lime-400 border border-slate-800 rounded-xl hover:bg-slate-800 hover:border-lime-500/50 transition-all shadow-sm flex items-center gap-2"

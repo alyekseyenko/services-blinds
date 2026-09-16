@@ -29,7 +29,7 @@ describe('validateUserCredentials', () => {
       name: 'Ana Ferreira',
       email: 'ana@example.com',
       role: 'admin',
-      twentyRoleLabel: 'Member',
+      twentyRoleLabel: 'Admin',
     });
 
     const user = await validateUserCredentials('ana@example.com', 'secret');

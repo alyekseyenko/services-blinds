@@ -10,7 +10,7 @@ import {
 
 describe('Twenty auth role mapping', () => {
   it('mapeia labels do Twenty para roles da app', () => {
-    expect(mapTwentyRoleLabelToAppRole('Member')).toBe('admin');
+    expect(mapTwentyRoleLabelToAppRole('Member')).toBeNull();
     expect(mapTwentyRoleLabelToAppRole('Técnicos')).toBe('technician');
     expect(mapTwentyRoleLabelToAppRole('CEO')).toBe('ceo');
     expect(mapTwentyRoleLabelToAppRole('Armazem')).toBe('warehouse');
@@ -44,10 +44,7 @@ describe('Twenty auth role mapping', () => {
       },
     ];
 
-    expect(resolveAppRoleFromRoles('member-1', roles)).toEqual({
-      role: 'admin',
-      twentyRoleLabel: 'Member',
-    });
+    expect(resolveAppRoleFromRoles('member-1', roles)).toBeNull();
     expect(resolveAppRoleFromRoles('tech-1', roles)).toEqual({
       role: 'technician',
       twentyRoleLabel: 'Técnicos',

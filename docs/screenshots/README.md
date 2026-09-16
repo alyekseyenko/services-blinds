@@ -1,10 +1,20 @@
 # Screenshots
 
-Add production screenshots here for the GitHub README:
+Production captures for the GitHub README (generated via `node scripts/capture-readme-screenshots.mjs`).
 
-- `admin-map.png` — scheduling map and route planning
-- `technician-dashboard.png` — mobile PWA day view
-- `ceo-dashboard.png` — executive metrics
-- `observability.png` — SRE panel (admin only)
+| File | Description |
+|------|-------------|
+| `login-desktop.png` | CRM sign-in — role-based routing (admin, CEO, technician, warehouse) |
+| `login-mobile.png` | Same login on mobile viewport (PWA entry point) |
+| `public-rating-invalid-link.png` | Customer rating portal — invalid/expired signed link |
+| `public-rating-form.png` | Customer rating portal — star rating UI |
+| `public-cancellation-invalid-link.png` | Customer cancellation portal — invalid link guard |
 
-Use generic filenames; do not include customer PII in captures.
+Optional authenticated captures (set in `.env.local`):
+
+```env
+SCREENSHOT_ADMIN_EMAIL=your-admin@company.com
+SCREENSHOT_ADMIN_PASSWORD=your-password
+```
+
+Re-run the script after setting credentials to add `admin-map.png`, `admin-history.png`, `ceo-dashboard.png`, `admin-observability.png`, and `technician-dashboard.png`.

@@ -1,108 +1,148 @@
 # Blinds Technical Services — Field Operations Platform
 
-A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — all synchronized with an internal CRM and built **offline-first** for technicians on the road.
+A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with an internal CRM and built **offline-first** for technicians on the road.
 
 <p align="center">
-  <img src="public/icon-512.png" alt="Blinds Technical Services app icon" width="120" />
-  <img src="public/icon-192.png" alt="PWA icon" width="80" />
-  <img src="logo/Estores Rainha Logo App_Android.png" alt="Mobile app branding" width="120" />
+  <img src="docs/screenshots/login-desktop.png" alt="Sign-in screen" width="720" />
 </p>
 
+<p align="center">
+  <img src="public/icon-512.png" alt="App icon" width="96" />
+  <img src="public/icon-192.png" alt="PWA icon" width="64" />
+</p>
+
+**Live demo:** authentication required — clone the repo and point `TWENTY_*` env vars to your CRM instance.
+
 ---
 
-## The story: problem → solution → impact
+## Table of contents
 
-### The problem
+1. [Why we built this](#why-we-built-this)
+2. [Features](#features)
+3. [Screenshots](#screenshots)
+4. [Architecture](#architecture)
+5. [Tech stack](#tech-stack)
+6. [Getting started](#getting-started)
+7. [Project structure](#project-structure)
+8. [Documentation](#documentation)
 
-A blinds company serving **more than 15,000 customers** was drowning in organizational chaos.
+---
 
-- Customers called constantly: *Where is my order? When will materials arrive? When can a technician visit?*
-- **Hundreds of hours** were lost every month on phone calls, WhatsApp messages, and manual follow-ups.
-- Route planning, travel costs, fuel, tolls, and stock levels were analyzed on spreadsheets — or not at all.
-- Every department worked on **paper and disconnected tools**. When someone needed an answer, nobody had the full picture.
-- Information died between **sales, scheduling, warehouse, field teams, and leadership**.
+## Why we built this
 
-### The solution
+### Problem
 
-**Blinds Technical Services** unifies the entire operation in one system:
+A blinds company serving **more than 15,000 customers** was stuck in organizational chaos.
 
-| Role | What they get |
-|------|----------------|
-| **CEO** | Revenue, pipeline, technician performance, fleet km, customer satisfaction, follow-ups |
-| **Admin / Members** | Live map, calendar, route optimization, bulk scheduling, pipeline management |
-| **Technicians (PWA)** | Day agenda, GPS navigation, on-site measurements, visit closure — **works offline** |
-| **Warehouse** | Preparation status per service item, handoff to installation teams |
-| **Customers (public links)** | Signed URLs to rate a completed service or cancel an appointment |
+- Customers called every day: *Where is my order? When will materials arrive? When can a technician visit?*
+- **Hundreds of hours per month** were lost on phone calls, chats, and manual status checks.
+- Route planning, travel spend, fuel, tolls, and stock were tracked in spreadsheets — or not at all.
+- Departments worked on **paper and siloed tools**. When someone needed an answer, no one had the full picture.
+- Data died between **sales, scheduling, warehouse, field teams, and leadership**.
 
-Everything syncs with the **internal CRM** (Twenty). Changes made offline are queued locally and replayed when connectivity returns.
+### Solution
 
-### The impact
+**Blinds Technical Services** connects the full lifecycle in one platform:
 
-- One source of truth from **first contact to completed installation**
-- Fewer inbound calls — status lives in the CRM and flows to the right screen
+| Role | Capability |
+|------|------------|
+| **CEO** | Revenue, pipeline forecast, technician rankings, fleet km, NPS, follow-ups |
+| **Admin / members** | Live map, calendar, AI route planning, bulk scheduling, paginated history |
+| **Technicians (PWA)** | Day agenda, GPS, millimetre measurements, visit closure — **offline-first** |
+| **Warehouse** | Per-item preparation status before installation |
+| **Customers** | HMAC-signed links to rate a service or cancel an appointment |
+
+All roles sync with the **internal CRM** (Twenty). Offline mutations queue in IndexedDB and replay when connectivity returns.
+
+### Impact
+
+- Single source of truth from **lead → measurement → install → payment**
+- Fewer inbound calls — status lives in CRM and surfaces on the right screen
 - Measurable logistics: optimized routes, cost estimates, zone insights
-- Field teams stop re-typing measurements; warehouse sees what to prepare before vans leave
-- Leadership gets live metrics instead of end-of-month guesses
+- Field teams stop re-typing; warehouse prepares before vans leave
+- Leadership sees live metrics instead of month-end guesses
 
 ---
 
-## Feature overview
+## Features
 
-### Field technician (mobile PWA)
+### Technician mobile PWA
 
-- Offline-first task list with IndexedDB sync queue
-- “Arrived on site” / in-progress visit states
-- Millimetre-precision measurement forms per product group
+- Offline task list with IndexedDB sync queue and retry jitter
+- On-site states: scheduled → in progress → complete / incomplete / cancelled
+- Product-group measurement forms
 - One-tap navigation (Google Maps / Waze)
-- Visit completion with structured reasons (complete / incomplete / cancelled)
-- Background sync telemetry for operations monitoring
+- Sync telemetry for operations monitoring
 
 ### Admin control center
 
-- Interactive map with unscheduled vs scheduled visits and overdue indicators
-- Calendar view per technician
-- AI-assisted route strategy and fuel/toll cost estimates
-- Mass scheduling and opportunity drawer (notes, stage changes, geocoding)
-- Paginated service history (completed / cancelled / incomplete)
+- Map: unscheduled vs scheduled visits, overdue indicators, live technician pins
+- Calendar per technician
+- AI route strategy with fuel/toll estimates
+- Mass scheduling, opportunity drawer, automatic geocoding
+- Service history API with **50 items per page**
 
 ### CEO executive dashboard
 
-- Financial metrics: won revenue, pipeline forecast, weighted forecast, win rate
-- Monthly evolution and pipeline funnel by stage
-- Technician rankings, km estimates, first-time success rate
-- Customer ratings, follow-up urgency list, warehouse preparation rate
-- Year-filtered GraphQL queries (no more loading 1,000 records into the browser)
+- Won revenue, pipeline, weighted forecast, win rate
+- Monthly evolution & funnel by stage
+- Technician success rate and estimated km
+- Customer ratings and follow-up urgency
+- **Year-filtered CRM queries** (server-side date filters)
 
 ### Warehouse
 
 - Service items linked to opportunities
-- Preparation state tracking before installation visits
+- Preparation workflow before installation
 
-### SRE observability (admin-only)
+### SRE observability *(admin role only)*
 
-- CRM health & latency, circuit breaker state
-- Transactional outbox queue (pending / failed / reprocess)
-- Live technician GPS summary (GDPR-aware windows)
+- CRM latency & circuit breaker
+- Transactional outbox (pending / failed / reprocess)
 - Offline sync telemetry per technician
 - QA 360 diagnostic runner
 
 ### Public customer portals
 
-- **Service rating** — HMAC-signed, expiring links (`/avaliacao/{id}?t=…`)
-- **Appointment cancellation** — token-gated, only for schedulable task states
+- Service rating — signed expiring token (`/avaliacao/{id}?t=…`)
+- Appointment cancellation — token + state guard (`/cancelamento/{id}?t=…`)
 
-### Platform & reliability
+### Engineering quality
 
-- Zod schemas as single source of truth for domain types
-- Clean architecture: UI → Server Actions → CRM infrastructure layer
-- Circuit breaker on CRM GraphQL client
-- Transactional outbox for n8n / notifications (at-least-once delivery)
-- CI: type-check, 76+ unit tests, Playwright smoke e2e
-- Role-based access: admin, CEO, technician, warehouse
+- Zod schemas, clean architecture (UI → actions → CRM layer)
+- Circuit breaker, transactional outbox, 76+ unit tests, Playwright e2e
+- GitHub Actions CI: type-check, test, build, smoke e2e
+- RBAC: admin, CEO, technician, warehouse
 
 ---
 
-## Architecture at a glance
+## Screenshots
+
+### Sign-in (CRM-backed roles)
+
+Desktop and mobile entry — profile is resolved from the CRM workspace role.
+
+<p align="center">
+  <img src="docs/screenshots/login-desktop.png" alt="Desktop login" width="700" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/login-mobile.png" alt="Mobile login" width="320" />
+</p>
+
+### Customer self-service portals
+
+Token-gated public pages — invalid links are rejected before any CRM mutation.
+
+| Invalid rating link | Rating form UI | Cancellation guard |
+|:---:|:---:|:---:|
+| ![Invalid rating link](docs/screenshots/public-rating-invalid-link.png) | ![Rating form](docs/screenshots/public-rating-form.png) | ![Cancellation portal](docs/screenshots/public-cancellation-invalid-link.png) |
+
+> **Tip:** Run `node scripts/capture-readme-screenshots.mjs` with `SCREENSHOT_ADMIN_EMAIL` / `SCREENSHOT_ADMIN_PASSWORD` in `.env.local` to refresh authenticated admin, CEO, and technician captures.
+
+---
+
+## Architecture
 
 ```mermaid
 graph TB
@@ -137,7 +177,7 @@ graph TB
     OBS --> CRM
 ```
 
-**Offline sync flow**
+**Offline sync**
 
 ```mermaid
 sequenceDiagram
@@ -148,13 +188,12 @@ sequenceDiagram
     participant CRM as CRM GraphQL
 
     Tech->>UI: Submit measurement / close visit
-    UI->>IDB: Save locally (instant feedback)
+    UI->>IDB: Save locally
     alt Online
         UI->>API: Sync mutation
         API->>CRM: Persist
     else Offline
         UI->>IDB: Enqueue pending action
-        Note over IDB: Replay when network returns
     end
 ```
 
@@ -164,28 +203,15 @@ sequenceDiagram
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 16 (App Router), React 19 |
-| Language | TypeScript, Zod validation |
+| Framework | Next.js 16, React 19 |
+| Language | TypeScript, Zod |
 | Styling | Tailwind CSS v4 |
 | Local data | Dexie.js (IndexedDB) |
 | CRM | Twenty (GraphQL + contract layer) |
 | Auth | NextAuth.js, JWT, RBAC |
 | Automation | n8n webhooks |
-| Tests | Vitest, Playwright |
-| Deploy | Docker Compose, Nginx, VPS |
-
----
-
-## Screenshots & assets
-
-| Asset | Path |
-|-------|------|
-| App icon (512) | `public/icon-512.png` |
-| PWA manifest icons | `public/icon-192.png`, `public/apple-touch-icon.png` |
-| Brand marks | `logo/` |
-| Favicon | `public/favicon.png` |
-
-> Add production screenshots under `docs/screenshots/` when available (admin map, technician dashboard, CEO panel).
+| Tests | Vitest (76+), Playwright |
+| Deploy | Docker Compose, Nginx |
 
 ---
 
@@ -194,7 +220,7 @@ sequenceDiagram
 ### Prerequisites
 
 - Node.js 20+
-- A running Twenty CRM instance with an API key
+- Twenty CRM instance + API key
 
 ### Install
 
@@ -206,7 +232,11 @@ npm install
 
 ### Environment
 
-Copy `.env.example` to `.env.local` and fill in:
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
 
 ```env
 TWENTY_API_URL=http://your-crm-host:3000
@@ -216,12 +246,19 @@ NEXTAUTH_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### Run
+### Commands
 
 ```bash
-npm run dev        # development
-npm run validate   # type-check + unit tests
-npm run build      # production build
+npm run dev         # development server
+npm run validate    # type-check + unit tests
+npm run test:e2e:smoke
+npm run build       # production build
+```
+
+### Refresh README screenshots
+
+```bash
+node scripts/capture-readme-screenshots.mjs
 ```
 
 ---
@@ -230,21 +267,20 @@ npm run build      # production build
 
 ```
 src/
-├── actions/           # Server Actions (use cases)
+├── actions/              # Server Actions (use cases)
 ├── app/
-│   ├── admin/         # Map, calendar, history, observability
-│   ├── ceo/           # Executive dashboard
-│   ├── dashboard/     # Technician PWA
-│   ├── armazem/       # Warehouse
-│   ├── avaliacao/     # Public rating portal
-│   └── cancelamento/  # Public cancellation portal
-├── components/        # UI by domain
-├── hooks/             # useSync, useSyncQueue
-└── lib/
-    ├── crm/           # CRM integration (only place that talks to GraphQL)
-    ├── schemas/       # Zod models
-    └── publicTokens.ts# Signed customer links
-docs/adrs/             # Architecture decision records
+│   ├── admin/            # Map, calendar, history, observability
+│   ├── ceo/              # Executive dashboard
+│   ├── dashboard/        # Technician PWA
+│   ├── armazem/          # Warehouse
+│   ├── avaliacao/        # Public rating portal
+│   └── cancelamento/     # Public cancellation portal
+├── components/
+├── hooks/                # useSync, useSyncQueue
+└── lib/crm/              # GraphQL integration + contract layer
+docs/
+├── adrs/                 # Architecture decision records
+└── screenshots/          # README captures
 ```
 
 ---

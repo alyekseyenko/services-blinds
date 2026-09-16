@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --project=smoke",
-    "test:e2e:flow": "playwright test --project=task-flow"
+    "test:e2e:flow": "playwright test --project=task-flow",
+    "screenshots:readme": "node scripts/capture-readme-screenshots.mjs"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",

@@ -36,6 +36,12 @@ NEXT_PUBLIC_HQ_ADDRESS=Your full HQ address
 NEXT_PUBLIC_HQ_LAT=39.41595
 NEXT_PUBLIC_HQ_LNG=-9.13266
 
+# Why HQ moved after anonymization?
+# The public Git repo uses generic Lisbon defaults in src/lib/hq.ts.
+# Production MUST set the variables above in .env.local and rebuild Docker
+# (NEXT_PUBLIC_* are baked in at build time).
+# Patch script: python scripts/vps_patch_production_env.py (pass vars via local env)
+
 # Optional deploy scripts (local machine only — do not commit)
 # VPS_HOST=your.server.ip
 # VPS_PASSWORD=...

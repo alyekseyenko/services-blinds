@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
 import { getServiceTypeColor } from '@/lib/techniciansConfig';
 import { resolveTaskOverdue } from '@/lib/taskUtils';
+import { HQ_LAT, HQ_LNG } from '@/lib/hq';
 
 const containerStyle = {
   width: '100%',
@@ -94,7 +95,7 @@ export default function MapComponent({
     if (firstTask) {
       return { lat: firstTask.coordinates[0], lng: firstTask.coordinates[1] };
     }
-    return { lat: 38.7223, lng: -9.1393 }; // generic fallback
+    return { lat: HQ_LAT, lng: HQ_LNG };
   }, [hqLocation, tasks]);
 
   const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);

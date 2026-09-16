@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/ToastContext";
 import { canAccessCeoPanel } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
 import { HQ_LABEL } from "@/lib/branding";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 export default function CeoDashboard() {
   const { data: session, status: sessionStatus } = useSession();
@@ -105,6 +106,17 @@ export default function CeoDashboard() {
     setSelectedMonth(null); // Resetar filtro de mês ao mudar o ano
     loadMetrics(year, true);
   };
+
+  const yearOptions = useMemo(
+    () => [
+      { value: null as number | null, label: "Todos os anos" },
+      ...(metrics?.availableYears ?? []).map((yr) => ({
+        value: yr,
+        label: String(yr),
+      })),
+    ],
+    [metrics?.availableYears]
+  );
 
   // Filtragem dos serviços por pesquisa, mês e estágio
   const filteredServices = useMemo(() => {
@@ -195,37 +207,21 @@ export default function CeoDashboard() {
 
           {/* SELETOR DE ANO E AÇÕES DE NAVEGAÇÃO */}
           <div className="flex flex-wrap items-center gap-4">
-            {/* Seletor de Anos */}
-            <div className="flex items-center bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-inner gap-1">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 text-xs font-black uppercase tracking-wider">
+            {/* Seletor de Ano (dropdown com pesquisa) */}
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/90 p-1.5 shadow-inner">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 text-slate-500 text-xs font-black uppercase tracking-wider">
                 <Calendar className="w-4 h-4 text-[#84cc16]" />
-                <span className="hidden sm:inline">Ano:</span>
+                <span className="hidden sm:inline">Ano</span>
               </div>
-              
-              <button
-                onClick={() => handleYearChange(null)}
-                className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                  selectedYear === null
-                    ? "bg-[#121622] text-white shadow-md"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                }`}
-              >
-                Todos
-              </button>
-
-              {metrics?.availableYears.map((yr) => (
-                <button
-                  key={yr}
-                  onClick={() => handleYearChange(yr)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-black tracking-wider transition-all ${
-                    selectedYear === yr
-                      ? "bg-[#84cc16] text-[#090d16] font-black shadow-md shadow-[#84cc16]/30"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                  }`}
-                >
-                  {yr}
-                </button>
-              ))}
+              <SearchableSelect<number | null>
+                value={selectedYear}
+                onChange={handleYearChange}
+                options={yearOptions}
+                placeholder="Selecionar ano"
+                searchPlaceholder="Pesquisar ano..."
+                disabled={!metrics}
+                data-testid="ceo-year-select"
+              />
             </div>
 
             {/* Botão Sincronizar */}

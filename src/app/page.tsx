@@ -13,10 +13,12 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoginError(null);
 
     try {
       const result = await signIn("credentials", {
@@ -26,10 +28,9 @@ export default function Login() {
       });
 
       if (result?.error) {
-        toast.error(
-          "Acesso Recusado",
-          "Credenciais incorretas ou conta sem permissão na app."
-        );
+        const message = "Credenciais incorretas ou conta sem permissão na app.";
+        setLoginError(message);
+        toast.error("Acesso Recusado", message);
         return;
       }
 
@@ -41,7 +42,9 @@ export default function Login() {
       window.location.href = destination;
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Erro de Ligação", "Não foi possível comunicar com o servidor.");
+      const message = "Não foi possível comunicar com o servidor.";
+      setLoginError(message);
+      toast.error("Erro de Ligação", message);
     } finally {
       setLoading(false);
     }
@@ -125,6 +128,16 @@ export default function Login() {
               className="w-full h-12 sm:h-14 bg-white border border-slate-200 rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 text-sm sm:text-base text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-[#84cc16] focus:ring-4 focus:ring-[#84cc16]/10 transition-all duration-300 font-bold hover:border-slate-300 pointer-events-auto shadow-sm"
             />
           </div>
+
+          {loginError && (
+            <div
+              role="alert"
+              data-testid="login-error"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+            >
+              Acesso Recusado: {loginError}
+            </div>
+          )}
 
           <button
             type="submit"

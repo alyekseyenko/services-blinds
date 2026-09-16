@@ -21,7 +21,8 @@ test('shows error on invalid login', async ({ page }) => {
   await page.fill('input[type="password"]', 'wrongpass');
   await page.click('button[type="submit"]');
 
-  await expect(page.getByText(/Acesso Recusado|Credenciais incorretas/i)).toBeVisible({
-    timeout: 10000,
+  await expect(page.getByTestId('login-error')).toBeVisible({
+    timeout: 20000,
   });
+  await expect(page.getByTestId('login-error')).toContainText(/Acesso Recusado|Credenciais incorretas/i);
 });

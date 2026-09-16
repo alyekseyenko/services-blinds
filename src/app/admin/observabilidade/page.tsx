@@ -108,8 +108,10 @@ interface LogEntry {
 export default function ObservabilityDashboard() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  const [sessionLocked, setSessionLocked] = useState(false);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isAuthenticated =
+    sessionStatus === "authenticated" && role === "admin" && !sessionLocked;
 
   const [loading, setLoading] = useState(true);
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
@@ -246,20 +248,10 @@ export default function ObservabilityDashboard() {
   };
 
   useEffect(() => {
-    if (sessionStatus === "loading") return;
-
-    const role = (session?.user as { role?: string } | undefined)?.role;
-    if (role === "admin") {
-      setIsAuthenticated(true);
-      setAuthError(false);
-      return;
-    }
-
-    setIsAuthenticated(false);
-    if (sessionStatus === "authenticated") {
-      router.replace(role === "ceo" ? "/ceo" : "/");
-    }
-  }, [session, sessionStatus, router]);
+    if (sessionStatus !== "authenticated") return;
+    if (role === "admin") return;
+    router.replace(role === "ceo" ? "/ceo" : "/");
+  }, [sessionStatus, role, router]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -313,9 +305,7 @@ export default function ObservabilityDashboard() {
           <ShieldAlert className="w-10 h-10 text-red-400 mx-auto mb-4" />
           <h1 className="text-lg font-bold text-white tracking-wider uppercase mb-2">SRE Cockpit</h1>
           <p className="text-sm text-slate-400 font-sans mb-6">
-            {authError
-              ? "Acesso restrito a administradores com sessão ativa."
-              : "Inicie sessão como administrador para continuar."}
+            Inicie sessão como administrador para continuar.
           </p>
           <button
             type="button"
@@ -376,7 +366,7 @@ export default function ObservabilityDashboard() {
           </button>
           
           <button
-            onClick={() => setIsAuthenticated(false)}
+            onClick={() => setSessionLocked(true)}
             className="px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-red-400 rounded-xl text-xs font-bold transition-all"
           >
             Bloquear Sessão

@@ -2,7 +2,7 @@
 Safe Twenty CRM infrastructure tuning on the VPS (no Twenty code changes).
 
 - Backs up nginx site config before edits
-- Enables SSE-friendly proxy settings for crm.estoresrainha.com
+- Enables SSE-friendly proxy settings for the CRM public host (DEPLOY_CRM_URL)
 - Creates 4GB swap if missing (per DEPLOY_HETZNER.md)
 - Runs lightweight PostgreSQL ANALYZE on Twenty DB
 - Verifies nginx + CRM endpoints after reload
@@ -21,7 +21,9 @@ password = os.environ.get("VPS_PASSWORD")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST and VPS_PASSWORD")
 
-NGINX_SITE = "/etc/nginx/sites-available/estoresrainha"
+NGINX_SITE = os.environ.get("NGINX_SITE_PATH", "/etc/nginx/sites-available/your-crm-site")
+CRM_PUBLIC_URL = os.environ.get("DEPLOY_CRM_URL", "https://crm.yourcompany.com")
+HEALTH_URL = os.environ.get("DEPLOY_HEALTH_URL", "https://technicians.yourcompany.com/api/health")
 SSE_DIRECTIVES = """
         # Twenty CRM: SSE real-time updates (safe proxy tuning)
         proxy_buffering off;
@@ -114,12 +116,12 @@ def verify() -> None:
         raise SystemExit("nginx -t failed — config not reloaded")
 
     run("systemctl reload nginx")
-    run("curl -sS -o /dev/null -w 'crm home HTTP %{http_code} time %{time_total}s\\n' https://crm.estoresrainha.com/")
+    run(f"curl -sS -o /dev/null -w 'crm home HTTP %{{http_code}} time %{{time_total}}s\\n' {CRM_PUBLIC_URL}/")
     run(
-        "curl -sS -D - -o /dev/null --max-time 5 https://crm.estoresrainha.com/metadata "
+        f"curl -sS -D - -o /dev/null --max-time 5 {CRM_PUBLIC_URL}/metadata "
         "-H 'Accept: text/event-stream' 2>&1 | head -12"
     )
-    run("curl -sS -o /dev/null -w 'tecnicos health HTTP %{http_code} time %{time_total}s\\n' https://tecnicos.estoresrainha.com/api/health")
+    run(f"curl -sS -o /dev/null -w 'tecnicos health HTTP %{{http_code}} time %{{time_total}}s\\n' {HEALTH_URL}")
     run("free -h")
     run("swapon --show || true")
     run(

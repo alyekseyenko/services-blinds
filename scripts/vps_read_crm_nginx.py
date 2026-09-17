@@ -7,14 +7,16 @@ password = os.environ.get("VPS_PASSWORD")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST and VPS_PASSWORD")
 
+CRM_PUBLIC_URL = os.environ.get("DEPLOY_CRM_URL", "https://crm.yourcompany.com")
+
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 client.connect(hostname, username="root", password=password, timeout=20)
 
 cmds = [
-    "cat /etc/nginx/sites-available/estoresrainha",
-    "curl -sS -D - -o /dev/null --max-time 5 https://crm.estoresrainha.com/metadata -H 'Accept: text/event-stream' 2>&1 | head -25",
-    "curl -sS -o /dev/null -w 'twenty sse subscribe probe HTTP %{http_code} time %{time_total}s\\n' --max-time 5 -X POST https://crm.estoresrainha.com/graphql -H 'Content-Type: application/json' --data '{\"query\":\"{ __typename }\"}' 2>&1 || true",
+    "cat ${NGINX_SITE_PATH:-/etc/nginx/sites-available/your-crm-site} 2>/dev/null | head -5 || ls -la /etc/nginx/sites-enabled/",
+    f"curl -sS -D - -o /dev/null --max-time 5 {CRM_PUBLIC_URL}/metadata -H 'Accept: text/event-stream' 2>&1 | head -25",
+    f"curl -sS -o /dev/null -w 'twenty graphql HTTP %{{http_code}} time %{{time_total}}s\\n' --max-time 5 -X POST {CRM_PUBLIC_URL}/graphql -H 'Content-Type: application/json' --data '{{\"query\":\"{{ __typename }}\"}}' 2>&1 || true",
     "docker logs twenty-server-1 --tail 30 2>&1 | grep -iE 'sse|event|stream|error' | tail -15 || echo 'no recent sse logs'",
 ]
 

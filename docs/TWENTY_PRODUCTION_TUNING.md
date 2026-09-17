@@ -29,7 +29,7 @@ Twenty uses **SSE (Server-Sent Events)**, not classic polling.
 
 ### Manual test (two browsers)
 
-1. Browser A: open `https://crm.estoresrainha.com` → **People**
+1. Browser A: open `https://crm.yourcompany.com` → **People**
 2. Browser B: create a new person
 3. Browser A: **do not press F5** — wait 10 seconds
 
@@ -41,7 +41,7 @@ Twenty uses **SSE (Server-Sent Events)**, not classic polling.
 Script: `python scripts/vps_optimize_twenty_infra.py`
 
 1. **4 GB swap** — prevents RAM spikes from crashing Postgres/Twenty
-2. **Nginx SSE tuning** for `crm.estoresrainha.com`:
+2. **Nginx SSE tuning** for your CRM host (e.g. `crm.yourcompany.com`):
    - `proxy_buffering off`
    - `proxy_cache off`
    - `proxy_read_timeout 3600s`

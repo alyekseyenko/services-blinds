@@ -7,17 +7,18 @@ password = os.environ.get("VPS_PASSWORD")
 if not hostname or not password:
     raise SystemExit("Set VPS_HOST and VPS_PASSWORD")
 
+CRM_PUBLIC_URL = os.environ.get("DEPLOY_CRM_URL", "https://crm.yourcompany.com")
+
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 client.connect(hostname, username="root", password=password, timeout=20)
 
 cmds = [
     "ls -la /etc/nginx/sites-enabled/",
-    "grep -R \"estoresrainha\\|crm\\.\" /etc/nginx/sites-available/ /etc/nginx/sites-enabled/ 2>/dev/null | head -40",
+    "grep -R \"crm\\.\" /etc/nginx/sites-available/ /etc/nginx/sites-enabled/ 2>/dev/null | head -20",
     "nginx -t 2>&1",
     "swapon --show || true",
-    "curl -sS -o /dev/null -w 'crm public health HTTP %{http_code} time %{time_total}s\\n' https://crm.estoresrainha.com/ 2>&1 || true",
-    "curl -sS -D - -o /dev/null --max-time 8 -H 'Accept: text/event-stream' -H 'Host: crm.estoresrainha.com' http://127.0.0.1/metadata 2>&1 | head -20",
+    f"curl -sS -o /dev/null -w 'crm public HTTP %{{http_code}} time %{{time_total}}s\\n' {CRM_PUBLIC_URL}/ 2>&1 || true",
 ]
 
 for cmd in cmds:

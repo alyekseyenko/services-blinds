@@ -88,3 +88,84 @@ export function getServiceTypeColor(type: string | undefined | null): ServiceTyp
     label: type || 'Geral'
   };
 }
+
+/** Resolve service type from task fields (CRM uses both naming conventions). */
+export function resolveServiceType(task: {
+  tipoDeServico?: string | string[] | null;
+  serviceType?: string | string[] | null;
+}): string {
+  const raw = task.tipoDeServico ?? task.serviceType;
+  if (Array.isArray(raw)) return raw[0] || '';
+  return raw || '';
+}
+
+function getServiceTypeSymbolSvg(normalizedType: string, color: string): string {
+  switch (normalizedType) {
+    case 'INSTALACAO':
+      // Blinds / window slats
+      return `<rect x="10" y="11" width="16" height="3" rx="0.5" fill="${color}"/>
+        <rect x="10" y="16" width="16" height="3" rx="0.5" fill="${color}"/>
+        <rect x="10" y="21" width="16" height="3" rx="0.5" fill="${color}"/>`;
+    case 'TIRAR_MEDIDAS':
+      // Ruler
+      return `<rect x="9" y="13" width="18" height="10" rx="1.5" fill="none" stroke="${color}" stroke-width="1.8"/>
+        <line x1="13" y1="13" x2="13" y2="19" stroke="${color}" stroke-width="1.2"/>
+        <line x1="17" y1="13" x2="17" y2="17" stroke="${color}" stroke-width="1.2"/>
+        <line x1="21" y1="13" x2="21" y2="19" stroke="${color}" stroke-width="1.2"/>`;
+    case 'REPARACAO':
+      // Wrench
+      return `<path d="M12 24l4-4 2 2-4 4 2 2 4-4 2 2-6 6-4-4z" fill="${color}"/>
+        <circle cx="23" cy="13" r="3.5" fill="none" stroke="${color}" stroke-width="2"/>`;
+    case 'MANUTENCAO':
+      // Gear
+      return `<circle cx="18" cy="18" r="4" fill="none" stroke="${color}" stroke-width="2"/>
+        <circle cx="18" cy="18" r="1.5" fill="${color}"/>
+        <line x1="18" y1="11" x2="18" y2="13.5" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <line x1="18" y1="22.5" x2="18" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="18" x2="13.5" y2="18" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <line x1="22.5" y1="18" x2="25" y2="18" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`;
+    case 'REMEDICAO':
+      // Redo arrow
+      return `<path d="M24 14a7 7 0 0 0-11-5" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <polyline points="11,14 13,12 13,16" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 22a7 7 0 0 0 11 5" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <polyline points="25,22 23,24 23,20" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'REAGENDAR':
+      // Calendar
+      return `<rect x="10" y="12" width="16" height="14" rx="2" fill="none" stroke="${color}" stroke-width="1.8"/>
+        <line x1="10" y1="16" x2="26" y2="16" stroke="${color}" stroke-width="1.5"/>
+        <line x1="14" y1="10" x2="14" y2="14" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        <line x1="22" y1="10" x2="22" y2="14" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`;
+    default:
+      // Generic service dot
+      return `<circle cx="18" cy="18" r="5" fill="${color}"/>`;
+  }
+}
+
+export interface ServiceMarkerOptions {
+  isLate?: boolean;
+  isHighlighted?: boolean;
+  alertColor?: string | null;
+  fillOverride?: string | null;
+}
+
+/** Builds an SVG map marker with a service-type symbol (high contrast pin). */
+export function buildServiceTypeMarkerSvg(
+  serviceType: string | undefined | null,
+  options: ServiceMarkerOptions = {}
+): string {
+  const normalizedType = (serviceType || '').toUpperCase().replace(/\s/g, '_');
+  const config = getServiceTypeColor(normalizedType);
+  const pinColor = options.isLate ? '#f59e0b' : (options.fillOverride || config.pin);
+  const strokeColor = options.alertColor || (options.isHighlighted ? pinColor : '#ffffff');
+  const strokeWidth = options.alertColor ? 3.5 : (options.isHighlighted ? 3 : 2.5);
+  const bgFill = options.isHighlighted ? '#ffffff' : '#090d16';
+  const symbolColor = options.isHighlighted ? pinColor : '#ffffff';
+  const innerFill = options.isHighlighted ? `${pinColor}44` : pinColor;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 36 36">
+    <circle cx="18" cy="18" r="16" fill="${bgFill}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>
+    <circle cx="18" cy="18" r="11" fill="${innerFill}" fill-opacity="${options.isHighlighted ? '0.35' : '0.9'}"/>
+    ${getServiceTypeSymbolSvg(normalizedType, symbolColor)}
+  </svg>`;
+}

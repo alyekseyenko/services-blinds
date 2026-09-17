@@ -18,6 +18,59 @@ import {
   isTerminalHistoryStatus,
   sortOpportunitiesByRecentDate,
 } from './dateFilters';
+import {
+  CRM_CACHE_KEYS,
+  DEFAULT_TTL_SEC,
+  adminHistoryPageCacheKey,
+  cacheGet,
+  cacheSet,
+  invalidateAdminCrmCache,
+} from '@/lib/crmCache';
+
+export { invalidateAdminCrmCache };
+
+const OPPORTUNITY_ADMIN_NODE_FIELDS = `
+  id
+  name
+  nsi
+  stage
+  tipoDeServico
+  createdAt
+  moradaDeServico {
+    addressStreet1
+    addressCity
+    addressLat
+    addressLng
+  }
+  pointOfContact {
+    id
+    name {
+      firstName
+      lastName
+    }
+    emails {
+      primaryEmail
+    }
+    phones {
+      primaryPhoneNumber
+      primaryPhoneCallingCode
+    }
+  }
+  taskTargets {
+    edges {
+      node {
+        task {
+          id
+          status
+          dueAt
+          assigneeId
+          technicianName
+          scheduledBy
+        }
+      }
+    }
+  }
+`;
 
 const ADMIN_PIPELINE_STAGES = [
   CRM_STAGES.ENTRADA,
@@ -33,7 +86,7 @@ const ADMIN_HISTORY_STAGES = [
   "CANCELADO",
 ] as const;
 
-export async function fetchAdminOpportunities() {
+async function fetchAdminOpportunitiesFromCrm() {
   const batches = await Promise.all(
     ADMIN_PIPELINE_STAGES.map((stage) => fetchOpportunities(stage))
   );
@@ -46,7 +99,7 @@ export async function fetchAdminOpportunities() {
   return Array.from(merged.values());
 }
 
-export async function fetchAdminHistoryOpportunities() {
+async function fetchAdminHistoryOpportunitiesFromCrm() {
   const batches = await Promise.all(
     ADMIN_HISTORY_STAGES.map((stage) => fetchOpportunities(stage))
   );
@@ -57,6 +110,28 @@ export async function fetchAdminHistoryOpportunities() {
   });
 
   return Array.from(merged.values());
+}
+
+export async function fetchAdminOpportunities() {
+  const cached = await cacheGet<ReturnType<typeof mapOpportunityNode>[]>(
+    CRM_CACHE_KEYS.adminOpportunities
+  );
+  if (cached) return cached;
+
+  const result = await fetchAdminOpportunitiesFromCrm();
+  await cacheSet(CRM_CACHE_KEYS.adminOpportunities, result, DEFAULT_TTL_SEC);
+  return result;
+}
+
+export async function fetchAdminHistoryOpportunities() {
+  const cached = await cacheGet<ReturnType<typeof mapOpportunityNode>[]>(
+    CRM_CACHE_KEYS.adminHistory
+  );
+  if (cached) return cached;
+
+  const result = await fetchAdminHistoryOpportunitiesFromCrm();
+  await cacheSet(CRM_CACHE_KEYS.adminHistory, result, DEFAULT_TTL_SEC);
+  return result;
 }
 
 export type AdminHistoryPageResult = {
@@ -78,6 +153,9 @@ export async function fetchAdminHistoryPage(
 ): Promise<AdminHistoryPageResult> {
   const safePage = Math.max(1, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const cacheKey = adminHistoryPageCacheKey(safePage, safePageSize);
+  const cached = await cacheGet<AdminHistoryPageResult>(cacheKey);
+  if (cached) return cached;
 
   const [pipeline, archived] = await Promise.all([
     fetchAdminOpportunities(),
@@ -85,9 +163,10 @@ export async function fetchAdminHistoryPage(
   ]);
 
   const merged = new Map<string, ReturnType<typeof mapOpportunityNode>>();
-  [...pipeline, ...archived].forEach((opp) => {
-    merged.set(opp.twentyId, opp);
-  });
+  pipeline
+    .filter((opp) => isTerminalHistoryStatus(opp.status))
+    .forEach((opp) => merged.set(opp.twentyId, opp));
+  archived.forEach((opp) => merged.set(opp.twentyId, opp));
 
   const historyItems = sortOpportunitiesByRecentDate(
     Array.from(merged.values()).filter((opp) => isTerminalHistoryStatus(opp.status))
@@ -101,7 +180,7 @@ export async function fetchAdminHistoryPage(
   const isIncomplete = (status: string) => status === "Incompleto" || status === "INCOMPLETO";
   const isCancelled = (status: string) => status === "Cancelado" || status === "CANCELADO";
 
-  return {
+  const result: AdminHistoryPageResult = {
     items: historyItems.slice(start, start + safePageSize),
     total,
     page: safePage,
@@ -113,6 +192,9 @@ export async function fetchAdminHistoryPage(
       cancelled: historyItems.filter((opp) => isCancelled(opp.status || "")).length,
     },
   };
+
+  await cacheSet(cacheKey, result, DEFAULT_TTL_SEC);
+  return result;
 }
 
 function mapOpportunityNode(node: any) {
@@ -161,6 +243,16 @@ function mapOpportunityNode(node: any) {
     }
   }
 
+  const stageNorm = normalizeString(node.stage);
+  if (
+    (stageNorm === CRM_STAGES.PAGAMENTO_TOTAL || stageNorm === CRM_STAGES.CONCLUIDO) &&
+    !isTerminalHistoryStatus(computedStatus)
+  ) {
+    computedStatus = CRM_TASK_STATUS.CONCLUIDO;
+  } else if (stageNorm === 'CANCELADO' && !isTerminalHistoryStatus(computedStatus)) {
+    computedStatus = CRM_TASK_STATUS.CANCELADO;
+  }
+
   return {
     id: node.id,
     twentyId: node.id,
@@ -200,50 +292,7 @@ export async function fetchOpportunities(
         opportunities(orderBy: { createdAt: DescNullsLast }, first: $first, filter: { stage: { eq: $stage } }) {
           edges {
             node {
-              id
-              name
-              nsi
-              stage
-              tipoDeServico
-              createdAt
-              moradaDeServico {
-                addressStreet1
-                addressStreet2
-                addressCity
-                addressState
-                addressPostcode
-                addressCountry
-                addressLat
-                addressLng
-              }
-              pointOfContact {
-                id
-                name {
-                  firstName
-                  lastName
-                }
-                emails {
-                  primaryEmail
-                }
-                phones {
-                  primaryPhoneNumber
-                  primaryPhoneCallingCode
-                }
-              }
-              taskTargets {
-                edges {
-                  node {
-                    task {
-                      id
-                      status
-                      dueAt
-                      assigneeId
-                      technicianName
-                      scheduledBy
-                    }
-                  }
-                }
-              }
+              ${OPPORTUNITY_ADMIN_NODE_FIELDS}
             }
           }
         }
@@ -254,50 +303,7 @@ export async function fetchOpportunities(
         opportunities(orderBy: { createdAt: DescNullsLast }) {
           edges {
             node {
-              id
-              name
-              nsi
-              stage
-              tipoDeServico
-              createdAt
-              moradaDeServico {
-                addressStreet1
-                addressStreet2
-                addressCity
-                addressState
-                addressPostcode
-                addressCountry
-                addressLat
-                addressLng
-              }
-              pointOfContact {
-                id
-                name {
-                  firstName
-                  lastName
-                }
-                emails {
-                  primaryEmail
-                }
-                phones {
-                  primaryPhoneNumber
-                  primaryPhoneCallingCode
-                }
-              }
-              taskTargets {
-                edges {
-                  node {
-                    task {
-                      id
-                      status
-                      dueAt
-                      assigneeId
-                      technicianName
-                      scheduledBy
-                    }
-                  }
-                }
-              }
+              ${OPPORTUNITY_ADMIN_NODE_FIELDS}
             }
           }
         }
@@ -305,7 +311,10 @@ export async function fetchOpportunities(
     `;
 
   const variables = stageFilter ? { stage: stageFilter, first } : {};
-  const data = await crmFetch<{ opportunities: { edges: any[] } }>(query, variables);
+  const data = await crmFetch<{ opportunities: { edges: any[] } }>(query, variables, {
+    timeoutMs: 8000,
+    maxRetries: 1,
+  });
   
   return data.opportunities.edges.map((edge) => mapOpportunityNode(edge.node));
 }
@@ -318,7 +327,9 @@ export async function updateOpportunityStage(id: string, stage: string) {
       }
     }
   `;
-  return await crmFetch(mutation, { id, stage });
+  const result = await crmFetch(mutation, { id, stage });
+  await invalidateAdminCrmCache();
+  return result;
 }
 
 export async function updateOpportunityCoordinates(id: string, lat: number, lng: number, existingAddress?: any) {
@@ -341,10 +352,12 @@ export async function updateOpportunityCoordinates(id: string, lat: number, lng:
     if (existingAddress.addressPostcode) moradaInput.addressPostcode = existingAddress.addressPostcode;
     if (existingAddress.addressCountry) moradaInput.addressCountry = existingAddress.addressCountry;
   }
-  return await crmFetch(mutation, { 
-    id, 
-    moradaDeServico: moradaInput 
+  const result = await crmFetch(mutation, {
+    id,
+    moradaDeServico: moradaInput,
   });
+  await invalidateAdminCrmCache();
+  return result;
 }
 
 export async function getOpportunityClientRating(opportunityId: string): Promise<number | null> {
@@ -439,7 +452,7 @@ function parseMarkdownTable(markdown: string) {
 export async function fetchPreparationList() {
   const query = `
     query getPrepList {
-      opportunities(filter: { stage: { eq: "PREPARACAO" } }, orderBy: { createdAt: DescNullsLast }) {
+      opportunities(filter: { stage: { eq: "PREPARACAO" } }, orderBy: { createdAt: DescNullsLast }, first: 100) {
         edges {
           node {
             id

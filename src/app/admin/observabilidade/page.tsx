@@ -256,7 +256,7 @@ export default function ObservabilityDashboard() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchTelemetry();
-      const interval = setInterval(fetchTelemetry, 15000);
+      const interval = setInterval(fetchTelemetry, 60000);
       return () => clearInterval(interval);
     }
   }, [isAuthenticated]);

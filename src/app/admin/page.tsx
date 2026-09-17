@@ -206,7 +206,7 @@ export default function Admin() {
     };
 
     runMaintenance();
-    const interval = setInterval(runMaintenance, 5 * 60 * 1000);
+    const interval = setInterval(runMaintenance, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

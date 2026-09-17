@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
-import { getServiceTypeColor } from '@/lib/techniciansConfig';
+import { buildServiceTypeMarkerSvg, getServiceTypeColor, resolveServiceType } from '@/lib/techniciansConfig';
 import { resolveTaskOverdue } from '@/lib/taskUtils';
 import { HQ_LAT, HQ_LNG } from '@/lib/hq';
 
@@ -27,12 +27,32 @@ function getTechnicianColor(technicianName: string | null): string {
   return technicianColors[hash % technicianColors.length];
 }
 
-function getServiceColor(task: any): string | null {
-  if (task.tipoDeServico && task.tipoDeServico.length > 0) {
-    const type = task.tipoDeServico[0];
-    return getServiceTypeColor(type).pin;
-  }
-  return null;
+function buildTaskMarkerIcon(task: any, options: {
+  isLate: boolean;
+  isHighlighted: boolean;
+  alertColor: string | null;
+  showTechnicianColors: boolean;
+  techColor: string;
+}) {
+  const serviceType = resolveServiceType(task);
+  const serviceColor = serviceType ? getServiceTypeColor(serviceType).pin : null;
+  const fillOverride = options.isLate
+    ? '#f59e0b'
+    : serviceColor || (options.showTechnicianColors ? options.techColor : '#3b82f6');
+
+  const svg = buildServiceTypeMarkerSvg(serviceType || 'GERAL', {
+    isLate: options.isLate,
+    isHighlighted: options.isHighlighted,
+    alertColor: options.alertColor,
+    fillOverride,
+  });
+
+  const size = options.isLate || options.isHighlighted ? 42 : 38;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(size, size),
+    anchor: new window.google.maps.Point(size / 2, size / 2),
+  };
 }
 
 interface MapComponentProps {
@@ -241,7 +261,7 @@ export default function MapComponent({
   }, [shouldComputeTechLiveRoute, selectedTechMarker, techAssignedTasks, isLoaded]);
 
   useEffect(() => {
-    if (!shouldComputeOptimizedRoute) {
+    if (!shouldComputeOptimizedRoute || !hqLocation?.coordinates || !optimizedRoute?.length) {
       onRouteUpdateRef.current(null);
       return;
     }
@@ -588,9 +608,7 @@ export default function MapComponent({
 
           const isHighlighted = highlightedIds.includes(task.id);
           const isLate = resolveTaskOverdue(task);
-          const serviceColor = getServiceColor(task);
           const techColor = task.technicianColor || getTechnicianColor(task.technician || (task.stage === "Entrada" ? "Unscheduled" : null));
-          const color = isLate ? "#f59e0b" : (serviceColor || (showTechnicianColors ? techColor : "#3b82f6"));
           const alertColor = isLate
             ? "#dc2626"
             : task.delayAlert === "red"
@@ -613,14 +631,13 @@ export default function MapComponent({
                 setSelectedMarker(task);
                 onTaskSelect(task);
               }}
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
-                fillColor: isHighlighted ? "#ffffff" : color,
-                fillOpacity: 1,
-                strokeWeight: alertColor ? (isHighlighted ? 8 : 6) : (isHighlighted ? 6 : 3),
-                strokeColor: alertColor || (isHighlighted ? color : "#ffffff"),
-                scale: isLate ? 10 : (isHighlighted ? 10 : 8),
-              }}
+              icon={buildTaskMarkerIcon(task, {
+                isLate,
+                isHighlighted,
+                alertColor,
+                showTechnicianColors: !!showTechnicianColors,
+                techColor,
+              })}
               label={
                 isLate
                   ? {

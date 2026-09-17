@@ -1,6 +1,12 @@
 "use server";
 
 import { fetchWorkspaceRoles, isTechnicianRoleLabel } from './twentyAuth';
+import {
+  CRM_CACHE_KEYS,
+  MEMBERS_TTL_SEC,
+  cacheGet,
+  cacheSet,
+} from '@/lib/crmCache';
 
 export interface WorkspaceMemberOption {
   id: string;
@@ -22,6 +28,9 @@ function buildMemberName(
  * Lista técnicos disponíveis para agendamento (role "Técnicos" no Twenty CRM).
  */
 export async function fetchWorkspaceMembers(): Promise<WorkspaceMemberOption[]> {
+  const cached = await cacheGet<WorkspaceMemberOption[]>(CRM_CACHE_KEYS.workspaceMembers);
+  if (cached) return cached;
+
   const roles = await fetchWorkspaceRoles();
   const technicianRoles = roles.filter((role) => isTechnicianRoleLabel(role.label));
 
@@ -41,5 +50,6 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMemberOption[]> 
     }
   }
 
+  await cacheSet(CRM_CACHE_KEYS.workspaceMembers, technicians, MEMBERS_TTL_SEC);
   return technicians;
 }

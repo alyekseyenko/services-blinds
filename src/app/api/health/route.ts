@@ -11,10 +11,10 @@ interface HealthProbe {
 async function probeGraphql(): Promise<HealthProbe> {
   const start = Date.now();
   try {
-    await crmFetch<{ opportunities: { edges: unknown[] } }>(
-      '{ opportunities(first: 1) { edges { node { id } } } }',
+    await crmFetch<{ __typename: string }>(
+      '{ __typename }',
       {},
-      { timeoutMs: 5000, maxRetries: 1 }
+      { timeoutMs: 4000, maxRetries: 0 }
     );
     return { status: 'connected', latencyMs: Date.now() - start };
   } catch (error) {
@@ -26,7 +26,7 @@ async function probeGraphql(): Promise<HealthProbe> {
   }
 }
 
-async function probeMetadata(): Promise<HealthProbe> {
+async function probeMetadata(): Promise<HealthProbe | null> {
   const start = Date.now();
   const metadataUrl =
     env.TWENTY_METADATA_URL || `${env.TWENTY_API_URL.replace(/\/$/, '')}/metadata`;
@@ -41,7 +41,7 @@ async function probeMetadata(): Promise<HealthProbe> {
       body: JSON.stringify({
         query: '{ currentWorkspace { id displayName } }',
       }),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(4000),
     });
 
     if (!response.ok) {
@@ -64,8 +64,9 @@ async function probeMetadata(): Promise<HealthProbe> {
 }
 
 export async function GET() {
-  const [graphql, metadata] = await Promise.all([probeGraphql(), probeMetadata()]);
-  const healthy = graphql.status === 'connected' && metadata.status === 'connected';
+  const graphql = await probeGraphql();
+  const metadata = await probeMetadata();
+  const healthy = graphql.status === 'connected';
 
   return NextResponse.json(
     {

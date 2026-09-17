@@ -95,6 +95,15 @@ describe('CRM Contract Layer', () => {
       expect(isInstallationService(null, null, 'Montagem de Estores')).toBe(true);
       expect(isInstallationService('TIRAR_MEDIDAS')).toBe(false);
     });
+
+    it('prioriza instalação sobre medição quando ambos os tipos estão presentes', () => {
+      const stage = CRM_STAGES.INSTALACAO;
+      const types = ['INSTALACAO', 'TIRAR_MEDIDAS'];
+      const isInstallation = isInstallationService(stage, types);
+      const isMeasurement = !isInstallation && isMeasurementService(stage, types);
+      expect(isInstallation).toBe(true);
+      expect(isMeasurement).toBe(false);
+    });
   });
 
   describe('getNextStageOnSchedule', () => {

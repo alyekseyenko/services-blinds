@@ -12,9 +12,13 @@ import {
   toTwentyTaskStatus,
   isTaskCompleted,
   isTaskCancelled,
+  isTaskActive,
   isMeasurementService,
   isInstallationService
 } from './contract';
+import { invalidateAdminCrmCache } from '@/lib/crmCache';
+
+const TECHNICIAN_TASK_FETCH_LIMIT = 150;
 
 const TASK_NODE_FIELDS = `
   id
@@ -50,15 +54,8 @@ const TASK_NODE_FIELDS = `
           tipoDeServico
           stage
           notasImportantes { markdown }
-          pointOfContact {
-            phones {
-              primaryPhoneNumber
-              primaryPhoneCallingCode
-            }
-          }
           moradaDeServico {
             addressStreet1
-            addressStreet2
             addressCity
             addressLat
             addressLng
@@ -75,6 +72,7 @@ async function fetchTasksByAssigneeId(assigneeId: string) {
       tasks(
         filter: { assigneeId: { eq: $assigneeId } }
         orderBy: { dueAt: AscNullsLast }
+        first: ${TECHNICIAN_TASK_FETCH_LIMIT}
       ) {
         edges {
           node {
@@ -85,7 +83,11 @@ async function fetchTasksByAssigneeId(assigneeId: string) {
     }
   `;
 
-  const data = await crmFetch<{ tasks: { edges: Array<{ node: any }> } }>(query, { assigneeId });
+  const data = await crmFetch<{ tasks: { edges: Array<{ node: any }> } }>(
+    query,
+    { assigneeId },
+    { timeoutMs: 8000, maxRetries: 1 }
+  );
   return data.tasks.edges.map((edge) => edge.node);
 }
 
@@ -173,7 +175,9 @@ export async function fetchTechnicianTasks(technicianId: string): Promise<AppTas
 
   return assignedTasks
     .filter((node) => {
-      // 2. Ocultar automaticamente tarefas obsoletas se a Oportunidade associada já tiver avançado de etapa
+      // Only hide obsolete tasks from the active agenda — keep terminal tasks for history.
+      if (!isTaskActive(node.status)) return true;
+
       const edges = node.taskTargets?.edges || [];
       const opp = edges.find((e: any) => e.node?.targetOpportunity)?.node?.targetOpportunity;
       if (opp) {
@@ -181,7 +185,6 @@ export async function fetchTechnicianTasks(technicianId: string): Promise<AppTas
         const isInstallationTask = isInstallationService(opp.stage, opp.tipoDeServico, node.title);
         const isMeasurementTask = !isInstallationTask && isMeasurementService(opp.stage, opp.tipoDeServico, node.title);
 
-        // Se for medição ou remedição, mas a oportunidade já avançou para Orçamentar ou etapas seguintes de venda
         if (isMeasurementTask) {
           if (STAGE_GROUPS.OBSOLETE_AFTER_MEASUREMENT.includes(stageNorm)) {
             console.log(`[Filter] Omitindo tarefa de medição antiga ${node.id} (${node.title}) pois a Oportunidade avançou para ${opp.stage}`);
@@ -189,7 +192,6 @@ export async function fetchTechnicianTasks(technicianId: string): Promise<AppTas
           }
         }
 
-        // Se for instalação, só omitir se a oportunidade já foi totalmente concluída
         if (isInstallationTask) {
           if (STAGE_GROUPS.OBSOLETE_AFTER_INSTALLATION.includes(stageNorm)) {
             console.log(`[Filter] Omitindo tarefa de instalação concluída ${node.id} (${node.title}) pois a Oportunidade está no estágio ${opp.stage}`);
@@ -348,16 +350,16 @@ export async function updateTaskStatus(taskId: string, status: string, observati
   if (oppId && apiStatus !== CRM_TASK_STATUS.EM_CURSO) {
     try {
       const { updateOpportunityStage } = await import('./opportunities');
-      const isMeasurement = isMeasurementService(opp?.stage, opp?.tipoDeServico, updatedTask.title);
       const isInstallation = isInstallationService(opp?.stage, opp?.tipoDeServico, updatedTask.title);
+      const isMeasurement = !isInstallation && isMeasurementService(opp?.stage, opp?.tipoDeServico, updatedTask.title);
 
       if (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE) {
-        if (isMeasurement) {
-          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${CRM_STAGES.ORCAMENTAR}`);
-          await updateOpportunityStage(oppId, CRM_STAGES.ORCAMENTAR);
-        } else if (isInstallation) {
+        if (isInstallation) {
           console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${CRM_STAGES.PAGAMENTO_TOTAL}`);
           await updateOpportunityStage(oppId, CRM_STAGES.PAGAMENTO_TOTAL);
+        } else if (isMeasurement) {
+          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${CRM_STAGES.ORCAMENTAR}`);
+          await updateOpportunityStage(oppId, CRM_STAGES.ORCAMENTAR);
         }
       } else if (apiStatus === CRM_TASK_STATUS.INCOMPLETO || apiStatus === CRM_TASK_STATUS.CANCELADO) {
         // Se falhar a instalação, volta a MARCAR_INSTALACAO para reagendar; se falhar a medição, volta a ENTRADA
@@ -369,6 +371,7 @@ export async function updateTaskStatus(taskId: string, status: string, observati
     }
   }
 
+  await invalidateAdminCrmCache();
   return updatedTask;
 }
 
@@ -518,6 +521,7 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
     }
   }
 
+  await invalidateAdminCrmCache();
   return task;
 }
 
@@ -536,6 +540,8 @@ export async function cancelAppointment(taskId: string, opportunityId?: string) 
   if (opportunityId) {
     const { updateOpportunityStage } = await import('./opportunities');
     await updateOpportunityStage(opportunityId, CRM_STAGES.ENTRADA);
+  } else {
+    await invalidateAdminCrmCache();
   }
 
   return true;
@@ -569,6 +575,8 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
   if (oppId) {
     const { updateOpportunityStage } = await import('./opportunities');
     await updateOpportunityStage(oppId, CRM_STAGES.ENTRADA);
+  } else {
+    await invalidateAdminCrmCache();
   }
 
   return true;

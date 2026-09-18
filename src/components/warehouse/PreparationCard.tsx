@@ -6,57 +6,26 @@ import {
   Layers, AlertTriangle, ArrowRight, ClipboardList,
   Loader2, MessageSquare, Plus, User
 } from "lucide-react";
-import { updateItemPreparationStatus } from "@/lib/crm/items";
-import { fetchOpportunityNotesAction, createOpportunityNoteAction } from "@/actions/notes-actions";
+import {
+  createWarehouseOpportunityNoteAction,
+  fetchWarehouseOpportunityNotesAction,
+  updateWarehouseItemStatusAction,
+} from "@/actions/warehouse-actions";
+import type { AppNote } from "@/lib/crm/notes";
 import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { hapticLight } from "@/lib/haptics";
+import type {
+  WarehouseGroup as Group,
+  WarehouseMeasurement as Measurement,
+  WarehouseService as Service,
+} from "@/lib/warehouse/types";
 
-export interface Measurement {
-  id: string;
-  qty: number;
-  width: number;
-  height: number;
-  notes?: string;
-  fixation?: string;
-  controls?: string;
-  isPrepared: boolean;
-  estadoDoArmazem?: string;
-}
-
-export interface Group {
-  id: string;
-  type: string;
-  details?: {
-    material?: string;
-    model?: string;
-    ral?: string;
-    activation?: string;
-  };
-  measurements: Measurement[];
-}
-
-export interface Service {
-  id: string;
-  title: string;
-  nsi: string;
-  client: string;
-  createdAt: string;
-  measurements?: {
-    groups: Group[];
-  };
-}
+export type { Measurement, Group, Service };
 
 export interface PreparationCardProps {
   service: Service;
   onComplete: (serviceId: string) => Promise<any> | void;
-}
-
-interface Note {
-  id: string;
-  title?: string;
-  body?: string;
-  createdAt: string;
 }
 
 export default function PreparationCard({ service, onComplete }: PreparationCardProps) {
@@ -72,7 +41,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
   const [savingItemNote, setSavingItemNote] = useState<Record<string, boolean>>({}); // { "groupId-rowIndex": false }
 
   // Notes and Communication states
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<AppNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
   const [isCreatingNote, setIsCreatingNote] = useState(false);
@@ -81,7 +50,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
     if (!service.id) return;
     setLoadingNotes(true);
     try {
-      const result = await fetchOpportunityNotesAction(service.id);
+      const result = await fetchWarehouseOpportunityNotesAction(service.id);
       if (result.success) {
         setNotes(result.data || []);
       }
@@ -102,9 +71,8 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
     if (!newNoteText.trim() || !service.id) return;
     setIsCreatingNote(true);
     try {
-      const result = await createOpportunityNoteAction(
+      const result = await createWarehouseOpportunityNoteAction(
         service.id,
-        null,
         "Nota de Armazém",
         newNoteText.trim()
       );
@@ -135,13 +103,14 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
     setCompletedItems(prev => ({ ...prev, [key]: isPrepared }));
 
     if (itemId && itemId.toString().length > 10) {
-      try {
-        await updateItemPreparationStatus(itemId, isPrepared, newStatus);
-      } catch (e) {
-        console.error("Failed to sync warehouse status:", e);
-        setItemStatuses(prev => ({ ...prev, [key]: oldStatus }));
-        setCompletedItems(prev => ({ ...prev, [key]: oldCompleted }));
-        toast.error("Erro ao sincronizar", "Não foi possível atualizar o estado no CRM.");
+      const result = await updateWarehouseItemStatusAction(itemId, newStatus);
+      if (!result.success) {
+        setItemStatuses((prev) => ({ ...prev, [key]: oldStatus }));
+        setCompletedItems((prev) => ({ ...prev, [key]: oldCompleted }));
+        toast.error(
+          "Erro ao sincronizar",
+          result.error || "Não foi possível atualizar o estado no CRM."
+        );
       }
     }
   };
@@ -154,12 +123,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
     setSavingItemNote(prev => ({ ...prev, [key]: true }));
     try {
       const title = `Nota de Armazém - ${itemType.replace('_', ' ')} (${itemSize})`;
-      const result = await createOpportunityNoteAction(
-        service.id,
-        null,
-        title,
-        text.trim()
-      );
+      const result = await createWarehouseOpportunityNoteAction(service.id, title, text.trim());
       if (result.success) {
         setItemNoteTexts(prev => ({ ...prev, [key]: "" }));
         await loadNotes();

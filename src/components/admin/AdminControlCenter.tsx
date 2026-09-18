@@ -3,15 +3,9 @@
 import React, { useEffect } from 'react';
 import { X, Brain, Sparkles, Navigation, Loader2 } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import type { ZoneInsight } from "@/types/admin";
 
-export interface ZoneInsight {
-  name: string;
-  priority: string;
-  count: number;
-  distance: number;
-  logisticsCost: number;
-  score: number;
-}
+export type { ZoneInsight };
 
 interface AdminControlCenterProps {
   view: string;

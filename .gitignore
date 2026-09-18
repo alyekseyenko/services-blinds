@@ -65,3 +65,6 @@ foto_gostosa.jpg
 
 # VPS deploy/diagnostic scripts (local + server only — not published)
 /scripts/
+
+# local migration / dedupe logs
+dedupe-live.log

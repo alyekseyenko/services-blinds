@@ -1,3 +1,14 @@
+export interface ZoneInsight {
+  name: string;
+  priority: string;
+  count: number;
+  distance: number;
+  logisticsCost: number;
+  score: number;
+}
+
+export type MapCategoryFilter = "all" | "medicoes" | "instalacoes" | "assistencia";
+
 export interface RawAddress {
   addressStreet1?: string;
   addressStreet2?: string;

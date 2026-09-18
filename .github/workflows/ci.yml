@@ -14,7 +14,7 @@ env:
   TWENTY_API_URL: http://127.0.0.1:3000
   TWENTY_API_KEY: ci-placeholder-twenty-api-key-32ch
   NEXTAUTH_SECRET: ci-nextauth-secret-at-least-16
-  NEXTAUTH_URL: http://127.0.0.1:3000
+  NEXTAUTH_URL: http://localhost:3000
 
 jobs:
   quality:

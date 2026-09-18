@@ -1,8 +1,8 @@
-# ESTORESRAINHA — Field Operations Platform
+# Blinds Technical Services — Field Operations Platform
 
 A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with **Twenty CRM** and built **offline-first** for technicians on the road.
 
-> Default branding in `.env.example` is **ESTORESRAINHA**. Override `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` for other deployments.
+> Branding is env-driven (`NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_SHORT_NAME`). Defaults in `.env.example` are generic placeholders — override on the production server.
 
 ---
 
@@ -32,7 +32,7 @@ A blinds company serving **more than 15,000 customers** was stuck in organizatio
 
 ### Solution
 
-**ESTORESRAINHA** connects the full lifecycle in one platform:
+**Blinds Technical Services** connects the full lifecycle in one platform:
 
 | Role | Capability |
 |------|------------|
@@ -212,8 +212,8 @@ TWENTY_API_KEY=your_api_key
 NEXTAUTH_SECRET=at_least_32_random_characters
 NEXTAUTH_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_NAME=ESTORESRAINHA
-NEXT_PUBLIC_APP_SHORT_NAME=ESTORESRAINHA
+NEXT_PUBLIC_APP_NAME=Blinds Technical Services
+NEXT_PUBLIC_APP_SHORT_NAME=BTS
 ```
 
 ### Commands
@@ -260,7 +260,7 @@ docs/adrs/                # Architecture decision records
 ## Security & privacy (GitHub)
 
 - **Never commit** `.env.local` — it holds API keys, secrets, and real domains.
-- The repo uses **placeholders** for secrets and domains (`your_api_key`, `yourcompany.com`). Branding defaults to **ESTORESRAINHA** in `.env.example` — no production URLs or API keys in Git.
+- The repo uses **placeholders** for secrets, domains, and branding (`your_api_key`, `yourcompany.com`, `Blinds Technical Services`) — no production URLs, client names, or API keys in Git.
 - Production branding and URLs are set **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md).
 - Keep the repository **Private** if you want extra protection.
 - Deploy scripts read `VPS_HOST`, `VPS_PASSWORD`, and `DEPLOY_HEALTH_URL` from your **local environment**, not from Git.

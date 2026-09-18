@@ -1,6 +1,8 @@
-# Blinds Technical Services — Field Operations Platform
+# ESTORESRAINHA — Field Operations Platform
 
-A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with an internal CRM and built **offline-first** for technicians on the road.
+A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with **Twenty CRM** and built **offline-first** for technicians on the road.
+
+> Default branding in `.env.example` is **ESTORESRAINHA**. Override `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` for other deployments.
 
 ---
 
@@ -30,17 +32,18 @@ A blinds company serving **more than 15,000 customers** was stuck in organizatio
 
 ### Solution
 
-**Blinds Technical Services** connects the full lifecycle in one platform:
+**ESTORESRAINHA** connects the full lifecycle in one platform:
 
 | Role | Capability |
 |------|------------|
 | **CEO** | Revenue, pipeline forecast, technician rankings, fleet km, NPS, follow-ups |
-| **Admin / members** | Live map, calendar, AI route planning, bulk scheduling, paginated history |
+| **Admin** | Full operational panel + SRE observability |
+| **Member** | Operational admin (map, calendar, scheduling) — no CEO or SRE console |
 | **Technicians (PWA)** | Day agenda, GPS, millimetre measurements, visit closure — **offline-first** |
 | **Warehouse** | Per-item preparation status before installation |
 | **Customers** | HMAC-signed links to rate a service or cancel an appointment |
 
-All roles sync with the **internal CRM** (Twenty). Offline mutations queue in IndexedDB and replay when connectivity returns.
+All roles sync with **Twenty CRM**. Pipeline workflow is **stage-first** (`ENTRADA`, `MANUTENCAO`, `REPARACAO`, `MARCAR_INSTALACAO`, etc.) — the app derives visit type from **opportunity stage + title**, not a separate service-type field. Offline mutations queue in IndexedDB and replay when connectivity returns.
 
 ### Impact
 
@@ -65,6 +68,7 @@ All roles sync with the **internal CRM** (Twenty). Offline mutations queue in In
 ### Admin control center
 
 - Map: unscheduled vs scheduled visits, overdue indicators, live technician pins
+- Filters: measurements, installations, and **assistance** (maintenance / repair)
 - Calendar per technician
 - AI route strategy with fuel/toll estimates
 - Mass scheduling, opportunity drawer, automatic geocoding
@@ -98,9 +102,10 @@ All roles sync with the **internal CRM** (Twenty). Offline mutations queue in In
 ### Engineering quality
 
 - Zod schemas, clean architecture (UI → actions → CRM layer)
-- Circuit breaker, transactional outbox, 76+ unit tests, Playwright e2e
+- Single CRM contract in `src/lib/crm/contract.ts` (stages, transitions, RBAC helpers)
+- Circuit breaker, transactional outbox, **86+** unit tests, Playwright e2e
 - GitHub Actions CI: type-check, test, build, smoke e2e
-- RBAC: admin, CEO, technician, warehouse
+- RBAC: **admin**, **member**, **ceo**, **technician**, **warehouse**
 
 ---
 
@@ -116,7 +121,7 @@ graph TB
     end
 
     subgraph "Next.js App"
-        MW[Auth middleware + RBAC]
+        PROXY[Auth proxy + RBAC<br/>src/proxy.ts]
         ACTIONS[Server Actions]
         OFFLINE[IndexedDB + sync queue]
         OUTBOX[Transactional outbox]
@@ -129,10 +134,11 @@ graph TB
         MAPS[Maps / geocoding]
     end
 
-    TECH --> OFFLINE --> ACTIONS
-    ADMIN --> ACTIONS
-    CEO --> ACTIONS
-    WH --> ACTIONS
+    TECH --> PROXY
+    ADMIN --> PROXY
+    CEO --> PROXY
+    WH --> PROXY
+    PROXY --> OFFLINE --> ACTIONS
     ACTIONS --> CRM
     ACTIONS --> OUTBOX --> N8N
     ACTIONS --> MAPS
@@ -172,7 +178,7 @@ sequenceDiagram
 | CRM | Twenty (GraphQL + contract layer) |
 | Auth | NextAuth.js, JWT, RBAC |
 | Automation | n8n webhooks |
-| Tests | Vitest (76+), Playwright |
+| Tests | Vitest (86+), Playwright |
 | Deploy | Docker Compose, Nginx |
 
 ---
@@ -206,6 +212,8 @@ TWENTY_API_KEY=your_api_key
 NEXTAUTH_SECRET=at_least_32_random_characters
 NEXTAUTH_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_NAME=ESTORESRAINHA
+NEXT_PUBLIC_APP_SHORT_NAME=ESTORESRAINHA
 ```
 
 ### Commands
@@ -233,7 +241,8 @@ src/
 │   └── cancelamento/     # Public cancellation portal
 ├── components/
 ├── hooks/                # useSync, useSyncQueue
-└── lib/crm/              # GraphQL integration + contract layer
+├── lib/crm/              # GraphQL integration + contract layer (stages, transitions)
+└── proxy.ts              # Next.js 16 auth + route RBAC (not middleware.ts)
 docs/adrs/                # Architecture decision records
 ```
 
@@ -251,7 +260,7 @@ docs/adrs/                # Architecture decision records
 ## Security & privacy (GitHub)
 
 - **Never commit** `.env.local` — it holds API keys, secrets, and real domains.
-- The repo uses **generic placeholders** (`yourcompany.com`, `Blinds Technical Services`).
+- The repo uses **placeholders** for secrets and domains (`your_api_key`, `yourcompany.com`). Branding defaults to **ESTORESRAINHA** in `.env.example` — no production URLs or API keys in Git.
 - Production branding and URLs are set **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md).
 - Keep the repository **Private** if you want extra protection.
 - Deploy scripts read `VPS_HOST`, `VPS_PASSWORD`, and `DEPLOY_HEALTH_URL` from your **local environment**, not from Git.

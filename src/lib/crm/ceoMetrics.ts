@@ -19,10 +19,13 @@ const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   REMEDICAO: { label: "Remedição", color: "#a855f7" },
   [CRM_STAGES.ORCAMENTAR]: { label: "Orçamentação", color: "#6366f1" },
   [CRM_STAGES.PROPOSTA]: { label: "Proposta Enviada", color: "#8b5cf6" },
+  [CRM_STAGES.MANUTENCAO]: { label: "Manutenção", color: "#64748b" },
+  [CRM_STAGES.REPARACAO]: { label: "Reparação", color: "#f97316" },
   [CRM_STAGES.PAGAMENTO_30]: { label: "Adjudicado (Sinal 30%)", color: "#ec4899" },
   [CRM_STAGES.ENCOMENDA]: { label: "Encomenda Fornecedor", color: "#f97316" },
   [CRM_STAGES.PREPARACAO]: { label: "Preparação Armazém", color: "#eab308" },
   [CRM_STAGES.MARCAR_INSTALACAO]: { label: "Aguardar Montagem", color: "#14b8a6" },
+  [CRM_STAGES.AGENDAR_INSTALACAO]: { label: "Agendar Instalação", color: "#0d9488" },
   [CRM_STAGES.INSTALACAO]: { label: "Em Montagem", color: "#06b6d4" },
   [CRM_STAGES.PAGAMENTO_TOTAL]: { label: "Cobrança Final", color: "#f59e0b" },
   [CRM_STAGES.CONCLUIDO]: { label: "Obra Concluída", color: "#84cc16" },
@@ -36,6 +39,8 @@ const STAGE_WEIGHTS: Record<string, number> = {
   REMEDICAO: 0.30,
   [CRM_STAGES.ORCAMENTAR]: 0.40,
   [CRM_STAGES.PROPOSTA]: 0.50,
+  [CRM_STAGES.MANUTENCAO]: 0.75,
+  [CRM_STAGES.REPARACAO]: 0.75,
   [CRM_STAGES.PAGAMENTO_30]: 0.85,
   [CRM_STAGES.ENCOMENDA]: 0.90,
   [CRM_STAGES.PREPARACAO]: 0.95,
@@ -80,7 +85,6 @@ const CEO_OPP_NODE_FIELDS = `
   name
   nsi
   stage
-  tipoDeServico
   avaliacaoDoCliente
   feedbackDoCliente
   dataDeFollowUp
@@ -453,9 +457,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
         }
       }
 
-      const serviceTypeStr = Array.isArray(node.tipoDeServico) 
-        ? node.tipoDeServico.join(", ") 
-        : (node.tipoDeServico || "Geral");
+      const serviceTypeStr = stageInfo.label;
 
       const rawMicros = node.amount?.amountMicros;
       const amountVal = (typeof rawMicros === 'number' && rawMicros > 0)

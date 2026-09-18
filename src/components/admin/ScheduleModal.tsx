@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
-import { X, ChevronDown, Loader2, AlertCircle } from "lucide-react";
+import { ChevronDown, Loader2, AlertCircle } from "lucide-react";
 import { WorkspaceMember, Opportunity } from '@/types/admin';
+import { Dialog } from "@/components/ui/Dialog";
+import { Button } from "@/components/ui/button";
 
 export interface ScheduleForm {
   title: string;
@@ -58,33 +60,22 @@ export default function ScheduleModal({
     });
   }, [scheduleForm.date, scheduleForm.technicianId, scheduleForm.time, opportunities, workspaceMembers]);
 
-  if (!showScheduleModal) return null;
-
   const selectedDateTime = scheduleForm.date && scheduleForm.time 
     ? new Date(`${scheduleForm.date.replace(/-/g, '/')} ${scheduleForm.time}`).getTime() 
     : 0;
   const isPastTime = selectedDateTime ? (selectedDateTime < new Date().getTime()) : false;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500 border border-white/50">
-        <div className="p-10 md:p-12 max-h-[90vh] overflow-y-auto custom-scrollbar">
-          <div className="flex justify-between items-center mb-10">
-            <div>
-              <h3 className="text-3xl font-black text-slate-950 uppercase tracking-tighter italic">Agendar Visita</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Configuração Logística CRM</p>
-            </div>
-            <button 
-              onClick={() => setShowScheduleModal(false)} 
-              className="w-12 h-12 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-2xl flex items-center justify-center transition-all shadow-sm"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="space-y-8">
+    <Dialog
+      open={showScheduleModal}
+      onClose={() => setShowScheduleModal(false)}
+      title="Agendar Visita"
+      description="Configuração logística CRM"
+      className="max-w-lg rounded-[2rem]"
+    >
+          <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Título do Serviço</label>
+              <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Título do Serviço</label>
               <input
                 type="text"
                 value={scheduleForm.title}
@@ -96,7 +87,7 @@ export default function ScheduleModal({
 
             <div className="grid grid-cols-2 gap-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Data Agendada</label>
+                <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Data Agendada</label>
                 <input
                   type="date"
                   min={new Date().toISOString().split('T')[0]}
@@ -106,7 +97,7 @@ export default function ScheduleModal({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Hora de Início</label>
+                <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Hora de Início</label>
                 <input
                   type="time"
                   value={scheduleForm.time}
@@ -117,7 +108,7 @@ export default function ScheduleModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Técnico Responsável</label>
+              <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Técnico Responsável</label>
               <div className="relative">
                 <select
                   value={scheduleForm.technicianId}
@@ -136,8 +127,8 @@ export default function ScheduleModal({
                 <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-tight">Aviso de Sobreposição</p>
-                    <p className="text-[10px] text-amber-700 font-medium leading-tight mt-1">
+                    <p className="text-xs font-black uppercase tracking-tight text-amber-800">Aviso de Sobreposição</p>
+                    <p className="mt-1 text-xs font-medium leading-tight text-amber-700">
                       O técnico já tem o serviço <span className="font-bold">"{conflict.title}"</span> agendado para as <span className="font-bold">{new Date(conflict.scheduledAt).toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}</span>.
                     </p>
                   </div>
@@ -146,7 +137,7 @@ export default function ScheduleModal({
             </div>
 
             <div className="space-y-4 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Morada do Cliente</h4>
+              <h4 className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-slate-600">Morada do Cliente</h4>
               <div className="space-y-5">
                 <input
                   type="text"
@@ -175,7 +166,7 @@ export default function ScheduleModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Instruções para a Equipa</label>
+              <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Instruções para a Equipa</label>
               <textarea
                 value={scheduleForm.notes}
                 onChange={(e) => setScheduleForm({...scheduleForm, notes: e.target.value})}
@@ -185,35 +176,20 @@ export default function ScheduleModal({
             </div>
           </div>
 
-          <div className="mt-12 flex gap-4">
-            <button
-              onClick={() => setShowScheduleModal(false)}
-              className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-[2rem] font-black uppercase tracking-widest text-[11px] hover:bg-slate-200 transition-all"
-            >
+          <div className="mt-8 flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setShowScheduleModal(false)}>
               Cancelar
-            </button>
-            <button
-              disabled={
-                isScheduling || 
-                !scheduleForm.date || 
-                !scheduleForm.technicianId ||
-                isPastTime
-              }
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={isScheduling || !scheduleForm.date || !scheduleForm.technicianId || isPastTime}
+              loading={isScheduling}
+              loadingText="A agendar..."
               onClick={handleScheduleVisit}
-              className={`flex-1 py-5 text-white rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl transition-all flex items-center justify-center gap-3 ${
-                isScheduling || 
-                !scheduleForm.date || 
-                !scheduleForm.technicianId || 
-                isPastTime
-                ? 'bg-slate-300 cursor-not-allowed opacity-70' 
-                : 'bg-emerald-500 hover:bg-slate-950 shadow-emerald-500/20 hover:-translate-y-1'
-              }`}
             >
-              {isScheduling ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar Visita"}
-            </button>
+              Confirmar Visita
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

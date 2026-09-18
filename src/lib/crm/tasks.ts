@@ -13,8 +13,13 @@ import {
   isTaskCompleted,
   isTaskCancelled,
   isTaskActive,
+  classifyOpportunityWorkflow,
+  deriveWorkflowMarkerKey,
+  getCompletionStageForWorkflow,
+  getFallbackStageOnIncompleteWorkflow,
+  isAssistanceService,
+  isInstallationService,
   isMeasurementService,
-  isInstallationService
 } from './contract';
 import { invalidateAdminCrmCache } from '@/lib/crmCache';
 
@@ -51,7 +56,6 @@ const TASK_NODE_FIELDS = `
         targetOpportunity {
           id
           nsi
-          tipoDeServico
           stage
           notasImportantes { markdown }
           moradaDeServico {
@@ -129,7 +133,8 @@ function mapTaskNode(node: any): AppTask {
     report: node.bodyV2?.markdown || oppTarget?.notasImportantes?.markdown || '',
     opportunityId: oppTarget?.id,
     nsi: oppTarget?.nsi || 'N/A',
-    serviceType: oppTarget?.tipoDeServico || 'MANUTENCAO',
+    stage: oppTarget?.stage,
+    serviceType: deriveWorkflowMarkerKey(oppTarget?.stage, node.title),
     scheduledBy: node.scheduledBy || 'Admin',
     assigneeId: node.assigneeId ?? null,
     technicianName: node.technicianName ?? null,
@@ -182,8 +187,9 @@ export async function fetchTechnicianTasks(technicianId: string): Promise<AppTas
       const opp = edges.find((e: any) => e.node?.targetOpportunity)?.node?.targetOpportunity;
       if (opp) {
         const stageNorm = normalizeString(opp.stage);
-        const isInstallationTask = isInstallationService(opp.stage, opp.tipoDeServico, node.title);
-        const isMeasurementTask = !isInstallationTask && isMeasurementService(opp.stage, opp.tipoDeServico, node.title);
+        const isInstallationTask = isInstallationService(opp.stage, node.title);
+        const isMeasurementTask = !isInstallationTask && isMeasurementService(opp.stage, node.title);
+        const isAssistanceTask = isAssistanceService(opp.stage, node.title);
 
         if (isMeasurementTask) {
           if (STAGE_GROUPS.OBSOLETE_AFTER_MEASUREMENT.includes(stageNorm)) {
@@ -195,6 +201,13 @@ export async function fetchTechnicianTasks(technicianId: string): Promise<AppTas
         if (isInstallationTask) {
           if (STAGE_GROUPS.OBSOLETE_AFTER_INSTALLATION.includes(stageNorm)) {
             console.log(`[Filter] Omitindo tarefa de instalação concluída ${node.id} (${node.title}) pois a Oportunidade está no estágio ${opp.stage}`);
+            return false;
+          }
+        }
+
+        if (isAssistanceTask) {
+          if (STAGE_GROUPS.OBSOLETE_AFTER_ASSISTANCE.includes(stageNorm)) {
+            console.log(`[Filter] Omitindo tarefa de assistência concluída ${node.id} (${node.title}) pois a Oportunidade está no estágio ${opp.stage}`);
             return false;
           }
         }
@@ -223,7 +236,7 @@ export async function updateTaskStatus(taskId: string, status: string, observati
               opportunity {
                 nsi
                 name
-                tipoDeServico
+                stage
                 pointOfContact {
                   emails {
                     primaryEmail
@@ -264,7 +277,6 @@ export async function updateTaskStatus(taskId: string, status: string, observati
                 name
                 nsi
                 stage
-                tipoDeServico
                 pointOfContact {
                   id
                   emails {
@@ -321,7 +333,7 @@ export async function updateTaskStatus(taskId: string, status: string, observati
         photos,
         nsi: opp?.nsi || 'NSI',
         clientName: opp?.name || 'Cliente',
-        serviceType: opp?.tipoDeServico?.[0] || 'Servico',
+        serviceType: deriveWorkflowMarkerKey(opp?.stage, updatedTask.title),
         taskTitle: updatedTask.title
       });
     } catch (e) {
@@ -350,20 +362,16 @@ export async function updateTaskStatus(taskId: string, status: string, observati
   if (oppId && apiStatus !== CRM_TASK_STATUS.EM_CURSO) {
     try {
       const { updateOpportunityStage } = await import('./opportunities');
-      const isInstallation = isInstallationService(opp?.stage, opp?.tipoDeServico, updatedTask.title);
-      const isMeasurement = !isInstallation && isMeasurementService(opp?.stage, opp?.tipoDeServico, updatedTask.title);
+      const workflow = classifyOpportunityWorkflow(opp?.stage, updatedTask.title);
+      const completionStage = getCompletionStageForWorkflow(workflow);
 
       if (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE) {
-        if (isInstallation) {
-          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${CRM_STAGES.PAGAMENTO_TOTAL}`);
-          await updateOpportunityStage(oppId, CRM_STAGES.PAGAMENTO_TOTAL);
-        } else if (isMeasurement) {
-          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${CRM_STAGES.ORCAMENTAR}`);
-          await updateOpportunityStage(oppId, CRM_STAGES.ORCAMENTAR);
+        if (completionStage) {
+          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${completionStage} (${workflow})`);
+          await updateOpportunityStage(oppId, completionStage);
         }
       } else if (apiStatus === CRM_TASK_STATUS.INCOMPLETO || apiStatus === CRM_TASK_STATUS.CANCELADO) {
-        // Se falhar a instalação, volta a MARCAR_INSTALACAO para reagendar; se falhar a medição, volta a ENTRADA
-        const fallbackStage = isInstallation ? CRM_STAGES.MARCAR_INSTALACAO : CRM_STAGES.ENTRADA;
+        const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
         await updateOpportunityStage(oppId, fallbackStage);
       }
     } catch (stageErr) {
@@ -531,15 +539,32 @@ export async function cancelAppointment(taskId: string, opportunityId?: string) 
       updateTask(id: $id, data: { status: CANCELADO }) { 
         id 
         title
+        taskTargets {
+          edges {
+            node {
+              targetOpportunityId
+              opportunity {
+                stage
+                name
+              }
+            }
+          }
+        }
       }
     }
   `;
-  
-  await crmFetch(mutation, { id: taskId });
 
-  if (opportunityId) {
+  const result = await crmFetch<any>(mutation, { id: taskId });
+  const taskData = result.updateTask;
+  const target = taskData?.taskTargets?.edges?.[0]?.node;
+  const oppId = opportunityId || target?.targetOpportunityId;
+  const opp = target?.opportunity;
+
+  if (oppId) {
     const { updateOpportunityStage } = await import('./opportunities');
-    await updateOpportunityStage(opportunityId, CRM_STAGES.ENTRADA);
+    const workflow = classifyOpportunityWorkflow(opp?.stage, opp?.name || taskData?.title);
+    const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
+    await updateOpportunityStage(oppId, fallbackStage);
   } else {
     await invalidateAdminCrmCache();
   }
@@ -557,6 +582,10 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
           edges {
             node {
               targetOpportunityId
+              opportunity {
+                stage
+                name
+              }
             }
           }
         }
@@ -570,11 +599,15 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
   });
 
   const taskData = result.updateTask;
-  const oppId = taskData?.taskTargets?.edges[0]?.node?.targetOpportunityId;
-  
+  const target = taskData?.taskTargets?.edges?.[0]?.node;
+  const oppId = target?.targetOpportunityId;
+  const opp = target?.opportunity;
+
   if (oppId) {
     const { updateOpportunityStage } = await import('./opportunities');
-    await updateOpportunityStage(oppId, CRM_STAGES.ENTRADA);
+    const workflow = classifyOpportunityWorkflow(opp?.stage, opp?.name || taskData?.title);
+    const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
+    await updateOpportunityStage(oppId, fallbackStage);
   } else {
     await invalidateAdminCrmCache();
   }

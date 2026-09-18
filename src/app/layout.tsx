@@ -1,9 +1,16 @@
 import "./globals.css";
 import PWARegistration from "@/components/PWARegistration";
-import { APP_NAME, APP_SHORT_NAME } from "@/lib/branding";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import PushOptInPrompt from "@/components/PushOptInPrompt";
+import SWUpdatePrompt from "@/components/SWUpdatePrompt";
+import { APP_NAME, APP_SHORT_NAME, APP_LOGO_PATH } from "@/lib/branding";
+import Providers from "@/components/Providers";
 
 export const viewport = {
-  themeColor: "#3b82f6",
+  themeColor: "#84cc16",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
 };
 
 export const metadata = {
@@ -12,12 +19,11 @@ export const metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favi_64.png", sizes: "64x64", type: "image/png" },
-      { url: "/logo.png", sizes: "any", type: "image/png" },
+      { url: APP_LOGO_PATH, sizes: "64x64", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/favi_64.png",
+    shortcut: APP_LOGO_PATH,
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
@@ -27,18 +33,16 @@ export const metadata = {
   },
 };
 
-import Providers from "@/components/Providers";
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased font-sans"
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="pt" className="h-full antialiased">
+      <body className="min-h-full flex flex-col font-sans">
         <Providers>
           {children}
           <PWARegistration />
+          <PWAInstallPrompt />
+          <PushOptInPrompt />
+          <SWUpdatePrompt />
         </Providers>
       </body>
     </html>

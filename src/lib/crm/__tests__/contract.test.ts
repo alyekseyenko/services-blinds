@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  CRM_OBJECTS, 
-  CRM_FIELDS, 
-  CRM_STAGES, 
-  CRM_TASK_STATUS, 
-  WAREHOUSE_STATUS, 
+import {
+  CRM_OBJECTS,
+  CRM_FIELDS,
+  CRM_STAGES,
+  CRM_TASK_STATUS,
+  WAREHOUSE_STATUS,
   STAGE_GROUPS,
   normalizeString,
   normalizeTaskStatus,
@@ -15,7 +15,14 @@ import {
   isTaskCancelled,
   isMeasurementService,
   isInstallationService,
-  getNextStageOnSchedule
+  isAssistanceService,
+  isMaintenanceService,
+  isRepairService,
+  classifyOpportunityWorkflow,
+  deriveWorkflowMarkerKey,
+  getNextStageOnSchedule,
+  isNeedsSchedulingStage,
+  mapLegacyServiceTypeToStage,
 } from '../contract';
 
 describe('CRM Contract Layer', () => {
@@ -28,7 +35,6 @@ describe('CRM Contract Layer', () => {
   });
 
   it('deve ter todos os campos custom mapeados', () => {
-    expect(CRM_FIELDS.opportunity.serviceType).toBe('tipoDeServico');
     expect(CRM_FIELDS.opportunity.serviceAddress).toBe('moradaDeServico');
     expect(CRM_FIELDS.task.technicianName).toBe('technicianName');
     expect(CRM_FIELDS.task.repairAddress).toBe('moradaDaReparacao');
@@ -77,32 +83,55 @@ describe('CRM Contract Layer', () => {
     });
   });
 
-  describe('isMeasurementService & isInstallationService', () => {
-    it('deve identificar serviços de medição por estágio, tipo ou título', () => {
+  describe('workflow classification by stage', () => {
+    it('identifica medição por estágio ou título', () => {
       expect(isMeasurementService('TIRAR_MEDIDAS')).toBe(true);
-      expect(isMeasurementService(null, ['TIRAR_MEDIDAS'])).toBe(true);
-      expect(isMeasurementService(null, null, 'Medição de Estores')).toBe(true);
-      expect(isMeasurementService('ENTRADA', null, null)).toBe(true);
-      expect(isMeasurementService(null, ['REMEDICAO'], null)).toBe(true);
+      expect(isMeasurementService('REMEDICAO')).toBe(true);
+      expect(isMeasurementService(null, 'Medição de Estores')).toBe(true);
+      expect(isMeasurementService('ENTRADA', null)).toBe(true);
       expect(isMeasurementService('INSTALACAO')).toBe(false);
     });
 
-    it('deve identificar serviços de instalação por estágio, tipo ou título', () => {
+    it('identifica instalação por estágio ou título', () => {
       expect(isInstallationService('INSTALACAO')).toBe(true);
       expect(isInstallationService('MARCAR_INSTALACAO')).toBe(true);
-      expect(isInstallationService('AGENDAR_INSTALACAO')).toBe(true);
-      expect(isInstallationService(null, ['INSTALACAO'])).toBe(true);
-      expect(isInstallationService(null, null, 'Montagem de Estores')).toBe(true);
+      expect(isInstallationService(null, 'Montagem de Estores')).toBe(true);
+      expect(isMeasurementService('TIRAR_MEDIDAS')).toBe(true);
       expect(isInstallationService('TIRAR_MEDIDAS')).toBe(false);
     });
 
-    it('prioriza instalação sobre medição quando ambos os tipos estão presentes', () => {
+    it('identifica manutenção e reparação por estágio', () => {
+      expect(isMaintenanceService('MANUTENCAO')).toBe(true);
+      expect(isRepairService('REPARACAO')).toBe(true);
+      expect(isAssistanceService('MANUTENCAO')).toBe(true);
+      expect(isAssistanceService('REPARACAO')).toBe(true);
+      expect(isMeasurementService('MANUTENCAO')).toBe(false);
+      expect(isInstallationService('REPARACAO')).toBe(false);
+    });
+
+    it('prioriza instalação sobre medição quando o estágio é instalação', () => {
       const stage = CRM_STAGES.INSTALACAO;
-      const types = ['INSTALACAO', 'TIRAR_MEDIDAS'];
-      const isInstallation = isInstallationService(stage, types);
-      const isMeasurement = !isInstallation && isMeasurementService(stage, types);
-      expect(isInstallation).toBe(true);
-      expect(isMeasurement).toBe(false);
+      expect(classifyOpportunityWorkflow(stage)).toBe('installation');
+      expect(isInstallationService(stage)).toBe(true);
+      expect(isMeasurementService(stage)).toBe(false);
+    });
+
+    it('deriva marker key a partir do estágio', () => {
+      expect(deriveWorkflowMarkerKey('MANUTENCAO')).toBe('MANUTENCAO');
+      expect(deriveWorkflowMarkerKey('REPARACAO')).toBe('REPARACAO');
+      expect(deriveWorkflowMarkerKey('INSTALACAO')).toBe('INSTALACAO');
+      expect(deriveWorkflowMarkerKey('TIRAR_MEDIDAS')).toBe('TIRAR_MEDIDAS');
+    });
+  });
+
+  describe('isNeedsSchedulingStage', () => {
+    it('includes all NEEDS_SCHEDULING stages and assistance', () => {
+      expect(isNeedsSchedulingStage('ENTRADA')).toBe(true);
+      expect(isNeedsSchedulingStage('AGENDAR_INSTALACAO')).toBe(true);
+      expect(isNeedsSchedulingStage('MANUTENCAO')).toBe(true);
+      expect(isNeedsSchedulingStage('REPARACAO')).toBe(true);
+      expect(isNeedsSchedulingStage('REMEDICAO')).toBe(true);
+      expect(isNeedsSchedulingStage('PAGAMENTO_TOTAL')).toBe(false);
     });
   });
 
@@ -118,11 +147,20 @@ describe('CRM Contract Layer', () => {
 
     it('deve manter o estágio se for Remedição', () => {
       expect(getNextStageOnSchedule('REMEDICAO')).toBe('REMEDICAO');
-      expect(getNextStageOnSchedule('ORCAMENTAR', ['REMEDICAO'])).toBe('ORCAMENTAR');
     });
 
-    it('deve manter estágios que não requerem transição automática', () => {
-      expect(getNextStageOnSchedule('INSTALACAO')).toBe('INSTALACAO');
+    it('deve manter MANUTENCAO e REPARACAO ao agendar', () => {
+      expect(getNextStageOnSchedule('MANUTENCAO')).toBe('MANUTENCAO');
+      expect(getNextStageOnSchedule('REPARACAO')).toBe('REPARACAO');
+    });
+  });
+
+  describe('mapLegacyServiceTypeToStage', () => {
+    it('mapeia tipos legados para novas etapas', () => {
+      expect(mapLegacyServiceTypeToStage(['MANUTENCAO'], 'PROPOSTA')).toBe(CRM_STAGES.MANUTENCAO);
+      expect(mapLegacyServiceTypeToStage(['REPARACAO'], 'PROPOSTA')).toBe(CRM_STAGES.REPARACAO);
+      expect(mapLegacyServiceTypeToStage(['REMEDICAO'], 'ENTRADA')).toBe(CRM_STAGES.REMEDICAO);
+      expect(mapLegacyServiceTypeToStage(['INSTALACAO'], 'PROPOSTA')).toBe(CRM_STAGES.MARCAR_INSTALACAO);
     });
   });
 });

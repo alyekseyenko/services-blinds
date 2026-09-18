@@ -55,7 +55,7 @@ export function ProductGroupCard({
           </div>
           <div>
             <h4 className="font-black text-slate-900 print:text-white text-lg">{getProductLabel(group.type)}</h4>
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider print:text-slate-300">
+            <p className="text-xs text-slate-500 font-black uppercase tracking-wider print:text-slate-300">
               {group.measurements.reduce((acc, m) => acc + (parseInt(m.qty as string) || 0), 0)} uni • {group.details.material === 'OUTRO' ? group.details.otherMaterial : (group.details.material || group.details.model || 'Sem specs')}
             </p>
           </div>
@@ -95,7 +95,7 @@ export function ProductGroupCard({
                 <button
                   key={type.id}
                   onClick={() => onUpdateGroupType(group.id, type.id as ProductType)}
-                  className={`flex items-center gap-2 p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${
+                  className={`flex items-center gap-2 p-3 rounded-xl border-2 text-xs font-black uppercase transition-all ${
                     group.type === type.id
                       ? "bg-slate-900 border-slate-900 text-white shadow-lg"
                       : "bg-white border-slate-100 text-slate-500 hover:border-slate-300"
@@ -111,7 +111,7 @@ export function ProductGroupCard({
             {group.type === "ESTORE_EXTERIOR" && (
               <>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Material</label>
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Material</label>
                   {isAdmin ? (
                     <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">
                       {group.details.material === 'OUTRO' ? group.details.otherMaterial : group.details.material || '-'}
@@ -139,7 +139,7 @@ export function ProductGroupCard({
                 
                 {!isAdmin && group.details.material === 'OUTRO' && (
                   <div className="space-y-1 print:hidden">
-                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1">Especificar Material</label>
+                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest px-1">Especificar Material</label>
                     <input 
                       type="text"
                       placeholder="Descreva o material..."
@@ -152,7 +152,7 @@ export function ProductGroupCard({
                 )}
                 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">RAL / Cor</label>
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">RAL / Cor</label>
                   {isAdmin ? (
                     <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">{group.details.ral || '-'}</div>
                   ) : (
@@ -175,7 +175,7 @@ export function ProductGroupCard({
             {(group.type === "ESTORE_INTERIOR" || group.type === "TOLDO" || group.type === "MOSQUITEIRO") && (
               <>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Modelo</label>
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Modelo</label>
                   {isAdmin ? (
                     <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">{group.details.model || '-'}</div>
                   ) : (
@@ -221,7 +221,7 @@ export function ProductGroupCard({
                   )}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Tecido / Rede</label>
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Tecido / Rede</label>
                   {isAdmin ? (
                     <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">{group.details.fabric || '-'}</div>
                   ) : (
@@ -239,7 +239,7 @@ export function ProductGroupCard({
                 </div>
                 {group.type !== "MOSQUITEIRO" && (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Referência</label>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Referência</label>
                     {isAdmin ? (
                       <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">{group.details.reference || '-'}</div>
                     ) : (
@@ -261,7 +261,7 @@ export function ProductGroupCard({
 
             {group.type !== "MOSQUITEIRO" && (
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Acionamento</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Acionamento</label>
                 {isAdmin ? (
                   <div className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 px-1">{group.details.activation || '-'}</div>
                 ) : (
@@ -285,7 +285,7 @@ export function ProductGroupCard({
             )}
 
             <div className="md:col-span-2 space-y-1 print:col-span-4 print:mt-4">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Observações do Produto</label>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Observações do Produto</label>
               {isAdmin ? (
                 <div className="text-sm font-bold text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
                   {group.details.observations || "Nenhuma observação registada."}

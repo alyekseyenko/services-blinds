@@ -4,7 +4,7 @@ import { X, User, MapPin, Clock, Map as MapIcon, MessageSquare, Loader2, Plus, C
 import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { hasValidMeasurements, formatMeasurementsReport, getMeasurementsDraftKey } from "@/lib/measurementsUtils";
 import { INCOMPLETE_REASONS, formatIncompleteReason } from "@/lib/taskReasons";
-import { isTaskActive, isTaskInProgress } from "@/lib/crm/contract";
+import { isTaskActive, isTaskInProgress, isMeasurementService } from "@/lib/crm/contract";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getServiceTypeColor } from "@/lib/techniciansConfig";
@@ -13,6 +13,7 @@ import { completeTaskAction } from "@/actions/tasks-actions";
 import { fetchOpportunityNotesAction, createOpportunityNoteAction } from "@/actions/notes-actions";
 import { submitMeasurementsAction } from "@/actions/measurements-actions";
 import { useToast } from "@/components/ui/ToastContext";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import MeasurementsForm from "@/components/features/measurements/MeasurementsForm";
 
 interface TaskDetailsDrawerProps {
@@ -37,6 +38,7 @@ export default function TaskDetailsDrawer({
   enqueueNote,
 }: TaskDetailsDrawerProps) {
   const toast = useToast();
+  const drawerRef = useFocusTrap(!!selectedTask);
   const [reason, setReason] = useState("");
   const [reasonPreset, setReasonPreset] = useState("");
   const [statusAction, setStatusAction] = useState("");
@@ -50,21 +52,14 @@ export default function TaskDetailsDrawer({
   const [newNoteText, setNewNoteText] = useState("");
   const [isCreatingNote, setIsCreatingNote] = useState(false);
 
-  const isMeasurementService = Array.isArray(selectedTask?.serviceType)
-    ? selectedTask.serviceType.some((t: string) => {
-        const norm = t?.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s/g, "_") || "";
-        return ["TIRAR_MEDIDAS", "REMEDICAO", "REAGENDAR"].includes(norm);
-      })
-    : ["TIRAR_MEDIDAS", "REMEDICAO", "REAGENDAR"].includes(
-        selectedTask?.serviceType?.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s/g, "_") || ""
-      );
+  const showMeasurementsTab = isMeasurementService(selectedTask?.stage, selectedTask?.title);
 
   // Automatically switch tab if not measurement service
   useEffect(() => {
-    if (!isMeasurementService) {
+    if (!showMeasurementsTab) {
       setActiveTab("info");
     }
-  }, [selectedTask, isMeasurementService]);
+  }, [selectedTask, showMeasurementsTab]);
 
   // Load CRM notes
   useEffect(() => {
@@ -146,7 +141,7 @@ export default function TaskDetailsDrawer({
 
   const handleStatusUpdate = async () => {
     if (statusAction === "Concluído") {
-      if (isMeasurementService) {
+      if (showMeasurementsTab) {
         const draftStr =
           typeof window !== "undefined" ? localStorage.getItem(getMeasurementsDraftKey(selectedTask.id)) : null;
 
@@ -237,14 +232,21 @@ export default function TaskDetailsDrawer({
     <>
       {/* Drawer Overlay */}
       <div
-        className="fixed inset-0 bg-slate-950/45 backdrop-blur-sm z-50 transition-opacity duration-300 animate-in fade-in"
+        className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm transition-opacity duration-300"
         onClick={() => setSelectedTask(null)}
+        aria-hidden="true"
       />
 
-      {/* Drawer de Detalhes do Técnico (Premium UI) */}
       <div
-        className="fixed bottom-0 left-0 w-full bg-[#f8fafc] border-t border-slate-200 rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(15,23,42,0.12)] transition-transform duration-300 ease-out z-[60] flex flex-col translate-y-0"
-        style={{ maxHeight: "90vh" }}
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-drawer-title"
+        className="fixed bottom-0 left-0 z-[60] flex w-full flex-col rounded-t-[2.5rem] border-t border-slate-200 bg-[#f8fafc] shadow-[0_-15px_40px_rgba(15,23,42,0.12)] transition-transform duration-300 ease-out lg:left-auto lg:right-6 lg:max-w-xl lg:rounded-[2.5rem] lg:border"
+        style={{ maxHeight: "90vh", paddingBottom: "max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem))" }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setSelectedTask(null);
+        }}
       >
         <div className="p-6 md:p-8 overflow-y-auto pb-32 text-slate-800 custom-scrollbar">
           {/* Barra superior tátil */}
@@ -257,7 +259,7 @@ export default function TaskDetailsDrawer({
           <div className="flex items-start justify-between mb-6">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-2xl font-black text-[#090d16] tracking-tight uppercase italic leading-none">{selectedTask.title}</h2>
+                <h2 id="task-drawer-title" className="text-2xl font-black uppercase italic leading-none tracking-tight text-[#090d16]">{selectedTask.title}</h2>
                 <span className="bg-white px-3 py-1 rounded-xl border border-slate-200 text-xs font-black text-[#84cc16] uppercase tracking-wider shadow-sm">
                   NSI #{selectedTask.nsi}
                 </span>
@@ -270,7 +272,7 @@ export default function TaskDetailsDrawer({
                       return (
                         <span
                           key={idx}
-                          className="text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider border"
+                          className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
                           style={{
                             backgroundColor: colors.bg,
                             color: colors.text,
@@ -287,18 +289,19 @@ export default function TaskDetailsDrawer({
             </div>
             <button
               onClick={() => setSelectedTask(null)}
-              className="p-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-full text-slate-400 hover:text-slate-800 transition-colors shadow-sm shrink-0"
+              className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-800"
+              aria-label="Fechar detalhes da visita"
             >
-              <X className="w-6 h-6" />
+              <X className="h-6 w-6" />
             </button>
           </div>
 
           {/* SEPARADOR E TAB HEADER PARA SERVIÇOS DE MEDIÇÃO (iDraft Glassmorphism) */}
-          {isMeasurementService && (
+          {showMeasurementsTab && (
             <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner flex w-full max-w-lg mx-auto mb-8 gap-1.5">
               <button
                 onClick={() => setActiveTab("info")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${
+                className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
                   activeTab === "info"
                     ? "bg-[#84cc16] text-[#090d16] shadow-md border border-[#84cc16]/10"
                     : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
@@ -308,7 +311,7 @@ export default function TaskDetailsDrawer({
               </button>
               <button
                 onClick={() => setActiveTab("measurements")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${
+                className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
                   activeTab === "measurements"
                     ? "bg-[#84cc16] text-[#090d16] shadow-md border border-[#84cc16]/10"
                     : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
@@ -320,7 +323,7 @@ export default function TaskDetailsDrawer({
           )}
 
           {/* ABA 1: INFORMAÇÕES DO CLIENTE & RELATÓRIO DO CRM */}
-          {(activeTab === "info" || !isMeasurementService) && (
+          {(activeTab === "info" || !showMeasurementsTab) && (
             <div className="space-y-8 animate-in fade-in duration-300">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="bg-white border border-slate-200 rounded-[2rem] p-5 shadow-sm">
@@ -384,7 +387,7 @@ export default function TaskDetailsDrawer({
                         toast.error("Erro no GPS", e.message);
                       }
                     }}
-                    className="w-full text-[10px] bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 px-3 py-2 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-slate-200"
+                    className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition-all hover:bg-slate-200 hover:text-slate-900"
                   >
                     <MapIcon className="w-3.5 h-3.5 text-slate-500" /> Sincronizar Coordenadas
                   </button>
@@ -399,7 +402,7 @@ export default function TaskDetailsDrawer({
                     <MessageSquare className="w-5 h-5 text-[#84cc16]" />
                     <h3 className="font-black text-[#090d16] text-base uppercase tracking-tight italic">Notas Técnicas do CRM</h3>
                   </div>
-                  <span className="text-[10px] font-black bg-white text-slate-500 px-3 py-1 rounded-full uppercase tracking-wider border border-slate-200 shadow-sm">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-600 shadow-sm">
                     {notes.length} Notas
                   </span>
                 </div>
@@ -465,8 +468,9 @@ export default function TaskDetailsDrawer({
                         disabled={isStartingVisit}
                         className="w-full min-h-12 py-4 bg-[#84cc16] border-2 border-[#65a30d] text-[#090d16] font-black shadow-[0_10px_35px_rgba(132,204,22,0.35)] hover:bg-[#a3e635] hover:border-[#84cc16] active:bg-[#65a30d]"
                         loading={isStartingVisit}
+                        loadingText="A iniciar visita..."
                       >
-                        <PlayCircle className="w-5 h-5 mr-2" /> Cheguei ao Local
+                        <PlayCircle className="mr-2 h-5 w-5" /> Cheguei ao Local
                       </Button>
                     )}
 
@@ -481,7 +485,7 @@ export default function TaskDetailsDrawer({
                           setStatusAction("Concluído");
                           setReason("");
                         }}
-                        className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${
                           statusAction === "Concluído"
                             ? "bg-[#84cc16] text-[#090d16] shadow-md"
                             : "text-slate-500 hover:text-slate-800"
@@ -494,7 +498,7 @@ export default function TaskDetailsDrawer({
                           setStatusAction("Incompleto");
                           setReason("");
                         }}
-                        className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${
                           statusAction === "Incompleto" ? "bg-amber-500 text-white shadow-md" : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
@@ -505,7 +509,7 @@ export default function TaskDetailsDrawer({
                           setStatusAction("Cancelado");
                           setReason("");
                         }}
-                        className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${
                           statusAction === "Cancelado" ? "bg-red-500 text-white shadow-md" : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
@@ -517,7 +521,7 @@ export default function TaskDetailsDrawer({
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {statusAction === "Incompleto" && (
                           <div className="space-y-2">
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                            <label className="block px-1 text-xs font-black uppercase tracking-widest text-slate-600">
                               Motivo (obrigatório)
                             </label>
                             <div className="grid grid-cols-1 gap-2">
@@ -549,7 +553,7 @@ export default function TaskDetailsDrawer({
 
                         {statusAction === "Cancelado" && (
                           <div className="space-y-2">
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                            <label className="block px-1 text-xs font-black uppercase tracking-widest text-slate-600">
                               Motivo do cancelamento (obrigatório)
                             </label>
                             <textarea
@@ -578,7 +582,7 @@ export default function TaskDetailsDrawer({
           )}
 
           {/* ABA 2: MEDIÇÕES DE ESTORES (Dedicada e ultra limpa!) */}
-          {activeTab === "measurements" && isMeasurementService && (
+          {activeTab === "measurements" && showMeasurementsTab && (
             <div className="animate-in fade-in duration-300">
               <MeasurementsForm
                 task={selectedTask}
@@ -599,7 +603,7 @@ export default function TaskDetailsDrawer({
                   }
 
                   if (!success) {
-                    alert("Erro: " + errorMessage);
+                    toast.error("Erro ao guardar medições", errorMessage);
                     return { success: false, error: errorMessage };
                   }
 

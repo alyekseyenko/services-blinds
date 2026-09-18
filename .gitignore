@@ -62,3 +62,6 @@ foto_gostosa.jpg
 
 # IDE / Cursor
 .cursor/
+
+# VPS deploy/diagnostic scripts (local + server only — not published)
+/scripts/

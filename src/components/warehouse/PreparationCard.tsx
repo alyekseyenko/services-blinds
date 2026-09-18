@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import { updateItemPreparationStatus } from "@/lib/crm/items";
 import { fetchOpportunityNotesAction, createOpportunityNoteAction } from "@/actions/notes-actions";
+import { useToast } from "@/components/ui/ToastContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { hapticLight } from "@/lib/haptics";
 
 export interface Measurement {
   id: string;
@@ -57,6 +60,8 @@ interface Note {
 }
 
 export default function PreparationCard({ service, onComplete }: PreparationCardProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [isExpanded, setIsExpanded] = useState(false);
   const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
@@ -107,10 +112,11 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
         setNewNoteText("");
         await loadNotes();
       } else {
-        alert("Erro ao criar nota: " + result.error);
+        toast.error("Erro ao criar nota", result.error);
       }
-    } catch (e: any) {
-      alert("Erro ao criar nota: " + e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Erro desconhecido";
+      toast.error("Erro ao criar nota", message);
     } finally {
       setIsCreatingNote(false);
     }
@@ -135,7 +141,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
         console.error("Failed to sync warehouse status:", e);
         setItemStatuses(prev => ({ ...prev, [key]: oldStatus }));
         setCompletedItems(prev => ({ ...prev, [key]: oldCompleted }));
-        alert("Erro ao sincronizar estado com o CRM.");
+        toast.error("Erro ao sincronizar", "Não foi possível atualizar o estado no CRM.");
       }
     }
   };
@@ -158,10 +164,11 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
         setItemNoteTexts(prev => ({ ...prev, [key]: "" }));
         await loadNotes();
       } else {
-        alert("Erro ao criar nota: " + result.error);
+        toast.error("Erro ao criar nota", result.error);
       }
-    } catch (e: any) {
-      alert("Erro ao criar nota: " + e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Erro desconhecido";
+      toast.error("Erro ao criar nota", message);
     } finally {
       setSavingItemNote(prev => ({ ...prev, [key]: false }));
     }
@@ -210,15 +217,20 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
 
   const handleFinish = async () => {
     if (stats.total > 0 && stats.done < stats.total) {
-      if (!confirm("Ainda existem itens por marcar como preparados. Deseja finalizar mesmo assim?")) {
-        return;
-      }
+      const proceed = await confirm({
+        title: "Finalizar com itens pendentes?",
+        description: "Ainda existem itens por marcar como preparados. Deseja finalizar mesmo assim?",
+        confirmLabel: "Finalizar",
+        destructive: true,
+      });
+      if (!proceed) return;
     }
     setLoading(true);
     try {
       await onComplete(service.id);
-    } catch (e: any) {
-      alert("Erro ao finalizar: " + e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Erro desconhecido";
+      toast.error("Erro ao finalizar", message);
     } finally {
       setLoading(false);
     }
@@ -243,10 +255,10 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
           </div>
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <span className="bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-purple-500/20">
+              <span className="bg-purple-500/10 text-purple-400 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border border-purple-500/20">
                 NSI: {service.nsi}
               </span>
-              <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+              <span className="text-slate-500 text-xs font-black uppercase tracking-widest">
                 {new Date(service.createdAt).toLocaleDateString('pt-PT')}
               </span>
             </div>
@@ -260,7 +272,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
         <div className="flex items-center gap-8">
           {stats.total > 0 && (
             <div className="text-right">
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Progresso de Fabrico</p>
+              <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-2">Progresso de Fabrico</p>
               <div className="flex items-center gap-4">
                 <div className="w-32 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                   <div 
@@ -325,41 +337,43 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
                             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 w-full">
                               <div className="flex items-center gap-6">
                                 {/* Circular checkbox (toggles between PREPARADO and EM_PREPARACAO) */}
-                                <div 
+                                <button
+                                  type="button"
+                                  role="checkbox"
+                                  aria-checked={isDone}
+                                  aria-label={isDone ? "Marcar item como em preparação" : "Marcar item como preparado"}
                                   onClick={() => {
-                                    if (typeof window !== "undefined" && "vibrate" in navigator) {
-                                      navigator.vibrate(30);
-                                    }
+                                    hapticLight(30);
                                     toggleItem(group.id, mIdx, m.id);
                                   }}
-                                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-2xl border-2 flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 ${
-                                    isDone ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20" : "border-slate-700 bg-slate-900 hover:border-slate-500"
+                                  className={`flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-2xl border-2 transition-all duration-300 active:scale-95 ${
+                                    isDone ? "border-emerald-500 bg-emerald-500 shadow-lg shadow-emerald-500/20" : "border-slate-700 bg-slate-900 hover:border-slate-500"
                                   }`}
                                 >
-                                  {isDone ? <Check className="w-7 h-7 text-white" /> : <div className="w-2.5 h-2.5 bg-slate-700 rounded-full" />}
-                                </div>
+                                  {isDone ? <Check className="w-7 h-7 text-white" /> : <div className="h-2.5 w-2.5 rounded-full bg-slate-700" />}
+                                </button>
                                 
                                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-8">
                                   <div>
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Medidas</p>
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Medidas</p>
                                     <p className="text-xl font-black text-white">
-                                      {m.width}<span className="text-purple-500 mx-1">×</span>{m.height}<span className="text-[10px] ml-1 text-slate-500">mm</span>
+                                      {m.width}<span className="text-purple-500 mx-1">×</span>{m.height}<span className="text-xs ml-1 text-slate-500">mm</span>
                                     </p>
                                   </div>
                                   <div>
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Qtd</p>
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Qtd</p>
                                     <p className="text-xl font-black text-white">{m.qty}<span className="text-xs ml-1 text-slate-500 font-bold uppercase">un</span></p>
                                   </div>
                                   <div className="hidden lg:block">
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Acionamento</p>
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Acionamento</p>
                                     <p className="text-sm font-bold text-slate-300">{group.details?.activation || "-"}</p>
                                   </div>
                                   <div className="hidden lg:block">
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Fixação</p>
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Fixação</p>
                                     <p className="text-sm font-bold text-slate-300">{m.fixation || "-"}</p>
                                   </div>
                                   <div className="hidden lg:block">
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Comandos</p>
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Comandos</p>
                                     <p className="text-sm font-bold text-slate-300">{m.controls || "-"}</p>
                                   </div>
                                 </div>
@@ -367,7 +381,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
 
                               {/* ESTADO DO ARMAZÉM: Beautiful Pill Badges Select */}
                               <div className="flex flex-wrap items-center gap-2 bg-slate-950/40 p-2 rounded-2xl border border-slate-850">
-                                <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest px-2 hidden md:block">Estado:</p>
+                                <p className="text-xs text-slate-500 uppercase font-black tracking-widest px-2 hidden md:block">Estado:</p>
                                 
                                 <button
                                   onClick={() => updateItemWarehouseStatus(group.id, mIdx, m.id, "EM_PREPARACAO")}
@@ -454,7 +468,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
                                 <button
                                   onClick={() => handleAddItemNote(group.id, mIdx, m.id, group.type, `${m.width}x${m.height}mm`)}
                                   disabled={savingItemNote[key] || !(itemNoteTexts[key] || "").trim()}
-                                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
                                     !(itemNoteTexts[key] || "").trim() || savingItemNote[key]
                                       ? "bg-slate-800 text-slate-600"
                                       : "bg-purple-600 hover:bg-purple-500 text-white"
@@ -532,7 +546,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
                           }`} />
                           <span className="text-xs font-black text-slate-300 uppercase tracking-wider">{note.title || "Nota"}</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 font-bold">
+                        <span className="text-xs text-slate-500 font-bold">
                           {new Date(note.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -579,7 +593,7 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
                   <p className="text-white font-black text-sm uppercase tracking-tight">
                     {stats.percent === 100 ? 'Ordem de Fabrico Completa' : 'Aguardando Preparação'}
                   </p>
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
                     {stats.done} de {stats.total} itens verificados
                   </p>
                 </div>

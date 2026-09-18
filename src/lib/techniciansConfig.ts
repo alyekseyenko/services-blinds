@@ -1,3 +1,5 @@
+import { deriveWorkflowMarkerKey } from "@/lib/crm/contract";
+
 /**
  * Configuração centralizada de técnicos e suas cores
  */
@@ -89,14 +91,18 @@ export function getServiceTypeColor(type: string | undefined | null): ServiceTyp
   };
 }
 
-/** Resolve service type from task fields (CRM uses both naming conventions). */
+/** Resolve workflow marker key from opportunity stage (stage-first model). */
 export function resolveServiceType(task: {
-  tipoDeServico?: string | string[] | null;
+  stage?: string | null;
+  title?: string | null;
   serviceType?: string | string[] | null;
 }): string {
-  const raw = task.tipoDeServico ?? task.serviceType;
-  if (Array.isArray(raw)) return raw[0] || '';
-  return raw || '';
+  if (task.stage) {
+    return deriveWorkflowMarkerKey(task.stage, task.title);
+  }
+  const raw = task.serviceType;
+  if (Array.isArray(raw)) return raw[0] || "";
+  return raw || "";
 }
 
 function getServiceTypeSymbolSvg(normalizedType: string, color: string): string {

@@ -38,7 +38,7 @@ Twenty uses **SSE (Server-Sent Events)**, not classic polling.
 
 ## Safe infra improvements (no Twenty code changes)
 
-Script: `python scripts/vps_optimize_twenty_infra.py`
+Script (local/VPS only, not in Git): `vps_optimize_twenty_infra.py`
 
 1. **4 GB swap** — prevents RAM spikes from crashing Postgres/Twenty
 2. **Nginx SSE tuning** for your CRM host (e.g. `crm.yourcompany.com`):
@@ -63,12 +63,8 @@ This **reduces load** on Twenty but does not replace infra tuning for the CRM UI
 - Archive old timeline activities in Twenty UI
 - Cloudflare: no cache on `/graphql`, `/metadata`, SSE paths
 
-## Diagnostic scripts
+## Diagnostic scripts (local / VPS only)
 
-```bash
-export VPS_HOST=your.server.ip
-export VPS_PASSWORD=...
-python scripts/vps_twenty_probe.py      # RAM, DB size, API latency
-python scripts/vps_twenty_sse_check.py  # nginx + SSE headers
-python scripts/vps_optimize_twenty_infra.py  # apply safe tuning
-```
+Deploy and Twenty tuning helpers live in `scripts/` on your machine and on the server. They are **not** in the public Git repository (they read `VPS_HOST`, `VPS_PASSWORD`, etc. from local env).
+
+On the server, run tuning from `/root/app-tecnicos/scripts/` after deploy, or keep copies locally.

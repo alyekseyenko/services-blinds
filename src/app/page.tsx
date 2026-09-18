@@ -6,7 +6,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { getSession, signIn } from "next-auth/react";
 import { APP_ROLE_HOME, type AppRole } from "@/lib/crm/contract";
 import { useToast } from "@/components/ui/ToastContext";
-import { APP_NAME, LOGIN_EMAIL_PLACEHOLDER } from "@/lib/branding";
+import { APP_NAME, APP_LOGO_PATH, LOGIN_EMAIL_PLACEHOLDER } from "@/lib/branding";
 
 export default function Login() {
   const toast = useToast();
@@ -61,7 +61,7 @@ export default function Login() {
         <div className="flex flex-col items-center mb-5 sm:mb-8">
           <div className="w-14 h-16 sm:w-20 sm:h-20 flex items-center justify-center mb-2.5 sm:mb-4 group cursor-pointer">
             <Image
-              src="/favi_64.png"
+              src={APP_LOGO_PATH}
               alt="Company logo"
               width={80}
               height={80}
@@ -74,7 +74,7 @@ export default function Login() {
           </h1>
           <div className="h-1 w-12 sm:h-1.5 sm:w-14 bg-[#84cc16] rounded-full mt-1.5 sm:mt-2 shadow-[0_0_15px_rgba(132,204,22,0.5)]"></div>
           <p className="text-slate-500 text-xs font-black uppercase tracking-[0.25em] mt-3 sm:mt-4 text-center">
-            Sistemas de Gestão & Medição Pro
+            Sistemas de Gestão & Medição
           </p>
         </div>
 

@@ -1,10 +1,14 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { X, AlertCircle, Trash2, Calendar as CalendarIcon, Map as MapIcon, FileText, Phone, Mail, CreditCard, Star, Loader2, User, ShieldCheck } from "lucide-react";
 import { getServiceTypeColor } from '@/lib/techniciansConfig';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchOpportunityNotesAction } from "@/actions/notes-actions";
 import { Opportunity } from '@/types/admin';
+import { isNeedsSchedulingStage } from '@/lib/crm/contract';
 
 interface OpportunityDrawerProps {
   selectedOpportunity: Opportunity | null;
@@ -32,6 +36,16 @@ export default function OpportunityDrawer({
 }: OpportunityDrawerProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const trapRef = useFocusTrap(Boolean(selectedOpportunity));
+
+  useEffect(() => {
+    if (!selectedOpportunity) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedOpportunity(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selectedOpportunity, setSelectedOpportunity]);
 
   useEffect(() => {
     async function loadNotes() {
@@ -53,6 +67,10 @@ export default function OpportunityDrawer({
 
   return (
     <div 
+      ref={trapRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="opportunity-drawer-title"
       className={`absolute bottom-0 left-0 w-full bg-white rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.15)] transition-transform duration-300 ease-out z-20 flex flex-col ${selectedOpportunity ? 'translate-y-0' : 'translate-y-full'}`} 
       style={{ maxHeight: '85vh' }}
     >
@@ -64,10 +82,12 @@ export default function OpportunityDrawer({
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold text-slate-800 leading-tight">{selectedOpportunity.title}</h2>
+                    <h2 id="opportunity-drawer-title" className="text-2xl font-bold text-slate-800 leading-tight">{selectedOpportunity.title}</h2>
                     <div className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 text-xs font-black text-slate-500 uppercase tracking-tighter">NSI #{selectedOpportunity.nsi}</div>
                 </div>
                 <button 
+                  type="button"
+                  aria-label="Fechar detalhes"
                   onClick={() => setSelectedOpportunity(null)}
                   className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
                 >
@@ -75,25 +95,27 @@ export default function OpportunityDrawer({
                 </button>
               </div>
               
-              {/* Tags de Tipo de Serviço */}
-              {selectedOpportunity.tipoDeServico && selectedOpportunity.tipoDeServico.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {selectedOpportunity.tipoDeServico.map((tipo, idx) => {
-                    const colors = getServiceTypeColor(tipo);
+              {selectedOpportunity.serviceType && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(() => {
+                    const colors = getServiceTypeColor(
+                      typeof selectedOpportunity.serviceType === "string"
+                        ? selectedOpportunity.serviceType
+                        : selectedOpportunity.serviceType[0]
+                    );
                     return (
-                      <span 
-                        key={idx} 
-                        className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border transition-colors"
-                        style={{ 
-                          backgroundColor: colors.bg, 
+                      <span
+                        className="rounded-lg border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
+                        style={{
+                          backgroundColor: colors.bg,
                           color: colors.text,
-                          borderColor: `${colors.text}20` 
+                          borderColor: `${colors.text}20`,
                         }}
                       >
                         {colors.label}
                       </span>
                     );
-                  })}
+                  })()}
                 </div>
               )}
             </div>
@@ -111,8 +133,7 @@ export default function OpportunityDrawer({
                 );
               })()}
               {(() => {
-                const stageUpper = (selectedOpportunity.stage || "").toUpperCase();
-                const canSchedule = ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO", "AGENDAR_INSTALACAO"].includes(stageUpper) || stageUpper.includes("REMED");
+                const canSchedule = isNeedsSchedulingStage(selectedOpportunity.stage);
                 return canSchedule && !selectedOpportunity.hasScheduledTask && (
                   <button
                     onClick={() => openScheduleModal(selectedOpportunity)}

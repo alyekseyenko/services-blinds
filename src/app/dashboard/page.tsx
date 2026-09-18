@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Calendar as CalendarIcon, History, Loader2, MapPin, X } from "lucide-react";
@@ -23,11 +23,18 @@ import { Card, CardContent } from "@/components/ui/card";
 // Componentes Modularizados do Dashboard
 import Header from "@/components/dashboard/Header";
 import BottomNav from "@/components/dashboard/BottomNav";
+import SideNav from "@/components/dashboard/SideNav";
 import TaskCard from "@/components/dashboard/TaskCard";
 import TaskDetailsDrawer from "@/components/dashboard/TaskDetailsDrawer";
 import { getHqLocation } from "@/lib/hq";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { MapSkeleton, TaskListSkeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/button";
 
-const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false });
+const MapComponent = dynamic(() => import('@/components/MapComponent'), {
+  ssr: false,
+  loading: () => <MapSkeleton />,
+});
 
 const HQ_LOCATION = getHqLocation();
 
@@ -61,7 +68,9 @@ export default function Dashboard() {
   const [userName, setUserName] = useState("");
   const [userId, setUserId] = useState("");
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [calendarView, setCalendarView] = useState<View>("month");
+  const [calendarView, setCalendarView] = useState<View>(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "agenda" : "month"
+  );
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showLocationConsent, setShowLocationConsent] = useState(false);
   const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
@@ -82,7 +91,7 @@ export default function Dashboard() {
 
   // Sync Hooks
   const endpoint = userId ? `/api/tasks?technicianId=${userId}&technicianName=${encodeURIComponent(userName || "")}` : null;
-  const { data: rawTasks = [], isLoading: loading, isSyncing, mutate: mutateTasks } = useSync<any[]>(endpoint);
+  const { data: rawTasks = [], isLoading: loading, isSyncing, error: syncError, mutate: mutateTasks } = useSync<any[]>(endpoint);
   const {
     enqueueStatusUpdate,
     enqueueMeasurementsSave,
@@ -114,7 +123,41 @@ export default function Dashboard() {
       .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
   }, [allTasks]);
 
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+
+  const handleToggleLocationConsent = useCallback(() => {
+    const nextState = !locationSharingEnabled;
+    setLocationSharingEnabled(nextState);
+    localStorage.setItem("location_sharing_consent", String(nextState));
+
+    if (!nextState) {
+      const effectiveId = (session?.user as { id?: string })?.id || userId || "technician";
+      fetch(`/api/location?technicianId=${encodeURIComponent(effectiveId)}`, { method: "DELETE" }).catch(() => {});
+      return;
+    }
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const effectiveName =
+          (session?.user as { name?: string })?.name ||
+          userName ||
+          (typeof window !== "undefined" ? localStorage.getItem("userName") : "") ||
+          "Técnico";
+        const effectiveId = (session?.user as { id?: string })?.id || userId || "technician";
+        fetch("/api/location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            technicianId: effectiveId,
+            technicianName: effectiveName,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          }),
+        }).catch(() => {});
+      });
+    }
+  }, [locationSharingEnabled, session, userId, userName]);
 
   useEffect(() => {
     if (!lastSyncSuccess) return;
@@ -138,7 +181,8 @@ export default function Dashboard() {
         (position) => {
           setUserLocation({
             lat: position.coords.latitude,
-            lng: position.coords.longitude
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
           });
         },
         () => {
@@ -150,7 +194,8 @@ export default function Dashboard() {
         (position) => {
           setUserLocation({
             lat: position.coords.latitude,
-            lng: position.coords.longitude
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
           });
         },
         () => {
@@ -210,8 +255,15 @@ export default function Dashboard() {
     }
   }, [session, status, router, locationSharingEnabled]);
 
+  const { pullDistance } = usePullToRefresh({
+    enabled: view === "list",
+    onRefresh: async () => {
+      await mutateTasks();
+    },
+  });
+
   return (
-    <div className="h-[100dvh] flex flex-col bg-[#f3f5fa] text-[#090d16] relative overflow-hidden font-sans smooth-transition">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#f3f5fa] font-sans text-[#090d16]">
       
       {/* Banner de Consentimento de Localização (RGPD) */}
       {showLocationConsent && (
@@ -249,7 +301,7 @@ export default function Dashboard() {
                 });
               }
             }}
-            className="bg-[#84cc16] text-[#090d16] px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap hover:bg-[#9ae62e] transition-all"
+            className="min-h-12 whitespace-nowrap rounded-xl bg-[#84cc16] px-4 py-3 text-xs font-black uppercase tracking-wider text-[#090d16] transition-all hover:bg-[#9ae62e]"
           >
             Aceitar
           </button>
@@ -259,7 +311,8 @@ export default function Dashboard() {
               setLocationSharingEnabled(false);
               setShowLocationConsent(false);
             }}
-            className="p-1 text-slate-400 hover:text-white transition-colors"
+            className="flex min-h-12 min-w-12 items-center justify-center text-slate-400 transition-colors hover:text-white"
+            aria-label="Recusar partilha de localização"
           >
             <X className="w-4 h-4" />
           </button>
@@ -332,7 +385,7 @@ export default function Dashboard() {
 
       {/* Indicador de Offline Premium */}
       {!isOnline && (
-        <div className="bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-[0.25em] py-2.5 flex items-center justify-center gap-2 z-50 shadow-md">
+        <div className="z-50 flex items-center justify-center gap-2 bg-amber-500 py-2.5 text-xs font-black uppercase tracking-[0.25em] text-slate-950 shadow-md">
           Modo Offline-First Ativo • A trabalhar localmente
         </div>
       )}
@@ -350,47 +403,29 @@ export default function Dashboard() {
         pendingCount={pendingCount}
         failedCount={failedCount}
         onRetrySync={retryFailed}
-        onToggleLocationConsent={() => {
-          const nextState = !locationSharingEnabled;
-          setLocationSharingEnabled(nextState);
-          localStorage.setItem("location_sharing_consent", String(nextState));
-
-          if (!nextState) {
-            // Se o técnico desligou o GPS, remove imediatamente a sua posição do servidor e do mapa do Admin
-            const effectiveId = (session?.user as any)?.id || userId || "technician";
-            fetch(`/api/location?technicianId=${encodeURIComponent(effectiveId)}`, { method: "DELETE" }).catch(() => {});
-          } else {
-            // Se ativou, envia imediatamente as novas coordenadas
-            if ("geolocation" in navigator) {
-              navigator.geolocation.getCurrentPosition((pos) => {
-                const effectiveName = (session?.user as any)?.name || userName || (typeof window !== "undefined" ? localStorage.getItem("userName") : "") || "Técnico";
-                const effectiveId = (session?.user as any)?.id || userId || "technician";
-                fetch("/api/location", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    technicianId: effectiveId,
-                    technicianName: effectiveName,
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                  })
-                }).catch(() => {});
-              });
-            }
-          }
-        }}
+        onToggleLocationConsent={handleToggleLocationConsent}
       />
 
-      {/* Main Body */}
-      <div className="flex-1 relative overflow-hidden bg-gradient-to-b from-[#f3f5fa] to-[#eef2f7]">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Loader2 className="w-12 h-12 animate-spin text-[#84cc16] mx-auto mb-4" />
-              <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest">Sincronizando com o CRM Central...</p>
-            </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <SideNav view={view} setView={setView} setSelectedTask={setSelectedTask} />
+
+        <div className="relative flex-1 overflow-hidden bg-gradient-to-b from-[#f3f5fa] to-[#eef2f7]">
+        {pullDistance > 0 && view === "list" && (
+          <div className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex justify-center py-2 text-xs font-black uppercase tracking-wider text-[#84cc16]">
+            {pullDistance > 60 ? "Soltar para atualizar" : "Puxar para atualizar"}
           </div>
+        )}
+        {syncError && !loading && tasks.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+            <p className="text-sm font-black uppercase tracking-tight text-slate-900">Falha ao sincronizar</p>
+            <p className="max-w-sm text-sm font-semibold text-slate-600">
+              Não foi possível carregar as visitas. Verifique a rede e tente novamente.
+            </p>
+            <Button onClick={() => mutateTasks()}>Tentar novamente</Button>
+          </div>
+        )}
+        {loading ? (
+          view === "map" ? <MapSkeleton /> : <TaskListSkeleton />
         ) : view === "map" ? (
           <div className="h-full flex flex-col relative">
             {(() => {
@@ -407,7 +442,8 @@ export default function Dashboard() {
                     d.setDate(d.getDate() - 1);
                     setCalendarDate(d);
                   }}
-                  className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-colors text-xs font-bold"
+                  className="flex min-h-12 min-w-12 items-center justify-center rounded-xl text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  aria-label="Dia anterior"
                 >
                   ◀
                 </button>
@@ -419,11 +455,11 @@ export default function Dashboard() {
                       ? "Hoje"
                       : calendarDate.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short" })}
                   </span>
-                  <span className="bg-[#84cc16]/20 text-[#84cc16] px-2 py-0.5 rounded-full text-[10px] font-black">
+                  <span className="rounded-full bg-[#84cc16]/20 px-2 py-0.5 text-xs font-black text-[#84cc16]">
                     {dayTasks.length} Visitas
                   </span>
                   {overdueCount > 0 && (
-                    <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-black">
+                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-900">
                       {overdueCount} Atrasada{overdueCount > 1 ? "s" : ""}
                     </span>
                   )}
@@ -435,7 +471,8 @@ export default function Dashboard() {
                     d.setDate(d.getDate() + 1);
                     setCalendarDate(d);
                   }}
-                  className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-colors text-xs font-bold"
+                  className="flex min-h-12 min-w-12 items-center justify-center rounded-xl text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  aria-label="Dia seguinte"
                 >
                   ▶
                 </button>
@@ -444,7 +481,7 @@ export default function Dashboard() {
               {calendarDate.toDateString() !== new Date().toDateString() && (
                 <button
                   onClick={() => setCalendarDate(new Date())}
-                  className="pointer-events-auto bg-[#090d16] text-[#84cc16] px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-slate-800 transition-all shadow-lg border border-slate-800"
+                  className="pointer-events-auto min-h-12 rounded-2xl border border-slate-800 bg-[#090d16] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#84cc16] shadow-lg transition-all hover:bg-slate-800"
                 >
                   Voltar a Hoje
                 </button>
@@ -457,12 +494,23 @@ export default function Dashboard() {
               userLocation={userLocation}
               hqLocation={HQ_LOCATION}
               isTechnicianView={true}
+              locationSharingEnabled={locationSharingEnabled}
+              onToggleLocationSharing={handleToggleLocationConsent}
             />
 
+            {dayTasks.length === 0 && (
+              <div className="pointer-events-none absolute inset-x-4 top-24 z-10 flex justify-center">
+                <div className="rounded-2xl border border-slate-200 bg-white/95 px-6 py-4 text-center shadow-lg">
+                  <p className="text-sm font-black uppercase tracking-tight text-slate-700">Sem visitas neste dia</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-600">Use as setas para ver outros dias.</p>
+                </div>
+              </div>
+            )}
+
             {overdueCount > 0 && (
-              <div className="absolute bottom-6 left-4 right-4 z-10 pointer-events-none">
+              <div className="pointer-events-none absolute bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+5.5rem))] left-4 right-4 z-10 lg:bottom-6">
                 <div className="pointer-events-auto mx-auto max-w-sm bg-amber-50 border-2 border-amber-300 text-amber-900 px-4 py-3 rounded-2xl shadow-lg text-center">
-                  <p className="text-[10px] font-black uppercase tracking-wider">Visitas atrasadas no mapa</p>
+                  <p className="text-xs font-black uppercase tracking-wider">Visitas atrasadas no mapa</p>
                   <p className="text-xs font-bold mt-1">
                     Pinos laranja com borda vermelha = hora já passou. Toque para abrir.
                   </p>
@@ -474,8 +522,8 @@ export default function Dashboard() {
             })()}
           </div>
         ) : view === "calendar" ? (
-          <div className="h-full p-6 bg-[#f3f5fa] overflow-y-auto custom-scrollbar">
-            <div className="max-w-5xl mx-auto h-[calc(100vh-250px)] rounded-[2.5rem] bg-white p-6 border border-slate-200 shadow-xl">
+          <div className="h-full overflow-y-auto bg-[#f3f5fa] p-6 pb-40 custom-scrollbar lg:pb-6">
+            <div className="mx-auto h-[calc(100vh-250px)] max-w-5xl rounded-[2.5rem] border border-slate-200 bg-white p-6 shadow-xl">
               <BigCalendar
                 localizer={localizer}
                 events={tasks}
@@ -502,14 +550,14 @@ export default function Dashboard() {
                   agenda: "Agenda"
                 }}
                 eventPropGetter={(event: any) => {
-                  const colors = getServiceTypeColor(event.serviceType?.[0]);
+                  const colors = getServiceTypeColor(event.serviceType || event.stage);
                   return {
                     style: {
                       backgroundColor: colors.bg,
                       color: colors.text,
                       borderLeft: `4px solid ${colors.pin}`,
                       borderRadius: '12px',
-                      fontSize: '11px',
+                      fontSize: '12px',
                       fontWeight: '900',
                       padding: '4px 8px',
                       border: 'none',
@@ -560,7 +608,7 @@ export default function Dashboard() {
                               </p>
                             </div>
                           </div>
-                          <span className={`text-[11px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shrink-0 ${
+                          <span className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-black uppercase tracking-wider ${
                             isTaskComp ? 'bg-[#84cc16] text-[#090d16]' : 
                             isTaskCanc ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
                           }`}>
@@ -582,7 +630,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-3 mb-1">
                       <h2 className="text-3xl font-black text-[#090d16] tracking-tighter italic uppercase">Minha Agenda</h2>
                       {calendarDate.toDateString() === new Date().toDateString() && (
-                        <span className="px-2.5 py-1 bg-[#84cc16] text-[#090d16] text-[11px] font-black rounded-lg uppercase tracking-wider animate-pulse">Hoje</span>
+                        <span className="rounded-lg bg-[#84cc16] px-2.5 py-1 text-xs font-black uppercase tracking-wider text-[#090d16]">Hoje</span>
                       )}
                     </div>
                     <p className="text-xs font-black text-slate-600 uppercase tracking-wider">Planeamento das Visitas Diárias</p>
@@ -595,7 +643,7 @@ export default function Dashboard() {
                     >
                       Voltar
                     </button>
-                    <div className="px-4 text-[11px] font-black text-slate-700 uppercase tracking-widest min-w-[120px] text-center">
+                    <div className="min-w-[120px] px-4 text-center text-xs font-black uppercase tracking-widest text-slate-700">
                       {calendarDate.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </div>
                     <button 
@@ -615,7 +663,7 @@ export default function Dashboard() {
                   <h3 className="text-slate-500 font-black uppercase tracking-tight text-sm italic">Sem visitas agendadas para hoje</h3>
                   <button 
                     onClick={() => setCalendarDate(new Date())}
-                    className="mt-4 text-[10px] font-black text-[#84cc16] uppercase tracking-widest hover:text-[#090d16] transition-colors"
+                    className="mt-4 text-xs font-black uppercase tracking-widest text-[#84cc16] transition-colors hover:text-[#090d16]"
                   >
                     Voltar para o dia de hoje
                   </button>
@@ -637,6 +685,7 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Slider Drawer de Detalhes Modularizado */}

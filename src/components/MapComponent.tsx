@@ -1,9 +1,14 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { buildServiceTypeMarkerSvg, getServiceTypeColor, resolveServiceType } from '@/lib/techniciansConfig';
 import { resolveTaskOverdue } from '@/lib/taskUtils';
 import { HQ_LAT, HQ_LNG } from '@/lib/hq';
+import { APP_LOGO_PATH, MAP_HQ_TITLE } from '@/lib/branding';
+import { isNeedsSchedulingStage } from '@/lib/crm/contract';
+
+const HQ_LOGO_MARKER_SIZE = 48;
 
 const containerStyle = {
   width: '100%',
@@ -61,13 +66,15 @@ interface MapComponentProps {
   onTaskSelect: (task: any) => void;
   showTechnicianColors?: boolean;
   highlightedIds?: string[];
-  hqLocation?: { coordinates: [number, number] } | null;
+  hqLocation?: { coordinates: [number, number]; name?: string; address?: string } | null;
   optimizedRoute?: any[] | null;
   fuelPrice?: number;
   fuelConsumption?: number;
   onRouteUpdate?: (routeData: any) => void;
-  userLocation?: { lat: number; lng: number } | null;
+  userLocation?: { lat: number; lng: number; accuracy?: number } | null;
   isTechnicianView?: boolean;
+  locationSharingEnabled?: boolean;
+  onToggleLocationSharing?: () => void;
   techniciansLocations?: Array<{
     technicianId: string;
     technicianName: string;
@@ -92,6 +99,8 @@ export default function MapComponent({
   onRouteUpdate = () => {},
   userLocation = null,
   isTechnicianView = false,
+  locationSharingEnabled = true,
+  onToggleLocationSharing,
   techniciansLocations = [],
   onTechnicianSelect
 }: MapComponentProps) {
@@ -103,15 +112,23 @@ export default function MapComponent({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
   const [selectedTechMarker, setSelectedTechMarker] = useState<any | null>(null);
+  const [technicianPinPanel, setTechnicianPinPanel] = useState<"hq" | "user" | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [techLiveRouteDirections, setTechLiveRouteDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral | null>(null);
   const [renderNow, setRenderNow] = useState(() => Date.now());
   const onRouteUpdateRef = useRef(onRouteUpdate);
+  const onTaskSelectRef = useRef(onTaskSelect);
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+  const clusterMarkersRef = useRef<google.maps.Marker[]>([]);
 
   useEffect(() => {
     onRouteUpdateRef.current = onRouteUpdate;
   }, [onRouteUpdate]);
+
+  useEffect(() => {
+    onTaskSelectRef.current = onTaskSelect;
+  }, [onTaskSelect]);
 
   useEffect(() => {
     const interval = setInterval(() => setRenderNow(Date.now()), 60_000);
@@ -166,6 +183,57 @@ export default function MapComponent({
     }
   }, [map]);
 
+  const hqLogoIcon = useMemo(() => {
+    if (!isLoaded || typeof window === "undefined") return undefined;
+    return {
+      url: APP_LOGO_PATH,
+      scaledSize: new window.google.maps.Size(HQ_LOGO_MARKER_SIZE, HQ_LOGO_MARKER_SIZE),
+      anchor: new window.google.maps.Point(HQ_LOGO_MARKER_SIZE / 2, HQ_LOGO_MARKER_SIZE / 2),
+    };
+  }, [isLoaded]);
+
+  const closeTechnicianPanels = useCallback(() => {
+    setTechnicianPinPanel(null);
+  }, []);
+
+  const panToUserLocation = useCallback(() => {
+    if (!map || !userLocation) return;
+    map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+    map.setZoom(Math.max(map.getZoom() ?? 14, 15));
+  }, [map, userLocation]);
+
+  const renderTechnicianGpsControls = () => {
+    if (!onToggleLocationSharing) return null;
+    return (
+      <div className="space-y-2 border-t border-slate-200 pt-3">
+        <div
+          className={`rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-wider ${
+            locationSharingEnabled
+              ? "border-[#84cc16]/40 bg-[#84cc16]/10 text-[#65a30d]"
+              : "border-amber-300 bg-amber-50 text-amber-900"
+          }`}
+        >
+          {locationSharingEnabled
+            ? "GPS ativo — a partilhar posição"
+            : "GPS pausado — posição oculta no admin"}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onToggleLocationSharing();
+            if (!locationSharingEnabled) closeTechnicianPanels();
+          }}
+          className={`w-full rounded-xl py-2.5 text-xs font-black uppercase tracking-wider transition-all ${
+            locationSharingEnabled
+              ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              : "bg-[#84cc16] text-[#090d16] hover:bg-[#9ae62e]"
+          }`}
+        >
+          {locationSharingEnabled ? "Pausar partilha GPS" : "Ligar GPS de volta"}
+        </button>
+      </div>
+    );
+  };
 
   // Tarefas planeadas atribuídas ao técnico selecionado (apenas para o dia de hoje)
   const techAssignedTasks = useMemo(() => {
@@ -199,6 +267,111 @@ export default function MapComponent({
       return timeA - timeB;
     });
   }, [selectedTechMarker, allOpportunities, tasks]);
+
+  const clusterableTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (!task.coordinates || !Array.isArray(task.coordinates)) return false;
+      const isStopOfSelectedTech =
+        selectedTechMarker &&
+        techAssignedTasks.some(
+          (st) =>
+            (st.id && st.id === task.id) || (st.twentyId && st.twentyId === task.twentyId)
+        );
+      return !isStopOfSelectedTech;
+    });
+  }, [tasks, selectedTechMarker, techAssignedTasks]);
+
+  const useTaskClustering = !isTechnicianView && clusterableTasks.length >= 6;
+
+  useEffect(() => {
+    if (!map || !isLoaded || !useTaskClustering) {
+      clustererRef.current?.clearMarkers();
+      clusterMarkersRef.current.forEach((marker) => {
+        google.maps.event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      });
+      clusterMarkersRef.current = [];
+      clustererRef.current = null;
+      return;
+    }
+
+    const nextMarkers = clusterableTasks.map((task) => {
+      const isHighlighted = highlightedIds.includes(task.id);
+      const isLate = resolveTaskOverdue(task);
+      const techColor =
+        task.technicianColor ||
+        getTechnicianColor(task.technician || (task.stage === "Entrada" ? "Unscheduled" : null));
+      const alertColor = isLate
+        ? "#dc2626"
+        : task.delayAlert === "red"
+          ? "#ef4444"
+          : task.delayAlert === "orange"
+            ? "#f59e0b"
+            : null;
+
+      const dueTime = task.dueDate
+        ? new Date(task.dueDate).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
+        : "";
+
+      const marker = new google.maps.Marker({
+        position: { lat: task.coordinates[0], lng: task.coordinates[1] },
+        icon: buildTaskMarkerIcon(task, {
+          isLate,
+          isHighlighted,
+          alertColor,
+          showTechnicianColors: !!showTechnicianColors,
+          techColor,
+        }),
+        animation:
+          isLate || isHighlighted ? google.maps.Animation.BOUNCE : undefined,
+        title: isLate ? `Visita atrasada (${dueTime})` : task.title,
+      });
+
+      if (isLate) {
+        marker.setLabel({
+          text: "ATR",
+          className:
+            "bg-amber-100 text-amber-900 text-xs font-black px-1.5 py-0.5 rounded-md border border-amber-400 shadow-md",
+          color: "#92400e",
+          fontSize: "12px",
+          fontWeight: "bold",
+        });
+      }
+
+      marker.addListener("click", () => {
+        setSelectedMarker(task);
+        onTaskSelectRef.current(task);
+      });
+
+      return marker;
+    });
+
+    clustererRef.current?.clearMarkers();
+    clusterMarkersRef.current.forEach((marker) => {
+      google.maps.event.clearInstanceListeners(marker);
+      marker.setMap(null);
+    });
+
+    clustererRef.current = new MarkerClusterer({ map, markers: nextMarkers });
+    clusterMarkersRef.current = nextMarkers;
+
+    return () => {
+      clustererRef.current?.clearMarkers();
+      clusterMarkersRef.current.forEach((marker) => {
+        google.maps.event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      });
+      clusterMarkersRef.current = [];
+      clustererRef.current = null;
+    };
+  }, [
+    map,
+    isLoaded,
+    useTaskClustering,
+    clusterableTasks,
+    highlightedIds,
+    showTechnicianColors,
+  ]);
 
   const shouldComputeTechLiveRoute = Boolean(
     selectedTechMarker && isLoaded && techAssignedTasks.length > 0
@@ -307,7 +480,14 @@ export default function MapComponent({
     );
   }, [shouldComputeOptimizedRoute, optimizedRoute, hqLocation, isLoaded]);
 
-  if (!isLoaded) return <div className="h-full w-full bg-slate-900 flex items-center justify-center text-white">Carregando Google Maps...</div>;
+  if (!isLoaded) {
+    return (
+      <div className="flex h-full w-full flex-col gap-4 p-4" aria-busy="true" aria-label="A carregar mapa">
+        <div className="h-12 w-full max-w-md animate-pulse rounded-2xl bg-slate-200/80" />
+        <div className="flex-1 animate-pulse rounded-[2rem] bg-slate-200/80" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full relative">
@@ -318,7 +498,10 @@ export default function MapComponent({
         onLoad={onLoad}
         onUnmount={onUnmount}
         onIdle={onMapIdle}
-        onClick={() => setSelectedTechMarker(null)}
+        onClick={() => {
+          setSelectedTechMarker(null);
+          closeTechnicianPanels();
+        }}
         options={{
           mapTypeControl: false,
           streetViewControl: false,
@@ -334,20 +517,18 @@ export default function MapComponent({
           ]
         }}
       >
-        {/* Marcador da Sede */}
-        {hqLocation && (
+        {/* Marcador da Sede (logo da empresa) */}
+        {hqLocation && hqLogoIcon && (
           <Marker
             position={{ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] }}
-            icon={{
-              path: "M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z",
-              fillColor: "#1e293b",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "#ffffff",
-              scale: 1.5,
-              anchor: new window.google.maps.Point(12, 12)
+            icon={hqLogoIcon}
+            title={hqLocation.name || MAP_HQ_TITLE}
+            zIndex={900}
+            onClick={() => {
+              setSelectedMarker(null);
+              setSelectedTechMarker(null);
+              if (isTechnicianView) setTechnicianPinPanel("hq");
             }}
-            title="Headquarters"
           />
         )}
 
@@ -355,16 +536,90 @@ export default function MapComponent({
         {userLocation && (
           <Marker
             position={{ lat: userLocation.lat, lng: userLocation.lng }}
+            onClick={() => {
+              if (!isTechnicianView) return;
+              setSelectedMarker(null);
+              setSelectedTechMarker(null);
+              setTechnicianPinPanel("user");
+            }}
             icon={{
               path: window.google.maps.SymbolPath.CIRCLE,
-              fillColor: "#10b981",
+              fillColor: locationSharingEnabled ? "#10b981" : "#f59e0b",
               fillOpacity: 1,
               strokeWeight: 4,
               strokeColor: "#ffffff",
-              scale: 7,
+              scale: isTechnicianView ? 8 : 7,
             }}
-            title="Minha Localização"
+            title={
+              locationSharingEnabled
+                ? "Minha localização — GPS ativo"
+                : "Minha localização — GPS pausado"
+            }
+            zIndex={1000}
           />
+        )}
+
+        {isTechnicianView && technicianPinPanel === "hq" && hqLocation && (
+          <InfoWindow
+            position={{ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] }}
+            onCloseClick={closeTechnicianPanels}
+          >
+            <div className="max-w-[240px] p-1 font-sans">
+              <div className="mb-3 flex items-center gap-3">
+                <img
+                  src={APP_LOGO_PATH}
+                  alt=""
+                  className="h-10 w-10 rounded-xl object-contain"
+                />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-900">
+                    {hqLocation.name || MAP_HQ_TITLE}
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-600">Ponto de partida da equipa</p>
+                </div>
+              </div>
+              {hqLocation.address && (
+                <p className="mb-3 text-xs font-medium text-slate-600">{hqLocation.address}</p>
+              )}
+              {renderTechnicianGpsControls()}
+              {userLocation && onToggleLocationSharing && (
+                <button
+                  type="button"
+                  onClick={panToUserLocation}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-100"
+                >
+                  Ir para a minha posição
+                </button>
+              )}
+            </div>
+          </InfoWindow>
+        )}
+
+        {isTechnicianView && technicianPinPanel === "user" && userLocation && (
+          <InfoWindow
+            position={{ lat: userLocation.lat, lng: userLocation.lng }}
+            onCloseClick={closeTechnicianPanels}
+          >
+            <div className="max-w-[240px] p-1 font-sans">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-900">A sua posição</p>
+              {typeof userLocation.accuracy === "number" && (
+                <p className="mt-1 text-xs font-semibold text-slate-600">
+                  Precisão: ~{Math.round(userLocation.accuracy)} m
+                </p>
+              )}
+              {renderTechnicianGpsControls()}
+              <button
+                type="button"
+                onClick={() => {
+                  panToUserLocation();
+                  closeTechnicianPanels();
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-100"
+              >
+                Centrar no mapa
+              </button>
+            </div>
+          </InfoWindow>
         )}
 
         {/* Marcadores dos Técnicos no Terreno (Visão Admin Premium) */}
@@ -449,8 +704,7 @@ export default function MapComponent({
           // Tarefas por agendar para sugestão se o técnico estiver livre
           const unscheduledTasks = pool.filter(t => {
             if (!t.coordinates || !Array.isArray(t.coordinates)) return false;
-            const stageUpper = (t.stage || "").toUpperCase();
-            return ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO", "AGENDAR_INSTALACAO"].includes(stageUpper) && !t.hasScheduledTask;
+            return isNeedsSchedulingStage(t.stage) && !t.hasScheduledTask;
           });
 
           const getDistKm = (coords: [number, number]) => {
@@ -600,7 +854,7 @@ export default function MapComponent({
         })()}
 
         {/* Marcadores das Tarefas Gerais */}
-        {tasks.map((task) => {
+        {!useTaskClustering && tasks.map((task) => {
           // Se este técnico estiver selecionado e esta tarefa for uma das suas paragens numeradas,
           // não renderizar o marcador genérico para evitar duplicados ou confusão visual
           const isStopOfSelectedTech = selectedTechMarker && techAssignedTasks.some(st => (st.id && st.id === task.id) || (st.twentyId && st.twentyId === task.twentyId));

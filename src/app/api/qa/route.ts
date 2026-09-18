@@ -93,7 +93,6 @@ export async function POST(request: NextRequest) {
       data: {
         name: `Serviço Exemplar QA - Moradia ${randomSuffix}`,
         nsi: nsiNumber,
-        tipoDeServico: ["INSTALACAO", "TIRAR_MEDIDAS"],
         pointOfContactId: personId,
         stage: "ENTRADA",
         disponibilidadeDoCliente: tomorrow,

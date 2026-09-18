@@ -1,22 +1,32 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
 
 :root {
-  --background: #f3f5fa; /* Fundo cinza ultra suave limpo estilo iDraft */
-  --foreground: #090d16; /* Carvão escuro profundo para textos principais */
-  --primary: #84cc16; /* Verde Lima/Neon vibrante de alta visibilidade */
+  --background: #f3f5fa;
+  --foreground: #090d16;
+  --primary: #84cc16;
   --primary-foreground: #090d16;
-  --secondary: #121622; /* Cinza Carvão Escuro Secundário para cards de alto contraste */
-  --secondary-foreground: #f8fafc; /* Texto claro para cards de alto contraste */
+  --secondary: #121622;
+  --secondary-foreground: #f8fafc;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b; /* Cinza para textos secundários */
+  --muted-foreground: #475569;
   --accent: #84cc16;
   --accent-foreground: #090d16;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0; /* Borda clara elegante */
+  --success: #84cc16;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --border: #e2e8f0;
   --input: #ffffff;
   --ring: #84cc16;
-  --radius: 1.75rem; /* Cantos arredondados generosos iDraft */
+  --radius: 1.75rem;
+  --touch-min: 3rem;
+  --text-floor: 0.75rem;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 @theme inline {
@@ -35,7 +45,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-sans: 'Inter', var(--font-geist-sans), sans-serif;
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
 }
 
 body {
@@ -100,5 +110,47 @@ input, textarea, select {
 /* Smooth Transitions sem quebrar layout (removemos o '*' global que causava a tremura) */
 .smooth-transition {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.safe-top {
+  padding-top: max(0.75rem, var(--safe-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
+}
+
+.safe-x {
+  padding-left: max(1rem, var(--safe-left));
+  padding-right: max(1rem, var(--safe-right));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce,
+  .animate-spin {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-panel-dark,
+  .glass-panel-light,
+  .backdrop-blur-xl,
+  .backdrop-blur-md {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 

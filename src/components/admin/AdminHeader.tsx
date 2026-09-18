@@ -1,9 +1,10 @@
 import React from 'react';
 import Image from 'next/image';
 import { LogOut, ShieldCheck, RefreshCw, Filter, Map as MapIcon, Calendar as CalendarIcon, History, Activity, TrendingUp } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { canAccessCeoPanel, isStrictAdminRole } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
+import { APP_LOGO_PATH } from "@/lib/branding";
 
 interface AdminHeaderProps {
   opportunitiesCount: number;
@@ -41,7 +42,7 @@ export default function AdminHeader({
           <div className="relative">
             <div className="w-10 h-10 flex items-center justify-center group shrink-0">
               <Image 
-                src="/favi_64.png" 
+                src={APP_LOGO_PATH} 
                 alt="Company logo" 
                 width={40} 
                 height={40} 
@@ -56,7 +57,7 @@ export default function AdminHeader({
             </h1>
             <div className="flex items-center gap-1.5 mt-1">
                <div className="w-1.5 h-1.5 rounded-full bg-lime-500 animate-ping"></div>
-               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{opportunitiesCount} Serviços Ativos</p>
+               <p className="text-xs font-black uppercase tracking-widest text-slate-600">{opportunitiesCount} Serviços Ativos</p>
             </div>
           </div>
         </div>
@@ -83,19 +84,19 @@ export default function AdminHeader({
       <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 flex w-full md:w-auto max-w-md shadow-inner gap-1">
         <button
           onClick={() => setView("map")}
-          className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${view === "map" ? "bg-white text-lime-600 shadow-md border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "map" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
         >
           <MapIcon className="w-3.5 h-3.5" /> Mapa
         </button>
         <button
           onClick={() => setView("calendar")}
-          className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${view === "calendar" ? "bg-white text-lime-600 shadow-md border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "calendar" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
         >
           <CalendarIcon className="w-3.5 h-3.5" /> Agenda
         </button>
         <button
           onClick={() => setView("history")}
-          className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${view === "history" ? "bg-white text-lime-600 shadow-md border border-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "history" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
         >
           <History className="w-3.5 h-3.5" /> Histórico
         </button>
@@ -104,10 +105,10 @@ export default function AdminHeader({
       {/* Desktop items */}
       <div className="hidden md:flex items-center gap-2">
         <div className="flex flex-col items-end mr-3">
-          <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+          <p className="mb-1 text-xs font-black uppercase tracking-widest leading-none text-slate-600">
             CRM Sync
           </p>
-          <p className={`text-[9px] font-black tracking-wider transition-colors ${isSyncing ? 'text-amber-500 animate-pulse' : 'text-lime-600'}`}>
+          <p className={`text-xs font-black tracking-wider transition-colors ${isSyncing ? 'text-amber-500' : 'text-lime-600'}`}>
             {lastSync ? lastSync.toLocaleTimeString('pt-PT') : 'Sincronizando...'}
           </p>
         </div>
@@ -154,13 +155,13 @@ export default function AdminHeader({
         </button>
 
         <button 
-          onClick={() => {
+          onClick={async () => {
             localStorage.clear();
             sessionStorage.clear();
-            router.push('/');
+            await signOut({ callbackUrl: "/" });
           }} 
-          className="p-3 bg-slate-50 text-slate-400 hover:text-red-600 border border-slate-200 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all shadow-sm"
-          title="Sair"
+          className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          aria-label="Terminar sessão"
         >
           <LogOut className="w-4 h-4" />
         </button>

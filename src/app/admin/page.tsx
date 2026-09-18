@@ -18,7 +18,10 @@ import {
   STAGE_GROUPS,
   normalizeString,
   isMeasurementService,
-  isInstallationService
+  isInstallationService,
+  isAssistanceService,
+  isRemediationStage,
+  isNeedsSchedulingStage,
 } from '@/lib/crm';
 import { getServiceTypeColor } from '@/lib/techniciansConfig';
 import { analyzeRouteStrategy } from '@/lib/aiStrategyAction';
@@ -26,6 +29,11 @@ import { useSync } from '@/hooks/useSync';
 import { createOpportunityNoteAction } from "@/actions/notes-actions";
 import { Opportunity, WorkspaceMember, RouteStop, RouteData } from "@/types/admin";
 import { useToast } from "@/components/ui/ToastContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
+import { Sheet } from "@/components/ui/Sheet";
+import { MapSkeleton } from "@/components/ui/Skeleton";
+import { List, Navigation } from "lucide-react";
 
 // Custom Admin Components
 import AdminHeader from "@/components/admin/AdminHeader";
@@ -60,6 +68,10 @@ const localizer = dateFnsLocalizer({
 export default function Admin() {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [showRouteSheet, setShowRouteSheet] = useState(false);
+  const [showAgendaSheet, setShowAgendaSheet] = useState(false);
   const [view, setView] = useState("map");
   const [mapTab, setMapTab] = useState("unscheduled");
   const [selectedTechnician, setSelectedTechnician] = useState("all");
@@ -110,7 +122,7 @@ export default function Admin() {
   const [savingRatio, setSavingRatio] = useState(1);
   const [zoneInsights, setZoneInsights] = useState<ZoneInsight[]>([]);
   const [cityFilter, setCityFilter] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "medicoes" | "instalacoes">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "medicoes" | "instalacoes" | "assistencia">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [showMassScheduleModal, setShowMassScheduleModal] = useState(false);
@@ -217,13 +229,7 @@ export default function Admin() {
     const unscheduled = opportunities.filter(o => {
       const stageNorm = (o.stage || "").toUpperCase();
       const taskTypeNorm = (o.taskStatus || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const isUnscheduledStage = ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO", "AGENDAR_INSTALACAO"].includes(stageNorm) || stageNorm.includes("REMED");
-      // Sempre permitir agendar se for um serviço de REMEDICAO ou REAGENDAR sem tarefa ativa
-      const isRemedicaoType = Array.isArray(o.serviceType)
-        ? o.serviceType.some((t: string) => ["REMEDICAO", "REAGENDAR"].includes(t.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))
-        : ["REMEDICAO", "REAGENDAR"].includes((o.serviceType || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-
-      return (isUnscheduledStage || isRemedicaoType) && !o.hasScheduledTask;
+      return isNeedsSchedulingStage(o.stage) && !o.hasScheduledTask;
     });
     const groups = unscheduled.reduce<Record<string, { name: string; count: number; coords: [number, number] | null; services: Opportunity[] }>>((acc, opp) => {
       let rawLocation = opp.addressCity || "";
@@ -316,11 +322,9 @@ export default function Admin() {
       filtered = filtered.filter(opp => {
         const stageNorm = normalizeString(opp.stage);
         const isUnscheduledStage = STAGE_GROUPS.NEEDS_SCHEDULING.includes(stageNorm) || stageNorm.includes("REMED");
-        const isRemedicaoType = Array.isArray(opp.serviceType)
-          ? opp.serviceType.some((t: string) => ["REMEDICAO", "REAGENDAR"].includes(normalizeString(t)))
-          : ["REMEDICAO", "REAGENDAR"].includes(normalizeString(opp.serviceType as string));
-        
-        return (isUnscheduledStage || isRemedicaoType) && !opp.hasScheduledTask;
+        const isRemedicaoStage = isRemediationStage(opp.stage);
+
+        return (isUnscheduledStage || isRemedicaoStage) && !opp.hasScheduledTask;
       });
     }
     if (mapTab === "scheduled") filtered = filtered.filter(opp => opp.hasScheduledTask);
@@ -328,9 +332,11 @@ export default function Admin() {
     
     // Filtro por Categoria (Medições vs Instalações)
     if (categoryFilter === "medicoes") {
-      filtered = filtered.filter(opp => isMeasurementService(opp.stage, opp.serviceType));
+      filtered = filtered.filter((opp) => isMeasurementService(opp.stage, opp.title));
     } else if (categoryFilter === "instalacoes") {
-      filtered = filtered.filter(opp => isInstallationService(opp.stage, opp.serviceType));
+      filtered = filtered.filter((opp) => isInstallationService(opp.stage, opp.title));
+    } else if (categoryFilter === "assistencia") {
+      filtered = filtered.filter((opp) => isAssistanceService(opp.stage, opp.title));
     }
 
     return filtered;
@@ -409,9 +415,9 @@ export default function Admin() {
 
     const zoneOpps = opportunities.filter(opp => {
       const oppCity = normalizeString(opp.addressCity || "Outros");
-      return oppCity === normalizedZone && 
-        ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO", "AGENDAR_INSTALACAO"].includes((opp.stage || "").toUpperCase()) && 
-        !opp.hasScheduledTask && 
+      return oppCity === normalizedZone &&
+        isNeedsSchedulingStage(opp.stage) &&
+        !opp.hasScheduledTask &&
         opp.coordinates;
     });
 
@@ -457,7 +463,7 @@ export default function Admin() {
         return;
       }
       
-      const unscheduled = opportunities.filter(o => ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO", "AGENDAR_INSTALACAO"].includes((o.stage || "").toUpperCase()) && !o.scheduledAt && o.coordinates);
+      const unscheduled = opportunities.filter(o => isNeedsSchedulingStage(o.stage) && !o.scheduledAt && o.coordinates);
       const inZone = unscheduled.map(o => {
         const coords = o.coordinates || [0, 0];
         return {
@@ -491,7 +497,13 @@ export default function Admin() {
       return;
     }
 
-    if (!confirm(`Tem a certeza que deseja cancelar o agendamento de: ${opp.title}?`)) return;
+    const confirmed = await confirm({
+      title: "Cancelar agendamento?",
+      description: `Tem a certeza que deseja cancelar o agendamento de: ${opp.title}?`,
+      confirmLabel: "Cancelar agendamento",
+      destructive: true,
+    });
+    if (!confirmed) return;
     
     try {
       console.log(`A cancelar tarefa ${opp.taskId} para a oportunidade ${opp.twentyId}...`);
@@ -624,7 +636,7 @@ export default function Admin() {
         ).catch(err => console.error("Erro ao criar Nota no CRM:", err));
       }
 
-      const nextStage = getNextStageOnSchedule(selectedOpportunity.stage, selectedOpportunity.serviceType);
+      const nextStage = getNextStageOnSchedule(selectedOpportunity.stage);
       if (nextStage !== selectedOpportunity.stage) {
         await updateOpportunityStage(selectedOpportunity.twentyId, nextStage);
       }
@@ -677,7 +689,7 @@ export default function Admin() {
           scheduledByMemberId: adminMemberId,
           technicianName: selectedTech?.name || ""
         });
-        const nextStage = getNextStageOnSchedule(stop.stage, stop.serviceType);
+        const nextStage = getNextStageOnSchedule(stop.stage);
         if (nextStage !== stop.stage) {
           await updateOpportunityStage(stop.twentyId, nextStage);
         }
@@ -714,8 +726,27 @@ export default function Admin() {
     setIsAiAnalyzing(false);
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="h-[100dvh] flex flex-col bg-slate-50 relative overflow-hidden">
+      <AdminCommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={(v) => setView(v)}
+        onSearch={(q) => setSearchQuery(q)}
+        technicians={technicians}
+        onSelectTechnician={(name) => setSelectedTechnician(name)}
+      />
       <AdminHeader 
         opportunitiesCount={opportunities.length}
         lastSync={lastSync}
@@ -744,7 +775,7 @@ export default function Admin() {
         categoryFilter={categoryFilter}
         setCategoryFilter={setCategoryFilter}
         opportunitiesCount={opportunities.length}
-        unscheduledCount={opportunities.filter(o => ["ENTRADA", "TIRAR_MEDIDAS", "MARCAR_INSTALACAO"].includes((o.stage || "").toUpperCase()) && (!o.hasScheduledTask || isTaskCompleted(o.taskStatus))).length}
+        unscheduledCount={opportunities.filter(o => isNeedsSchedulingStage(o.stage) && (!o.hasScheduledTask || isTaskCompleted(o.taskStatus))).length}
         scheduledCount={opportunities.filter(o => o.hasScheduledTask && !isTaskCompleted(o.taskStatus)).length}
         completedCount={opportunities.filter(o => o.status === "Concluído" || o.status === "CONCLUIDO").length}
         cancelledCount={opportunities.filter(o => o.status === "Cancelado" || o.status === "CANCELADO").length}
@@ -755,16 +786,11 @@ export default function Admin() {
 
       <div className="flex-1 relative bg-slate-100 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-              <p className="text-slate-600">Carregando dados...</p>
-            </div>
-          </div>
+          <MapSkeleton />
         ) : view === "map" ? (
           <div className="h-full flex flex-col overflow-hidden">
             <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-              <div className="flex-1 relative min-h-[300px] lg:min-h-0">
+              <div className="relative min-h-[50vh] flex-1 lg:min-h-0">
                 <MapComponent 
                   tasks={mapOpportunities} 
                   allOpportunities={opportunities}
@@ -787,7 +813,7 @@ export default function Admin() {
                   <div className="flex bg-white/95 backdrop-blur shadow-2xl rounded-2xl border border-slate-200/80 p-1.5 gap-1.5 transition-all">
                     <button
                       onClick={() => setCategoryFilter("all")}
-                      className={`px-3 py-2 rounded-xl text-[10px] font-black tracking-wider transition-all uppercase flex items-center gap-1.5 ${
+                      className={`flex min-h-12 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider transition-all ${
                         categoryFilter === "all" ? "bg-[#090d16] text-[#84cc16] shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
                       }`}
                     >
@@ -795,7 +821,7 @@ export default function Admin() {
                     </button>
                     <button
                       onClick={() => setCategoryFilter("medicoes")}
-                      className={`px-3 py-2 rounded-xl text-[10px] font-black tracking-wider transition-all uppercase flex items-center gap-1.5 ${
+                      className={`flex min-h-12 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider transition-all ${
                         categoryFilter === "medicoes" ? "bg-[#84cc16] text-[#090d16] shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
                       }`}
                     >
@@ -803,17 +829,25 @@ export default function Admin() {
                     </button>
                     <button
                       onClick={() => setCategoryFilter("instalacoes")}
-                      className={`px-3 py-2 rounded-xl text-[10px] font-black tracking-wider transition-all uppercase flex items-center gap-1.5 ${
+                      className={`flex min-h-12 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider transition-all ${
                         categoryFilter === "instalacoes" ? "bg-blue-600 text-white shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
                       }`}
                     >
                       Instalações
                     </button>
+                    <button
+                      onClick={() => setCategoryFilter("assistencia")}
+                      className={`flex min-h-12 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider transition-all ${
+                        categoryFilter === "assistencia" ? "bg-orange-600 text-white shadow-sm font-black" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      Assistência
+                    </button>
                   </div>
 
                   {/* Badge de Técnicos Ativos em Campo */}
                   {techniciansLocations.length > 0 && (
-                    <div className="bg-[#090d16]/90 backdrop-blur text-white px-3 py-2 rounded-2xl border border-[#84cc16]/40 shadow-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider animate-in fade-in">
+                    <div className="flex items-center gap-2 rounded-2xl border border-[#84cc16]/40 bg-[#090d16]/90 px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-xl backdrop-blur">
                       <span className="w-2 h-2 rounded-full bg-[#84cc16] animate-pulse"></span>
                       <span className="text-[#84cc16]">{techniciansLocations.length}</span>
                       <span>{techniciansLocations.length === 1 ? "Técnico em Campo" : "Técnicos em Campo"}</span>
@@ -829,42 +863,93 @@ export default function Admin() {
               </div>
 
               {routeSelectionMode && (
-                <RouteSidebar 
-                  selectedForRoute={selectedForRoute}
-                  toggleSelectionForRoute={toggleSelectionForRoute}
-                  fuelPrice={fuelPrice}
-                  setFuelPrice={setFuelPrice}
-                  fuelConsumption={fuelConsumption}
-                  setFuelConsumption={setFuelConsumption}
-                  tollCost={tollCost}
-                  setTollCost={setTollCost}
-                  realRouteData={realRouteData}
-                  optimizedRoute={optimizedRoute}
-                  setOptimizedRoute={setOptimizedRoute}
-                  isOptimizing={isOptimizing}
-                  calculateOptimizedRoute={calculateOptimizedRoute}
-                  aiAnalysis={aiAnalysis}
-                  setAiAnalysis={setAiAnalysis}
-                  isAiAnalyzing={isAiAnalyzing}
-                  handleAiAudit={handleAiAudit}
-                  unoptimizedTotalDistance={unoptimizedTotalDistance}
-                  savingRatio={savingRatio}
-                  setShowMassScheduleModal={setShowMassScheduleModal}
-                />
+                <div className="hidden lg:flex lg:min-h-0 lg:shrink-0">
+                  <RouteSidebar
+                    selectedForRoute={selectedForRoute}
+                    toggleSelectionForRoute={toggleSelectionForRoute}
+                    fuelPrice={fuelPrice}
+                    setFuelPrice={setFuelPrice}
+                    fuelConsumption={fuelConsumption}
+                    setFuelConsumption={setFuelConsumption}
+                    tollCost={tollCost}
+                    setTollCost={setTollCost}
+                    realRouteData={realRouteData}
+                    optimizedRoute={optimizedRoute}
+                    setOptimizedRoute={setOptimizedRoute}
+                    isOptimizing={isOptimizing}
+                    calculateOptimizedRoute={calculateOptimizedRoute}
+                    aiAnalysis={aiAnalysis}
+                    setAiAnalysis={setAiAnalysis}
+                    isAiAnalyzing={isAiAnalyzing}
+                    handleAiAudit={handleAiAudit}
+                    unoptimizedTotalDistance={unoptimizedTotalDistance}
+                    savingRatio={savingRatio}
+                    setShowMassScheduleModal={setShowMassScheduleModal}
+                  />
+                </div>
+              )}
+
+              {routeSelectionMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowRouteSheet(true)}
+                  className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 z-20 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#090d16] text-xs font-black uppercase tracking-wider text-[#84cc16] shadow-xl lg:hidden"
+                >
+                  <Navigation className="h-5 w-5" />
+                  Rota ({selectedForRoute.length} paragens)
+                </button>
               )}
             </div>
+
+            <Sheet
+              open={showRouteSheet}
+              onClose={() => setShowRouteSheet(false)}
+              title="Roteiro do dia"
+              description={`${selectedForRoute.length} paragens selecionadas`}
+            >
+              <RouteSidebar
+                selectedForRoute={selectedForRoute}
+                toggleSelectionForRoute={toggleSelectionForRoute}
+                fuelPrice={fuelPrice}
+                setFuelPrice={setFuelPrice}
+                fuelConsumption={fuelConsumption}
+                setFuelConsumption={setFuelConsumption}
+                tollCost={tollCost}
+                setTollCost={setTollCost}
+                realRouteData={realRouteData}
+                optimizedRoute={optimizedRoute}
+                setOptimizedRoute={setOptimizedRoute}
+                isOptimizing={isOptimizing}
+                calculateOptimizedRoute={calculateOptimizedRoute}
+                aiAnalysis={aiAnalysis}
+                setAiAnalysis={setAiAnalysis}
+                isAiAnalyzing={isAiAnalyzing}
+                handleAiAudit={handleAiAudit}
+                unoptimizedTotalDistance={unoptimizedTotalDistance}
+                savingRatio={savingRatio}
+                setShowMassScheduleModal={setShowMassScheduleModal}
+              />
+            </Sheet>
           </div>
         ) : view === "calendar" ? (
           <div className="h-full flex flex-col bg-white overflow-hidden">
-            <div className="bg-white border-b border-slate-200 p-4 shrink-0 flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white p-4">
               <select
                 value={selectedTechnician}
                 onChange={(e) => setSelectedTechnician(e.target.value)}
-                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-12 flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Todos os Técnicos</option>
                 {technicians.map(tech => <option key={tech} value={tech}>{tech}</option>)}
               </select>
+              <button
+                type="button"
+                onClick={() => setShowAgendaSheet(true)}
+                className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-black uppercase tracking-wider text-slate-700 lg:hidden"
+              >
+                <List className="h-4 w-4 text-[#84cc16]" />
+                Agenda ({calendarOpportunities.length})
+              </button>
             </div>
             
             <div className="flex-1 flex overflow-hidden">
@@ -895,14 +980,14 @@ export default function Admin() {
                     return {};
                   }}
                   eventPropGetter={(event: any) => {
-                    const colors = getServiceTypeColor(event.tipoDeServico?.[0]);
+                    const colors = getServiceTypeColor(event.serviceType);
                     return {
                       style: {
                         backgroundColor: colors.bg,
                         color: colors.text,
                         borderLeft: `4px solid ${colors.pin}`,
                         borderRadius: '8px',
-                        fontSize: '11px',
+                        fontSize: '12px',
                         fontWeight: 'bold',
                         padding: '2px 6px'
                       }
@@ -910,32 +995,49 @@ export default function Admin() {
                   }}
                 />
               </div>
-              <CalendarSidebar 
+              <CalendarSidebar
                 calendarOpportunities={calendarOpportunities}
                 setSelectedOpportunity={setSelectedOpportunity}
                 handleCancelAppointment={handleCancelAppointment}
               />
             </div>
+
+            <Sheet
+              open={showAgendaSheet}
+              onClose={() => setShowAgendaSheet(false)}
+              title="Agendamentos"
+              description={`${calendarOpportunities.length} serviços no filtro atual`}
+            >
+              <CalendarSidebar
+                embedded
+                calendarOpportunities={calendarOpportunities}
+                setSelectedOpportunity={(opp) => {
+                  setSelectedOpportunity(opp);
+                  setShowAgendaSheet(false);
+                }}
+                handleCancelAppointment={handleCancelAppointment}
+              />
+            </Sheet>
           </div>
         ) : (
           <div className="h-full flex flex-col bg-slate-50 overflow-hidden animate-in fade-in duration-500">
             <div className="p-6 md:p-8 shrink-0 flex flex-col md:flex-row md:items-center justify-between bg-white border-b border-slate-100 gap-4">
               <div>
                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">Histórico de Intervenções</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Registo Geral de Serviços Concluídos, Cancelados e Incompletos</p>
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.2em] text-slate-600">Registo Geral de Serviços Concluídos, Cancelados e Incompletos</p>
               </div>
               <div className="flex flex-wrap gap-2 md:gap-4">
                  <div className="px-4 py-2 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-2.5">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <span className="text-[11px] font-black text-emerald-700 uppercase">{historyData?.summary.completed ?? 0} Concluídos</span>
+                    <span className="text-xs font-black uppercase text-emerald-700">{historyData?.summary.completed ?? 0} Concluídos</span>
                  </div>
                  <div className="px-4 py-2 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-2.5">
                     <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                    <span className="text-[11px] font-black text-amber-700 uppercase">{historyData?.summary.incomplete ?? 0} Incompletos</span>
+                    <span className="text-xs font-black uppercase text-amber-700">{historyData?.summary.incomplete ?? 0} Incompletos</span>
                  </div>
                  <div className="px-4 py-2 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-2.5">
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span className="text-[11px] font-black text-red-700 uppercase">{historyData?.summary.cancelled ?? 0} Cancelados</span>
+                    <span className="text-xs font-black uppercase text-red-700">{historyData?.summary.cancelled ?? 0} Cancelados</span>
                  </div>
               </div>
             </div>
@@ -950,9 +1052,9 @@ export default function Admin() {
                   <div 
                     key={opp.id}
                     onClick={() => setSelectedOpportunity(opp)}
-                    className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all cursor-pointer group flex items-center justify-between"
+                    className="cursor-pointer rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm transition-all hover:border-emerald-200 hover:shadow-xl group flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-start gap-4 sm:items-center sm:gap-6">
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${
                         (opp.status === "Concluído" || opp.status === "CONCLUIDO") ? 'bg-emerald-50 text-emerald-500' : 
                         (opp.status === "Cancelado" || opp.status === "CANCELADO") ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'
@@ -962,14 +1064,14 @@ export default function Admin() {
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter group-hover:text-emerald-600 transition-colors italic">{opp.title}</h3>
-                          <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest ${
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-black uppercase tracking-widest ${
                             (opp.status === "Concluído" || opp.status === "CONCLUIDO") ? 'bg-emerald-500 text-white' : 
                             (opp.status === "Cancelado" || opp.status === "CANCELADO") ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
                           }`}>
                             {opp.status}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-wider text-slate-600">
                           <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> {opp.technician}</span>
                           <span className="flex items-center gap-1.5"><CalendarIcon className="w-3 h-3" /> {new Date(opp.scheduledAt || opp.dueDate || 0).toLocaleDateString('pt-PT')}</span>
                           <span className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {opp.addressCity || 'N/A'}</span>
@@ -977,11 +1079,12 @@ export default function Admin() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <button className="px-6 py-3 bg-slate-50 text-slate-400 group-hover:bg-slate-950 group-hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
-                        Ver Detalhes
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="min-h-12 w-full rounded-xl bg-slate-50 px-6 py-3 text-xs font-black uppercase tracking-widest text-slate-600 transition-all group-hover:bg-slate-950 group-hover:text-white sm:w-auto"
+                    >
+                      Ver Detalhes
+                    </button>
                   </div>
                 ))}
               

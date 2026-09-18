@@ -51,6 +51,7 @@ export interface AppTask {
   report: string;
   opportunityId?: string;
   nsi?: string;
+  stage?: string;
   serviceType?: string;
   scheduledBy: string;
   assigneeId?: string | null;

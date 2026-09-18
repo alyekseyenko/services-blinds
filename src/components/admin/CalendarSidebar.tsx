@@ -1,75 +1,99 @@
-import React from 'react';
+import React from "react";
 import { Calendar as CalendarIcon, Clock, Trash2 } from "lucide-react";
-import { Opportunity } from '@/types/admin';
+import { Opportunity } from "@/types/admin";
+import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/IconButton";
 
 interface CalendarSidebarProps {
   calendarOpportunities: Opportunity[];
   setSelectedOpportunity: (opp: Opportunity) => void;
   handleCancelAppointment: (opp: Opportunity) => Promise<void> | void;
+  embedded?: boolean;
 }
 
 export default function CalendarSidebar({
   calendarOpportunities,
   setSelectedOpportunity,
-  handleCancelAppointment
+  handleCancelAppointment,
+  embedded = false,
 }: CalendarSidebarProps) {
+  const sorted = [...calendarOpportunities].sort((a, b) => {
+    const startA = a.start ? a.start.getTime() : 0;
+    const startB = b.start ? b.start.getTime() : 0;
+    return startA - startB;
+  });
+
   return (
-    <div className="w-80 border-l border-slate-200 bg-slate-50 overflow-y-auto p-4 hidden lg:block">
-      <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-        <CalendarIcon className="w-5 h-5 text-blue-600" />
-        Agendamentos
-      </h3>
-      
+    <div
+      className={
+        embedded
+          ? "p-4"
+          : "hidden w-80 overflow-y-auto border-l border-slate-200 bg-slate-50 p-4 lg:block"
+      }
+    >
+      {!embedded && (
+        <h3 className="mb-4 flex items-center gap-2 font-bold text-slate-800">
+          <CalendarIcon className="h-5 w-5 text-blue-600" />
+          Agendamentos
+        </h3>
+      )}
+
       <div className="space-y-3">
-        {calendarOpportunities.length === 0 ? (
-          <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center">
-            <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-400 font-medium">Nenhum serviço agendado para os filtros selecionados.</p>
+        {sorted.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <Clock className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+            <p className="text-xs font-medium text-slate-600">
+              Nenhum serviço agendado para os filtros selecionados.
+            </p>
           </div>
         ) : (
-          calendarOpportunities
-            .sort((a, b) => {
-              const startA = a.start ? a.start.getTime() : 0;
-              const startB = b.start ? b.start.getTime() : 0;
-              return startA - startB;
-            })
-            .map(opp => (
-              <div key={opp.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:border-blue-300 transition-all group">
-                <div className="flex justify-between items-start mb-2">
-                   <div className="flex gap-2">
-                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
-                        {opp.start ? opp.start.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
-                      <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full uppercase">
-                        #{opp.nsi}
-                      </span>
-                   </div>
-                   <button 
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       handleCancelAppointment(opp);
-                     }}
-                    className="text-slate-300 hover:text-red-500 transition-colors"
-                    title="Cancelar Agendamento"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+          sorted.map((opp) => (
+            <div
+              key={opp.id}
+              className="group rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-blue-300"
+            >
+              <div className="mb-2 flex items-start justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="info">
+                    {opp.start
+                      ? opp.start.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
+                      : "—"}
+                  </Badge>
+                  {opp.nsi && <Badge variant="muted">#{opp.nsi}</Badge>}
                 </div>
-                <h4 className="text-xs font-bold text-slate-800 line-clamp-2 mb-1 cursor-pointer" onClick={() => setSelectedOpportunity(opp)}>
-                  {opp.title}
-                </h4>
-                <p className="text-[10px] text-slate-500 truncate mb-2">{opp.client}</p>
-                <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-50">
-                   <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-slate-300" />
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">{opp.technician || 'Sem técnico'}</span>
-                   </div>
-                   {opp.scheduledBy && opp.scheduledBy !== 'N/A' && (
-                     <span className="text-[8px] font-medium text-slate-300 italic">Por: {opp.scheduledBy}</span>
-                   )}
-                </div>
+                <IconButton
+                  aria-label="Cancelar agendamento"
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCancelAppointment(opp);
+                  }}
+                  className="text-slate-400 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </IconButton>
               </div>
-            ))
+              <h4
+                className="mb-1 line-clamp-2 cursor-pointer text-sm font-bold text-slate-800"
+                onClick={() => setSelectedOpportunity(opp)}
+              >
+                {opp.title}
+              </h4>
+              <p className="mb-2 truncate text-xs font-semibold text-slate-600">{opp.client}</p>
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-50 pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-slate-300" />
+                  <span className="text-xs font-bold uppercase text-slate-600">
+                    {opp.technician || "Sem técnico"}
+                  </span>
+                </div>
+                {opp.scheduledBy && opp.scheduledBy !== "N/A" && (
+                  <span className="text-xs font-medium italic text-slate-500">Por: {opp.scheduledBy}</span>
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
     </div>

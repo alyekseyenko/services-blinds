@@ -147,15 +147,15 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
                     <>
                       <button 
                         onClick={() => { triggerHaptic(); onCloneRow(group.id, row); }}
-                        className="p-2 text-slate-400 hover:text-[#84cc16] hover:bg-slate-100 rounded-lg transition-all"
-                        title="Duplicar Linha"
+                        className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-[#84cc16]"
+                        aria-label="Duplicar linha"
                       >
                         <Copy className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => { triggerHaptic(50); onRemoveRow(group.id, rIdx); }}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        title="Remover Linha"
+                        className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-red-50 hover:text-red-500"
+                        aria-label="Remover linha"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -173,7 +173,7 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
         {group.measurements.map((row, rIdx) => (
           <div key={rIdx} className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200 shadow-sm relative transition-all">
             <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-black text-[#090d16] bg-slate-200/80 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+              <span className="rounded-lg bg-slate-200/80 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-[#090d16]">
                 Medição #{rIdx + 1}
               </span>
               <div className="flex gap-2">
@@ -181,15 +181,15 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
                   <>
                     <button 
                       onClick={() => { triggerHaptic(); onCloneRow(group.id, row); }}
-                      className="p-2 bg-white rounded-xl text-slate-600 border border-slate-200 hover:bg-slate-100 shadow-sm transition-all"
-                      title="Duplicar Medição"
+                      className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:bg-slate-100"
+                      aria-label="Duplicar medição"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button 
                       onClick={() => { triggerHaptic(50); onRemoveRow(group.id, rIdx); }}
-                      className="p-2 bg-white rounded-xl text-red-500 border border-slate-200 hover:bg-red-50 shadow-sm transition-all"
-                      title="Eliminar Medição"
+                      className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-red-500 shadow-sm transition-all hover:bg-red-50"
+                      aria-label="Eliminar medição"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -201,7 +201,7 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
             {/* Linha 1: Qtd & Preço */}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Quantidade</label>
+                <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Quantidade</label>
                 {isAdmin ? (
                   <div className="bg-white rounded-xl p-3 text-sm font-black text-slate-900 border border-slate-100">{row.qty || '-'}</div>
                 ) : (
@@ -217,7 +217,7 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
                 )}
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Preço (€)</label>
+                <label className="px-1 text-xs font-black uppercase tracking-widest text-slate-600">Preço (€)</label>
                 {isAdmin ? (
                   <div className="bg-white rounded-xl p-3 text-sm font-black text-slate-900 border border-slate-100">{row.price ? `${row.price}€` : '-'}</div>
                 ) : (
@@ -237,8 +237,8 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
             {/* Linha 2: Largura e Altura (Teclado Numérico Imediato) */}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-700 uppercase tracking-widest px-1 flex items-center justify-between">
-                  <span>Largura</span> <span className="text-[#84cc16] font-black text-[8px]">MM</span>
+                <label className="flex items-center justify-between px-1 text-xs font-black uppercase tracking-widest text-slate-700">
+                  <span>Largura</span> <span className="text-xs font-black text-[#84cc16]">MM</span>
                 </label>
                 {isAdmin ? (
                   <div className="bg-white rounded-xl p-3 text-sm font-black text-slate-900 border border-slate-100">{row.width || '-'}</div>
@@ -256,8 +256,8 @@ export function MeasurementTable({ group, isAdmin, onUpdateMeasurement, onCloneR
                 )}
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-700 uppercase tracking-widest px-1 flex items-center justify-between">
-                  <span>Altura</span> <span className="text-[#84cc16] font-black text-[8px]">MM</span>
+                <label className="flex items-center justify-between px-1 text-xs font-black uppercase tracking-widest text-slate-700">
+                  <span>Altura</span> <span className="text-xs font-black text-[#84cc16]">MM</span>
                 </label>
                 {isAdmin ? (
                   <div className="bg-white rounded-xl p-3 text-sm font-black text-slate-900 border border-slate-100">{row.height || '-'}</div>

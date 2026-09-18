@@ -60,14 +60,14 @@ export default function RouteSidebar({
             </div>
             Roteiro do Dia
           </h3>
-          <span className="text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-widest">
+          <span className="text-xs font-black bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-widest">
             {selectedForRoute.length} {selectedForRoute.length === 1 ? 'Paragem' : 'Paragens'}
           </span>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Preço Gasolina (€/L)</label>
+            <label className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1">Preço Gasolina (€/L)</label>
             <input 
               type="number" 
               step="0.01"
@@ -77,7 +77,7 @@ export default function RouteSidebar({
             />
           </div>
           <div>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Consumo (L/100km)</label>
+            <label className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1">Consumo (L/100km)</label>
             <input 
               type="number" 
               step="0.1"
@@ -88,7 +88,7 @@ export default function RouteSidebar({
           </div>
           <div className="col-span-2">
             <div className="flex justify-between items-end mb-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Custo Portagens Total (€)</label>
+              <label className="text-xs font-black text-slate-400 uppercase tracking-wider">Custo Portagens Total (€)</label>
               {realRouteData?.hasTolls && (
                 <span className="text-[8px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200/60 animate-pulse uppercase tracking-widest">
                   Portagens Detetadas
@@ -106,7 +106,7 @@ export default function RouteSidebar({
               {realRouteData?.hasTolls && tollCost === 0 && (
                 <button 
                   onClick={() => setTollCost(Math.round(realRouteData.distanceKm * 0.08))}
-                  className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 bg-amber-500 text-white text-[9px] font-black rounded-lg hover:bg-amber-600 transition-colors uppercase tracking-wider"
+                  className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 bg-amber-500 text-white text-xs font-black rounded-lg hover:bg-amber-600 transition-colors uppercase tracking-wider"
                 >
                   Estimar
                 </button>
@@ -123,13 +123,13 @@ export default function RouteSidebar({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Brain className="w-4.5 h-4.5 text-purple-600 animate-pulse" />
-                <h4 className="text-[10px] font-black text-purple-900 uppercase tracking-wider">Auditória Estratégica (IA)</h4>
+                <h4 className="text-xs font-black text-purple-900 uppercase tracking-wider">Auditória Estratégica (IA)</h4>
               </div>
               {!aiAnalysis && (
                 <button
                   onClick={handleAiAudit}
                   disabled={isAiAnalyzing}
-                  className="bg-purple-600 hover:bg-slate-950 text-white text-[9px] font-black px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wider"
+                  className="bg-purple-600 hover:bg-slate-950 text-white text-xs font-black px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wider"
                 >
                   {isAiAnalyzing ? <Loader2 className="w-3 h-3 animate-spin text-white" /> : <Sparkles className="w-3 h-3 text-lime-300" />}
                   Auditar ROI
@@ -140,12 +140,12 @@ export default function RouteSidebar({
             {aiAnalysis ? (
               <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 border border-purple-100/80 shadow-inner space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b border-purple-50">
-                  <span className="text-[9px] font-black text-purple-800 uppercase tracking-wider">Score de Eficiência</span>
-                  <div className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${aiAnalysis.score > 80 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                  <span className="text-xs font-black text-purple-800 uppercase tracking-wider">Score de Eficiência</span>
+                  <div className={`text-xs font-black px-2.5 py-0.5 rounded-full ${aiAnalysis.score > 80 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
                     {aiAnalysis.score}/100
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-[10px] font-medium text-slate-600 leading-relaxed">
+                <div className="grid grid-cols-2 gap-3 text-xs font-medium text-slate-600 leading-relaxed">
                   <div>
                     <p className="text-[8px] font-black text-purple-800 uppercase tracking-wider mb-0.5">Logística</p>
                     <p className="italic">"{aiAnalysis.efficiency}"</p>
@@ -163,7 +163,7 @@ export default function RouteSidebar({
                 </button>
               </div>
             ) : (
-              <p className="text-[9px] text-purple-600/70 italic text-center font-bold">Analise esta rota para obter insights automáticos de combustível e impacto de faturação.</p>
+              <p className="text-xs text-purple-600/70 italic text-center font-bold">Analise esta rota para obter insights automáticos de combustível e impacto de faturação.</p>
             )}
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function RouteSidebar({
             {selectedForRoute.length === 0 ? (
               <div className="h-48 flex flex-col items-center justify-center text-center p-6 bg-white rounded-3xl border-2 border-dashed border-slate-200">
                 <MapPin className="w-10 h-10 mb-3 text-slate-300" />
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-normal">Selecione serviços no mapa<br />para construir a sua rota.</p>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-normal">Selecione serviços no mapa<br />para construir a sua rota.</p>
               </div>
             ) : (
               <>
@@ -186,7 +186,7 @@ export default function RouteSidebar({
                     <ShieldCheck className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-lime-700 uppercase tracking-widest">Partida do Roteiro</p>
+                    <p className="text-xs font-black text-lime-700 uppercase tracking-widest">Partida do Roteiro</p>
                     <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">{HQ_LABEL}</p>
                   </div>
                 </div>
@@ -205,13 +205,13 @@ export default function RouteSidebar({
                             <MapPin className="w-5 h-5 text-white" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Fim do Roteiro</p>
+                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Fim do Roteiro</p>
                             <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">Regresso à Sede (HQ)</p>
                             <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                              <span className="text-[10px] text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
+                              <span className="text-xs text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
                                 <Navigation className="w-3.5 h-3.5" /> +{item.distanceFromLast} km
                               </span>
-                              <span className="text-[10px] text-slate-400 font-bold">
+                              <span className="text-xs text-slate-400 font-bold">
                                 ~{Math.round(item.distanceFromLast * 2)} min (trânsito real)
                               </span>
                             </div>
@@ -242,10 +242,10 @@ export default function RouteSidebar({
                           
                           {item.distanceFromLast && (
                             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[10px] text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
+                              <span className="text-xs text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
                                 <Navigation className="w-3.5 h-3.5" /> +{item.distanceFromLast} km
                               </span>
-                              <span className="text-[10px] text-slate-400 font-bold">
+                              <span className="text-xs text-slate-400 font-bold">
                                 ~{Math.round(item.distanceFromLast * 2)} min (trânsito real)
                               </span>
                             </div>
@@ -268,9 +268,9 @@ export default function RouteSidebar({
                       <MapPin className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fim Estimado</p>
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Fim Estimado</p>
                       <p className="text-sm text-slate-700 font-black tracking-tight mt-0.5">Regresso à Sede (HQ)</p>
-                      <p className="text-[9px] text-slate-400 mt-1 italic">Distância calculada após otimização IA</p>
+                      <p className="text-xs text-slate-400 mt-1 italic">Distância calculada após otimização IA</p>
                     </div>
                   </div>
                 )}
@@ -284,7 +284,7 @@ export default function RouteSidebar({
       <div className="p-6 border-t border-slate-200 bg-white shrink-0 space-y-4 shadow-[0_-15px_40px_rgba(0,0,0,0.03)]">
         {selectedForRoute.length > 0 && (
           <div className="space-y-3">
-            <div className="flex justify-between text-[9px] font-black text-lime-600 tracking-wider">
+            <div className="flex justify-between text-xs font-black text-lime-600 tracking-wider">
               <span>Métricas de Trânsito Real</span>
               <span className="bg-lime-100 px-1.5 py-0.5 rounded border border-lime-200 uppercase">Cálculo Google Maps</span>
             </div>
@@ -294,7 +294,7 @@ export default function RouteSidebar({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                    <span className="text-[9px] font-black text-emerald-800 uppercase tracking-wider">Redução Logística IA</span>
+                    <span className="text-xs font-black text-emerald-800 uppercase tracking-wider">Redução Logística IA</span>
                   </div>
                   <div className="text-right font-black text-emerald-700 text-xs tracking-tighter">
                     <span>-{Math.max(0, (unoptimizedTotalDistance - realRouteData.distanceKm)).toFixed(1)} km</span>
@@ -311,7 +311,7 @@ export default function RouteSidebar({
               </div>
             )}
             
-            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-[10px] font-bold text-slate-500">
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs font-bold text-slate-500">
               <div>
                 <span className="block text-[8px] text-slate-400 uppercase tracking-wider mb-0.5">Tempo de Viagem</span>
                 <span className="text-slate-800 font-black">{realRouteData ? Math.floor(realRouteData.durationMin / 60) + 'h ' + (realRouteData.durationMin % 60) + 'm' : '...'}</span>

@@ -1,13 +1,11 @@
-const CACHE_NAME = 'technician-app-cache-v3';
+const CACHE_NAME = 'technician-app-cache-v4';
 const urlsToCache = [
-  '/',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Força a ativação imediata
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
@@ -15,32 +13,48 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(clients.claim()); // Assume o controlo das páginas imediatamente
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      )
+    ).then(() => clients.claim())
+  );
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
-  // Filtro de segurança para não interceptar pedidos críticos
   if (
-    event.request.method !== 'GET' || 
-    url.includes('/_next/') || 
+    event.request.method !== 'GET' ||
+    url.includes('/_next/') ||
     url.includes('hot-update') ||
-    url.includes('localhost:3001') || // Twenty MCP
-    url.includes('n8n')
+    url.includes('localhost:3001') ||
+    url.includes('n8n') ||
+    url.includes('/api/')
   ) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        return response || fetch(event.request);
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
       })
+      .catch(() => caches.match(event.request))
   );
 });
 
-// WEB PUSH NOTIFICATIONS
 self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
@@ -50,7 +64,7 @@ self.addEventListener('push', function(event) {
       badge: '/icon-192.png',
       vibrate: [100, 50, 100],
       data: {
-        url: data.url || '/'
+        url: data.url || '/dashboard'
       },
       actions: [
         { action: 'open', title: 'Abrir App' }
@@ -65,19 +79,19 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  
+
+  const targetUrl = event.notification.data?.url || '/dashboard';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
         }
-        return client.focus();
       }
-      return clients.openWindow(event.notification.data.url || '/');
+      return clients.openWindow(targetUrl);
     })
   );
 });

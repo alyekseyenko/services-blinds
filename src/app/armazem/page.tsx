@@ -2,14 +2,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { useToast } from "@/components/ui/ToastContext";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { WarehouseFeedSkeleton } from "@/components/ui/Skeleton";
 import { LogOut, Package, RefreshCw, Loader2, Search, AlertCircle, CheckCircle, Crown, Layers, CheckSquare, Clock } from "lucide-react";
 import { fetchPreparationList, updateOpportunityStage } from "@/lib/crm/opportunities";
 import PreparationCard, { Service } from "@/components/warehouse/PreparationCard";
-import { APP_NAME, APP_SHORT_NAME } from "@/lib/branding";
+import { APP_NAME, APP_SHORT_NAME, APP_LOGO_PATH } from "@/lib/branding";
 
 export default function WarehouseDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
@@ -46,10 +50,10 @@ export default function WarehouseDashboard() {
     }
   }, [session, sessionStatus, router]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.clear();
     sessionStorage.clear();
-    router.push("/");
+    await signOut({ callbackUrl: "/" });
   };
 
   const handleComplete = async (opportunityId: string) => {
@@ -57,8 +61,16 @@ export default function WarehouseDashboard() {
     
     // Smooth transition: remove locally with a small timeout or immediately
     setServices(prev => prev.filter(s => s.id !== opportunityId));
-    alert("Encomenda concluída com sucesso! Passou para a etapa de Agendamento de Instalação.");
+    toast.success(
+      "Encomenda concluída",
+      "Passou para a etapa de Agendamento de Instalação."
+    );
   };
+
+  usePullToRefresh({
+    enabled: !loading,
+    onRefresh: () => loadData(true),
+  });
 
   const filteredServices = services.filter(s => 
     s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -121,7 +133,7 @@ export default function WarehouseDashboard() {
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 flex items-center justify-center group shrink-0">
               <Image 
-                src="/favi_64.png" 
+                src={APP_LOGO_PATH} 
                 alt="Company logo" 
                 width={56} 
                 height={56} 
@@ -133,17 +145,19 @@ export default function WarehouseDashboard() {
                 <h1 className="text-2xl font-black uppercase tracking-tighter text-[#090d16]">
                   {APP_NAME}
                 </h1>
-                <span className="bg-[#121622] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md border border-slate-800">
-                  {APP_SHORT_NAME}
-                </span>
+                {APP_SHORT_NAME !== APP_NAME && (
+                  <span className="bg-[#121622] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md border border-slate-800">
+                    {APP_SHORT_NAME}
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Gestão de Produção & Armazém</p>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Gestão de Produção & Armazém</p>
             </div>
           </div>
 
           <div className="flex items-center gap-8">
             <div className="hidden md:block text-right">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{greeting},</p>
+              <p className="text-xs text-slate-500 font-black uppercase tracking-widest">{greeting},</p>
               <p className="text-base font-extrabold text-[#090d16]">{userName}</p>
             </div>
             <button 
@@ -198,7 +212,7 @@ export default function WarehouseDashboard() {
           {/* Card 1 */}
           <div className="glass-panel-light p-8 rounded-[2.5rem] flex items-center justify-between hover:border-[#84cc16]/30 transition-all group">
             <div>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">Ordens Pendentes</p>
+              <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2">Ordens Pendentes</p>
               <p className="text-4xl font-black text-[#090d16] tracking-tight group-hover:scale-105 transition-transform origin-left">{stats.pending}</p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-[#121622] text-white flex items-center justify-center group-hover:text-[#84cc16] transition-colors">
@@ -209,7 +223,7 @@ export default function WarehouseDashboard() {
           {/* Card 2 */}
           <div className="glass-panel-light p-8 rounded-[2.5rem] flex items-center justify-between hover:border-[#84cc16]/30 transition-all group">
             <div>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">Prontas para Instalação</p>
+              <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2">Prontas para Instalação</p>
               <p className="text-4xl font-black text-emerald-600 tracking-tight group-hover:scale-105 transition-transform origin-left">{stats.fullyPrepared}</p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-[#121622] text-white flex items-center justify-center group-hover:text-emerald-400 transition-colors">
@@ -220,7 +234,7 @@ export default function WarehouseDashboard() {
           {/* Card 3 */}
           <div className="glass-panel-light p-8 rounded-[2.5rem] flex items-center justify-between hover:border-red-500/30 transition-all group">
             <div>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2">Com Alertas / Impedimentos</p>
+              <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2">Com Alertas / Impedimentos</p>
               <p className="text-4xl font-black text-rose-600 tracking-tight group-hover:scale-105 transition-transform origin-left">{stats.withProblems}</p>
             </div>
             <div className="w-14 h-14 rounded-2xl bg-[#121622] text-white flex items-center justify-center group-hover:text-rose-500 transition-colors">
@@ -231,10 +245,7 @@ export default function WarehouseDashboard() {
 
         {/* Orders Feed */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-28 glass-panel-light rounded-[3rem]">
-            <Loader2 className="w-12 h-12 text-[#84cc16] animate-spin mb-4" />
-            <p className="text-slate-500 font-black text-xs uppercase tracking-widest">A carregar plano de fabrico...</p>
-          </div>
+          <WarehouseFeedSkeleton />
         ) : filteredServices.length > 0 ? (
           <div className="grid gap-8">
             {filteredServices.map(service => (
@@ -260,7 +271,7 @@ export default function WarehouseDashboard() {
 
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 w-full glass-panel-light border-t border-slate-200 py-5 px-6 text-center z-40">
-        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] flex items-center justify-center gap-2">
+        <p className="text-xs text-slate-500 font-black uppercase tracking-[0.4em] flex items-center justify-center gap-2">
           <span>Sistema de Controlo de Produção</span>
           <Crown className="w-3.5 h-3.5 text-[#84cc16]" />
           <span className="text-slate-400">Warehouse v4.0</span>

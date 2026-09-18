@@ -9,8 +9,10 @@ import {
   isTaskActive,
   isTaskCompleted, 
   isTaskCancelled, 
-  isMeasurementService, 
-  isInstallationService 
+  isMeasurementService,
+  isInstallationService,
+  isAssistanceService,
+  deriveWorkflowMarkerKey,
 } from './contract';
 import {
   ADMIN_HISTORY_PAGE_SIZE,
@@ -34,7 +36,6 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   name
   nsi
   stage
-  tipoDeServico
   createdAt
   moradaDeServico {
     addressStreet1
@@ -75,7 +76,12 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
 const ADMIN_PIPELINE_STAGES = [
   CRM_STAGES.ENTRADA,
   CRM_STAGES.TIRAR_MEDIDAS,
+  CRM_STAGES.REMEDICAO,
+  CRM_STAGES.PROPOSTA,
+  CRM_STAGES.MANUTENCAO,
+  CRM_STAGES.REPARACAO,
   CRM_STAGES.MARCAR_INSTALACAO,
+  CRM_STAGES.AGENDAR_INSTALACAO,
   CRM_STAGES.PREPARACAO,
   CRM_STAGES.INSTALACAO,
 ] as const;
@@ -217,14 +223,19 @@ function mapOpportunityNode(node: any) {
   if (task && isTaskActive(task.status)) {
     const stageNorm = normalizeString(node.stage);
 
-    const isMeasurement = isMeasurementService(node.stage, node.tipoDeServico, task.title);
-    const isInstallation = isInstallationService(node.stage, node.tipoDeServico, task.title);
+    const isMeasurement = isMeasurementService(node.stage, task.title);
+    const isInstallation = isInstallationService(node.stage, task.title);
+    const isAssistance = isAssistanceService(node.stage, task.title);
 
     if (isMeasurement && STAGE_GROUPS.OBSOLETE_AFTER_MEASUREMENT.includes(stageNorm)) {
       isTaskObsolete = true;
     }
 
     if (isInstallation && STAGE_GROUPS.OBSOLETE_AFTER_INSTALLATION.includes(stageNorm)) {
+      isTaskObsolete = true;
+    }
+
+    if (isAssistance && STAGE_GROUPS.OBSOLETE_AFTER_ASSISTANCE.includes(stageNorm)) {
       isTaskObsolete = true;
     }
   }
@@ -278,7 +289,7 @@ function mapOpportunityNode(node: any) {
     technicianId: isTaskObsolete ? null : task?.assigneeId,
     scheduledBy: isTaskObsolete ? undefined : task?.scheduledBy || undefined,
     nsi: node.nsi || "N/A",
-    serviceType: node.tipoDeServico,
+    serviceType: deriveWorkflowMarkerKey(node.stage, node.name),
   };
 }
 

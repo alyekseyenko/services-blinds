@@ -27,7 +27,6 @@ export interface Opportunity {
   addressCity?: string;
   report?: string;
   nsi?: string;
-  tipoDeServico?: string[];
   serviceType?: string | string[];
   technician?: string;
   scheduledBy?: string;

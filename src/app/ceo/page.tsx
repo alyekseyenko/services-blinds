@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { KpiGridSkeleton } from "@/components/ui/Skeleton";
+import CommercialServicesTable from "@/components/ceo/CommercialServicesTable";
 import { 
   TrendingUp, 
   CheckCircle2, 
@@ -44,7 +46,7 @@ import { CeoMetrics, CeoServiceItem, ClientFollowUp, TechnicianRanking } from "@
 import { useToast } from "@/components/ui/ToastContext";
 import { canAccessCeoPanel } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
-import { HQ_LABEL } from "@/lib/branding";
+import { APP_LOGO_PATH, HQ_LABEL } from "@/lib/branding";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 
 export default function CeoDashboard() {
@@ -179,7 +181,7 @@ export default function CeoDashboard() {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 flex items-center justify-center relative shrink-0">
               <Image 
-                src="/favi_64.png" 
+                src={APP_LOGO_PATH} 
                 alt="Company logo" 
                 width={64} 
                 height={64} 
@@ -189,7 +191,7 @@ export default function CeoDashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="bg-[#84cc16] text-[#090d16] text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
+                <span className="bg-[#84cc16] text-[#090d16] text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
                   Visão Executiva Full Screen
                 </span>
                 <span className="text-slate-400 text-xs font-semibold">
@@ -255,17 +257,12 @@ export default function CeoDashboard() {
         </header>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-28 gap-4">
-            <div className="w-12 h-12 border-4 border-slate-200 border-t-[#84cc16] rounded-full animate-spin"></div>
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-              A compilar dados e serviços anuais...
-            </p>
-          </div>
+          <KpiGridSkeleton />
         ) : metrics ? (
           <div className="space-y-8 animate-in fade-in duration-500">
             
             {/* SEPARADORES ESTRATÉGICOS (TABS) DE ALTO NÍVEL */}
-            <div className="flex flex-col md:flex-row bg-white/90 p-2 rounded-[2rem] border border-slate-200/80 shadow-md gap-2 w-full">
+            <div className="sticky top-0 z-20 flex w-full flex-col gap-2 rounded-[2rem] border border-slate-200/80 bg-white/95 p-2 shadow-md backdrop-blur-md md:flex-row">
               <button
                 onClick={() => setActiveTab("summary")}
                 className={`flex-1 flex items-center justify-center gap-2.5 px-6 py-4 rounded-[1.5rem] text-xs font-black uppercase tracking-wider transition-all ${
@@ -322,7 +319,7 @@ export default function CeoDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <Wallet className="w-3 h-3 text-emerald-600" />
                       Revenue & Commercial Pipeline
                     </span>
@@ -348,7 +345,7 @@ export default function CeoDashboard() {
                     <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
                       <Wallet className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">
                       Closed Won
                     </span>
                   </div>
@@ -358,7 +355,7 @@ export default function CeoDashboard() {
                   <div className="text-xs font-black text-emerald-700 uppercase tracking-wider mt-1">
                     Faturação Conquistada
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
                     <span>Obras Adjudicadas:</span>
                     <span className="font-bold text-slate-800">{metrics.financial.wonDealsCount} concluídas</span>
                   </div>
@@ -370,7 +367,7 @@ export default function CeoDashboard() {
                     <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                       <TrendingUp className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-800 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-black uppercase tracking-widest bg-blue-100 text-blue-800 px-2 py-0.5 rounded-lg">
                       Pipeline Ativo
                     </span>
                   </div>
@@ -380,7 +377,7 @@ export default function CeoDashboard() {
                   <div className="text-xs font-black text-blue-700 uppercase tracking-wider mt-1">
                     Forecasting Bruto
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
                     <span>Previsão Ponderada:</span>
                     <span className="font-black text-blue-600">{metrics.financial.formattedWeightedForecast}</span>
                   </div>
@@ -392,7 +389,7 @@ export default function CeoDashboard() {
                     <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
                       <TrendingDown className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-rose-100 text-rose-800 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-black uppercase tracking-widest bg-rose-100 text-rose-800 px-2 py-0.5 rounded-lg">
                       Closed Lost
                     </span>
                   </div>
@@ -402,7 +399,7 @@ export default function CeoDashboard() {
                   <div className="text-xs font-black text-rose-600 uppercase tracking-wider mt-1">
                     Valor Perdido / Cancelado
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
                     <span>Orçamentos Recusados:</span>
                     <span className="font-bold text-rose-600">{metrics.financial.lostDealsCount} perdidos</span>
                   </div>
@@ -414,7 +411,7 @@ export default function CeoDashboard() {
                     <div className="p-3 bg-slate-900 text-[#84cc16] rounded-2xl">
                       <Target className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-black uppercase tracking-widest bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">
                       Win Rate
                     </span>
                   </div>
@@ -433,7 +430,7 @@ export default function CeoDashboard() {
                       ></div>
                     </div>
                   </div>
-                  <div className="mt-2 text-[10px] text-slate-400 font-bold flex justify-between">
+                  <div className="mt-2 text-xs text-slate-400 font-bold flex justify-between">
                     <span>{metrics.financial.dealWinRate}% em volume</span>
                     <span>Meta: &gt;70%</span>
                   </div>
@@ -449,7 +446,7 @@ export default function CeoDashboard() {
                   <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                     <Layers className="w-6 h-6" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                     {selectedYear ? `Ano ${selectedYear}` : "Geral"}
                   </span>
                 </div>
@@ -459,7 +456,7 @@ export default function CeoDashboard() {
                 <div className="text-xs font-black text-slate-500 uppercase tracking-wider mt-1">
                   Total de Serviços no Ano
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600 flex items-center justify-between">
                   <span>Concluídos com Sucesso:</span>
                   <span className="font-bold text-emerald-600">{metrics.overview.completedOpportunities}</span>
                 </div>
@@ -471,7 +468,7 @@ export default function CeoDashboard() {
                   <div className="p-3 bg-[#84cc16]/10 text-[#84cc16] rounded-2xl">
                     <TrendingUp className="w-6 h-6 text-lime-600" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                     Conversão
                   </span>
                 </div>
@@ -497,7 +494,7 @@ export default function CeoDashboard() {
                   <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
                     <Award className="w-6 h-6" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                     No Terreno
                   </span>
                 </div>
@@ -507,7 +504,7 @@ export default function CeoDashboard() {
                 <div className="text-xs font-black text-slate-500 uppercase tracking-wider mt-1">
                   Sucesso à 1ª Visita
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600 flex items-center justify-between">
                   <span>Reagendadas:</span>
                   <span className="font-bold text-amber-600">{metrics.fieldEfficiency.incompleteTasks} visitas</span>
                 </div>
@@ -519,7 +516,7 @@ export default function CeoDashboard() {
                   <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl">
                     <Star className="w-6 h-6 fill-amber-400" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                     NPS Clientes
                   </span>
                 </div>
@@ -532,7 +529,7 @@ export default function CeoDashboard() {
                 <div className="text-xs font-black text-slate-500 uppercase tracking-wider mt-1">
                   Satisfação Registada
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600 flex items-center justify-between">
                   <span>Opiniões:</span>
                   <span className="font-bold text-slate-900">{metrics.overview.totalRatingsCount} avaliações</span>
                 </div>
@@ -581,7 +578,7 @@ export default function CeoDashboard() {
                     >
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[11px] font-black uppercase tracking-wider ${isSelected ? "text-[#84cc16]" : "text-slate-400"}`}>
+                          <span className={`text-xs font-black uppercase tracking-wider ${isSelected ? "text-[#84cc16]" : "text-slate-400"}`}>
                             {m.shortName}
                           </span>
                           {m.completed > 0 && (
@@ -591,11 +588,11 @@ export default function CeoDashboard() {
                         <div className="text-2xl font-black tracking-tight">
                           {m.total}
                         </div>
-                        <div className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
+                        <div className={`text-xs font-bold uppercase tracking-wider ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
                           Serviços
                         </div>
                         {m.revenue > 0 && (
-                          <div className={`text-[11px] font-black mt-1 ${isSelected ? "text-[#84cc16]" : "text-emerald-600"}`}>
+                          <div className={`text-xs font-black mt-1 ${isSelected ? "text-[#84cc16]" : "text-emerald-600"}`}>
                             {m.formattedRevenue}
                           </div>
                         )}
@@ -620,158 +617,28 @@ export default function CeoDashboard() {
 
             {activeTab === "commercial" && (
               <>
-                {/* 3. TABELA DETALHADA DE SERVIÇOS DO ANO COM FILTROS E PESQUISA */}
-            <div className="glass-panel-light rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-white">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-xl font-black text-[#090d16] tracking-tight uppercase italic flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-blue-600" />
-                    Lista de Serviços ({selectedYear || "Geral"})
-                  </h2>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    A exibir {filteredServices.length} de {metrics.servicesList.length} serviços registados
-                    {selectedMonth !== null ? ` em ${metrics.monthlyEvolution[selectedMonth - 1]?.monthName}` : ""}
-                  </p>
-                </div>
-
-                {/* Caixa de Pesquisa & Filtro */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative min-w-[260px] flex-1 sm:flex-none">
-                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Pesquisar cliente, NSI ou técnico..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium focus:outline-none focus:border-[#84cc16] shadow-sm"
-                    />
-                    {searchQuery && (
-                      <button 
-                        onClick={() => setSearchQuery("")} 
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <select
-                    value={stageFilter}
-                    onChange={(e) => setStageFilter(e.target.value)}
-                    className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-black uppercase tracking-wider text-slate-700 shadow-sm focus:outline-none focus:border-[#84cc16]"
-                  >
-                    <option value="ALL">Todas as Fases</option>
-                    {metrics.pipelineFunnel.map((f) => (
-                      <option key={f.stage} value={f.stage}>
-                        {f.label} ({f.count})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Tabela Responsiva */}
-              {filteredServices.length === 0 ? (
-                <div className="text-center py-16 bg-white/70 rounded-2xl border border-slate-100">
-                  <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Nenhum serviço encontrado com os filtros selecionados.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                      <tr>
-                        <th className="py-3.5 px-4">NSI / Ref</th>
-                        <th className="py-3.5 px-4">Cliente / Obra</th>
-                        <th className="py-3.5 px-4">Tipo</th>
-                        <th className="py-3.5 px-4">Fase (Twenty CRM)</th>
-                        <th className="py-3.5 px-4">Técnico</th>
-                        <th className="py-3.5 px-4">Valor (€)</th>
-                        <th className="py-3.5 px-4">Data Registo</th>
-                        <th className="py-3.5 px-4 text-center">Avaliação</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredServices.map((svc) => (
-                        <tr key={svc.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                            {svc.nsi ? (
-                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-black text-slate-700">
-                                #{svc.nsi}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">--</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 font-black text-slate-900 max-w-[240px] truncate">
-                            {svc.name}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
-                              {svc.serviceType || "Geral"}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="text-[11px] font-black text-slate-800 bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-2.5 py-1 rounded-lg">
-                              {svc.stageLabel}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 font-bold">
-                            {svc.technician ? (
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-slate-100 text-[10px] font-black flex items-center justify-center text-slate-700">
-                                  {svc.technician.charAt(0)}
-                                </div>
-                                <span>{svc.technician}</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">Não atribuído</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 font-mono">
-                            {svc.financialStatus === "WON" ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-lg">
-                                {svc.formattedAmount}
-                              </span>
-                            ) : svc.financialStatus === "LOST" ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-rose-700 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-lg line-through">
-                                {svc.formattedAmount}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
-                                {svc.formattedAmount}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-slate-500 font-medium">
-                            {svc.formattedDate}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {svc.rating ? (
-                              <div className="flex items-center justify-center gap-1">
-                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                <span className="font-black text-slate-800">{svc.rating}</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-300">--</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <CommercialServicesTable
+              services={filteredServices}
+              totalCount={metrics.servicesList.length}
+              selectedYear={selectedYear}
+              monthLabel={
+                selectedMonth !== null
+                  ? metrics.monthlyEvolution[selectedMonth - 1]?.monthName
+                  : undefined
+              }
+              stageFilter={stageFilter}
+              onStageFilterChange={setStageFilter}
+              stageOptions={metrics.pipelineFunnel}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+            />
 
             {/* NOVO: PRÓXIMOS FOLLOW-UPS COMERCIAIS / CLIENTES */}
             <div className="glass-panel-light rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-white">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="bg-amber-100 text-amber-800 text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <Clock className="w-3 h-3 text-amber-600" />
                       Gestão de Contactos & Pipeline
                     </span>
@@ -822,27 +689,27 @@ export default function CeoDashboard() {
                           {/* Top Row: Urgency Tag & Stage */}
                           <div className="flex items-center justify-between mb-3">
                             {isOverdue ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 px-2 py-0.5 rounded-lg animate-pulse">
+                              <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wider bg-rose-100 text-rose-700 px-2 py-0.5 rounded-lg animate-pulse">
                                 <AlertCircle className="w-3 h-3" />
                                 Atrasado ({Math.abs(fu.daysRemaining)}d)
                               </span>
                             ) : isToday ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 Recontactar Hoje
                               </span>
                             ) : isTomorrow ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 Amanhã
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">
                                 Em {fu.daysRemaining} dias
                               </span>
                             )}
 
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
                               {fu.stageLabel}
                             </span>
                           </div>
@@ -853,9 +720,9 @@ export default function CeoDashboard() {
                           </div>
 
                           {/* NSI & Contact Person */}
-                          <div className="text-[11px] text-slate-500 font-medium mb-3 flex items-center gap-2">
+                          <div className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-2">
                             {fu.nsi && (
-                              <span className="bg-slate-100 font-mono font-black text-slate-700 px-1.5 py-0.5 rounded text-[10px]">
+                              <span className="bg-slate-100 font-mono font-black text-slate-700 px-1.5 py-0.5 rounded text-xs">
                                 #{fu.nsi}
                               </span>
                             )}
@@ -868,7 +735,7 @@ export default function CeoDashboard() {
                         {/* Bottom Row: Phone, Amount & Date */}
                         <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                           <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                               {fu.formattedFollowUpDate}
                             </div>
                             <div className="font-mono font-black text-slate-800 mt-0.5">
@@ -883,10 +750,10 @@ export default function CeoDashboard() {
                               title={`Ligar para ${fu.contactPhone}`}
                             >
                               <PhoneCall className="w-3.5 h-3.5" />
-                              <span className="text-[11px] font-mono">{fu.contactPhone}</span>
+                              <span className="text-xs font-mono">{fu.contactPhone}</span>
                             </a>
                           ) : (
-                            <span className="text-[10px] text-slate-400 italic">Sem telefone</span>
+                            <span className="text-xs text-slate-400 italic">Sem telefone</span>
                           )}
                         </div>
                       </div>
@@ -921,7 +788,7 @@ export default function CeoDashboard() {
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-400">
                           Fase {index + 1}
                         </span>
                         <span 
@@ -940,7 +807,7 @@ export default function CeoDashboard() {
                           {item.count}
                         </div>
                         {item.totalAmount > 0 && (
-                          <div className="text-[11px] font-black text-slate-700 mt-0.5">
+                          <div className="text-xs font-black text-slate-700 mt-0.5">
                             {item.formattedTotalAmount}
                           </div>
                         )}
@@ -963,7 +830,7 @@ export default function CeoDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="bg-blue-100 text-blue-800 text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-blue-600" />
                       Ponto de Partida: {HQ_LABEL}
                     </span>
@@ -980,7 +847,7 @@ export default function CeoDashboard() {
                 <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm">
                   <Gauge className="w-6 h-6 text-[#84cc16]" />
                   <div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Frota Estimado</div>
+                    <div className="text-xs font-black text-slate-400 uppercase tracking-wider">Total Frota Estimado</div>
                     <div className="text-xl font-black text-slate-900">{metrics.fleetKmStats.totalFleetKm.toLocaleString("pt-PT")} km</div>
                   </div>
                 </div>
@@ -1009,18 +876,18 @@ export default function CeoDashboard() {
                               </div>
                               <div>
                                 <div className="text-sm font-black text-slate-900">{tech.name}</div>
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                   {tech.servicesCount} serviços • {tech.daysOnRoad} dias em rota
                                 </div>
                               </div>
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">
+                            <span className="text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">
                               #{idx + 1}
                             </span>
                           </div>
 
                           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/80 mb-4">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                            <div className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">
                               Quilometragem Prevista
                             </div>
                             <div className="flex items-baseline gap-1.5">
@@ -1040,11 +907,11 @@ export default function CeoDashboard() {
 
                         <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 text-xs">
                           <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">Média / Serviço</div>
+                            <div className="text-xs font-bold text-slate-400 uppercase">Média / Serviço</div>
                             <div className="font-black text-slate-800 mt-0.5">{tech.avgKmPerService} km</div>
                           </div>
                           <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">Média / Dia</div>
+                            <div className="text-xs font-bold text-slate-400 uppercase">Média / Dia</div>
                             <div className="font-black text-slate-800 mt-0.5">{tech.avgKmPerDay} km</div>
                           </div>
                         </div>
@@ -1060,7 +927,7 @@ export default function CeoDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-[#84cc16]/20 text-[#090d16] text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="bg-[#84cc16]/20 text-[#090d16] text-xs font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <Trophy className="w-3 h-3 text-amber-500" />
                       Leaderboard Técnico
                     </span>
@@ -1129,7 +996,7 @@ export default function CeoDashboard() {
                                 <div className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">
                                   {tech.name}
                                 </div>
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                   {tech.totalTasks} tarefas totais
                                 </div>
                               </div>
@@ -1142,7 +1009,7 @@ export default function CeoDashboard() {
 
                           {/* Success Rate Progress Bar */}
                           <div className="my-3">
-                            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
                               <span>Success Rate</span>
                               <span className="text-slate-800 font-black">{tech.successRate}%</span>
                             </div>
@@ -1166,7 +1033,7 @@ export default function CeoDashboard() {
                               <div className="text-sm font-black text-emerald-600">
                                 {tech.completedCount}
                               </div>
-                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Concluídos
                               </div>
                             </div>
@@ -1174,7 +1041,7 @@ export default function CeoDashboard() {
                               <div className={`text-sm font-black ${tech.incompleteCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
                                 {tech.incompleteCount}
                               </div>
-                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Incompletos
                               </div>
                             </div>
@@ -1182,7 +1049,7 @@ export default function CeoDashboard() {
                               <div className={`text-sm font-black ${tech.cancelledCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
                                 {tech.cancelledCount}
                               </div>
-                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 Cancelados
                               </div>
                             </div>
@@ -1191,7 +1058,7 @@ export default function CeoDashboard() {
 
                         {/* Bottom: KM */}
                         {tech.totalKm > 0 && (
-                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                             <span>Quilómetros:</span>
                             <span className="font-mono font-black text-slate-800">{tech.totalKm.toLocaleString("pt-PT")} km</span>
                           </div>
@@ -1221,7 +1088,7 @@ export default function CeoDashboard() {
                       <div className="text-emerald-700 font-black text-xl">
                         {metrics.fieldEfficiency.completedTasks}
                       </div>
-                      <div className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mt-1">
+                      <div className="text-xs font-black text-emerald-800 uppercase tracking-wider mt-1">
                         Concluídas
                       </div>
                     </div>
@@ -1229,7 +1096,7 @@ export default function CeoDashboard() {
                       <div className="text-amber-700 font-black text-xl">
                         {metrics.fieldEfficiency.incompleteTasks}
                       </div>
-                      <div className="text-[10px] font-black text-amber-800 uppercase tracking-wider mt-1">
+                      <div className="text-xs font-black text-amber-800 uppercase tracking-wider mt-1">
                         Reagendar
                       </div>
                     </div>
@@ -1237,7 +1104,7 @@ export default function CeoDashboard() {
                       <div className="text-blue-700 font-black text-xl">
                         {metrics.fieldEfficiency.scheduledTasks}
                       </div>
-                      <div className="text-[10px] font-black text-blue-800 uppercase tracking-wider mt-1">
+                      <div className="text-xs font-black text-blue-800 uppercase tracking-wider mt-1">
                         Agendadas
                       </div>
                     </div>
@@ -1264,7 +1131,7 @@ export default function CeoDashboard() {
                           </div>
                           <div className="flex items-center gap-4 text-xs font-bold">
                             <span className="text-slate-500">{tech.completedCount} intervenções</span>
-                            <span className="bg-[#84cc16]/15 text-[#090d16] font-black px-2.5 py-1 rounded-lg text-[10px]">
+                            <span className="bg-[#84cc16]/15 text-[#090d16] font-black px-2.5 py-1 rounded-lg text-xs">
                               {tech.successRate}% taxa
                             </span>
                           </div>
@@ -1359,7 +1226,7 @@ export default function CeoDashboard() {
                           <div>
                             <div className="font-black text-sm text-[#090d16]">{fb.clientName}</div>
                             {fb.nsi && (
-                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                              <div className="text-xs font-black text-slate-400 uppercase tracking-wider">
                                 NSI: #{fb.nsi}
                               </div>
                             )}
@@ -1381,7 +1248,7 @@ export default function CeoDashboard() {
                         )}
                       </div>
 
-                      <div className="mt-4 pt-3 border-t border-slate-100 text-[10px] font-bold text-slate-400 text-right">
+                      <div className="mt-4 pt-3 border-t border-slate-100 text-xs font-bold text-slate-400 text-right">
                         {fb.date}
                       </div>
                     </div>

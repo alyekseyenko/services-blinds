@@ -31,7 +31,15 @@ export default withAuth(
         );
       }
 
-      const strictAdminApis = ["/api/qa", "/api/observability", "/api/sync-telemetry"];
+      // Technicians POST sync reports; only admins may read the aggregated summary.
+      if (pathname.startsWith("/api/sync-telemetry") && req.method === "GET" && role !== "admin") {
+        return NextResponse.json(
+          { error: "Acesso não autorizado. Apenas administradores podem aceder a esta API." },
+          { status: 403 }
+        );
+      }
+
+      const strictAdminApis = ["/api/qa", "/api/observability"];
       if (strictAdminApis.some((prefix) => pathname.startsWith(prefix)) && role !== "admin") {
         return NextResponse.json(
           { error: "Acesso não autorizado. Apenas administradores podem aceder a esta API." },

@@ -87,6 +87,12 @@ export default function SearchableSelect<T extends string | number | null>({
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setOpen(false);
+                    setQuery("");
+                  }
+                }}
                 placeholder={searchPlaceholder}
                 className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
                 autoFocus

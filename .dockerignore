@@ -1,0 +1,17 @@
+.next
+node_modules
+scratch
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+out
+build
+README.md
+*.docx
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!jsconfig.json

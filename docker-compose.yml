@@ -1,0 +1,48 @@
+services:
+  app-tecnicos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: technician-app
+    restart: always
+    expose:
+      - "3000"
+    ports:
+      - "3005:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - TWENTY_API_URL=http://twenty-server-1:3000
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: technician-redis
+    restart: always
+    expose:
+      - "6379"
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: technician-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+    depends_on:
+      - app-tecnicos
+
+networks:
+  app-network:
+    external: true # Twenty CRM runs on this Docker network
+    name: twenty_default

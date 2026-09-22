@@ -7,7 +7,7 @@ The Git repository uses generic placeholders so nothing sensitive is published.
 
 Production uses: `technician-app`, `technician-redis`, `technician-nginx`.
 
-Deploy scripts automatically stop/remove legacy containers (`habitarmos-*`) before starting the new stack.
+Deploy scripts automatically stop/remove legacy containers before starting the new stack.
 Expect ~30 seconds downtime during the first migration deploy.
 
 ## Required on the server
@@ -43,6 +43,41 @@ NEXT_PUBLIC_HQ_LNG=-9.13266
 # After changing NEXT_PUBLIC_* vars, rebuild on the server:
 # cd /root/app-tecnicos && docker compose up -d --build
 ```
+
+## n8n webhooks (production)
+
+The app container **cannot** reach n8n via `localhost:5678`. Set public HTTPS webhook URLs in `.env.local`:
+
+```env
+# Required for full automation coverage
+N8N_WEBHOOK_URL=https://n8n.your-real-domain.com/webhook/your-general-workflow
+N8N_AGENDAMENTO_WEBHOOK_URL=https://n8n.your-real-domain.com/webhook/your-scheduling-workflow
+
+# Recommended
+N8N_WEBHOOK_URL_REPORTS=https://n8n.your-real-domain.com/webhook/your-reports-workflow
+N8N_WEBHOOK_URL_PUSH=https://n8n.your-real-domain.com/webhook/your-push-workflow
+
+# Optional — client visit confirmation form
+N8N_FORM_CONFIRM_URL=https://n8n.your-real-domain.com/form/confirm-technical-visit
+```
+
+| Variable | If missing in production |
+|----------|--------------------------|
+| `N8N_AGENDAMENTO_WEBHOOK_URL` | Scheduling notifications fail (falls back to general URL, then localhost) |
+| `N8N_WEBHOOK_URL` | Login, task status, measurement reports stuck in outbox |
+| `N8N_WEBHOOK_URL_REPORTS` | Photo / Drive reports not sent |
+| `N8N_WEBHOOK_URL_PUSH` | Push opt-in not registered in n8n |
+
+After updating n8n env vars:
+
+```bash
+cd /root/app-tecnicos
+docker compose up -d --build
+```
+
+Then open `/admin/observabilidade` → reprocess failed outbox events, or run **Complete E2E Suite** (depth `full`).
+
+Full catalog: [N8N_SETUP.md](../N8N_SETUP.md).
 
 ## Deploy on the server
 

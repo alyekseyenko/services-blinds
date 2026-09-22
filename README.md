@@ -10,11 +10,12 @@ A production-grade **Progressive Web App** for blinds installation companies: sc
 
 1. [Why we built this](#why-we-built-this)
 2. [Features](#features)
-3. [Architecture](#architecture)
-4. [Tech stack](#tech-stack)
-5. [Getting started](#getting-started)
-6. [Project structure](#project-structure)
-7. [Documentation](#documentation)
+3. [Integrations](#integrations)
+4. [Architecture](#architecture)
+5. [Tech stack](#tech-stack)
+6. [Getting started](#getting-started)
+7. [Project structure](#project-structure)
+8. [Documentation](#documentation)
 
 ---
 
@@ -91,6 +92,8 @@ All roles sync with **Twenty CRM**. Pipeline workflow is **stage-first** (`ENTRA
 
 - CRM latency & circuit breaker
 - Transactional outbox (pending / failed / reprocess)
+- **Complete E2E Suite** — CRM, n8n routing, outbox, public portals, app health
+- **Luxury Workflow E2E** — full business simulation with real CRM records (opt-in)
 - Offline sync telemetry per technician
 - QA 360 diagnostic runner
 
@@ -106,6 +109,33 @@ All roles sync with **Twenty CRM**. Pipeline workflow is **stage-first** (`ENTRA
 - Circuit breaker, transactional outbox, **86+** unit tests, Playwright e2e
 - GitHub Actions CI: type-check, test, build, smoke e2e
 - RBAC: **admin**, **member**, **ceo**, **technician**, **warehouse**
+
+---
+
+## Integrations
+
+| System | Role |
+|--------|------|
+| **Twenty CRM** | GraphQL source of truth — opportunities, tasks, measurements, roles |
+| **n8n** | Outbound automations — WhatsApp, email, PDF/Excel reports, Google Drive, push |
+| **Google Maps** | Geocoding and navigation (optional `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`) |
+| **Web Push (VAPID)** | Technician visit alerts via service worker + n8n |
+
+### n8n automations
+
+The UI never calls n8n directly. Server events are written to a **transactional outbox** (`src/lib/outboxQueue.ts`), then delivered with HTTP POST, retries, and `Idempotency-Key` headers. Failed deliveries can be reprocessed from `/admin/observabilidade`.
+
+| Env variable | Events routed here |
+|--------------|-------------------|
+| `N8N_WEBHOOK_URL` | `technician_login`, `technician_report`, `service_completed`, `MEASUREMENTS_REPORT_GENERATION` |
+| `N8N_AGENDAMENTO_WEBHOOK_URL` | `appointment_scheduled`, `appointment_cancelled_by_client` |
+| `N8N_WEBHOOK_URL_REPORTS` | `SERVICE_REPORT_SUBMITTED` (photos + Drive folder metadata) |
+| `N8N_WEBHOOK_URL_PUSH` | `PUSH_SUBSCRIPTION` (browser push opt-in) |
+| `N8N_FORM_CONFIRM_URL` | Optional override for the client visit confirmation form |
+
+Scheduling payloads include HMAC-signed `cancelUrl` and `evaluationUrl` for the public portals (`/cancelamento`, `/avaliacao`).
+
+**Setup:** [N8N_SETUP.md](N8N_SETUP.md) · **Validate:** [docs/E2E_OBSERVABILITY_SUITE.md](docs/E2E_OBSERVABILITY_SUITE.md) · **Business flow:** [docs/END_TO_END_BUSINESS_FLOW.md](docs/END_TO_END_BUSINESS_FLOW.md)
 
 ---
 
@@ -129,9 +159,10 @@ graph TB
     end
 
     subgraph External
-        CRM[(Internal CRM — GraphQL)]
-        N8N[n8n automations]
+        CRM[(Twenty CRM — GraphQL)]
+        N8N[n8n webhooks<br/>scheduling · reports · push]
         MAPS[Maps / geocoding]
+        PORTALS[Public portals<br/>/avaliacao · /cancelamento]
     end
 
     TECH --> PROXY
@@ -141,8 +172,10 @@ graph TB
     PROXY --> OFFLINE --> ACTIONS
     ACTIONS --> CRM
     ACTIONS --> OUTBOX --> N8N
+    N8N --> PORTALS
     ACTIONS --> MAPS
     OBS --> CRM
+    OBS --> OUTBOX
 ```
 
 **Offline sync**
@@ -204,17 +237,28 @@ npm install
 cp .env.example .env.local
 ```
 
-Required variables:
+Copy `.env.example` and set at least:
 
-```env
-TWENTY_API_URL=http://your-crm-host:3000
-TWENTY_API_KEY=your_api_key
-NEXTAUTH_SECRET=at_least_32_random_characters
-NEXTAUTH_URL=http://localhost:3000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_APP_NAME=Blinds Technical Services
-NEXT_PUBLIC_APP_SHORT_NAME=BTS
-```
+| Variable | Purpose |
+|----------|---------|
+| `TWENTY_API_URL` / `TWENTY_API_KEY` | Twenty CRM GraphQL |
+| `NEXTAUTH_SECRET` / `NEXTAUTH_URL` | Session auth (32+ char secret) |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (portal links, n8n payloads) |
+| `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` | Branding |
+
+**Optional — n8n automations** (leave empty for local dev only; **required in Docker production**):
+
+| Variable | Purpose |
+|----------|---------|
+| `N8N_WEBHOOK_URL` | General notifications (login, task status, measurements) |
+| `N8N_AGENDAMENTO_WEBHOOK_URL` | Scheduling + client cancellation |
+| `N8N_WEBHOOK_URL_REPORTS` | Service reports with photos |
+| `N8N_WEBHOOK_URL_PUSH` | Web push subscription registry |
+| `N8N_FORM_CONFIRM_URL` | Client visit confirmation form (optional override) |
+
+See [N8N_SETUP.md](N8N_SETUP.md) for placeholders and [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md) for server setup.
+
+Production values live **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md). Never commit `.env.local`.
 
 ### Commands
 
@@ -250,10 +294,18 @@ docs/adrs/                # Architecture decision records
 
 ## Documentation
 
-- [Architecture blueprint](ARCHITECTURE_MASTER_BLUEPRINT.md)
-- [Design system](DESIGN_SYSTEM.md)
-- [Deployment guide](DEPLOY_HETZNER.md)
-- [ADRs](docs/adrs/)
+| Doc | Contents |
+|-----|----------|
+| [ARCHITECTURE_MASTER_BLUEPRINT.md](ARCHITECTURE_MASTER_BLUEPRINT.md) | System design overview |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | UI tokens, glassmorphism, mobile PWA rules |
+| [N8N_SETUP.md](N8N_SETUP.md) | Webhook URLs, event catalog, recommended workflows |
+| [docs/END_TO_END_BUSINESS_FLOW.md](docs/END_TO_END_BUSINESS_FLOW.md) | Full lifecycle: CRM stages → field → n8n |
+| [docs/E2E_OBSERVABILITY_SUITE.md](docs/E2E_OBSERVABILITY_SUITE.md) | SRE checks, Luxury Workflow E2E |
+| [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md) | Server-only env vars (no secrets in Git) |
+| [TWENTY_CRM_SETUP.md](TWENTY_CRM_SETUP.md) | Twenty CRM fields and API setup |
+| [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md) | Docker Compose deployment |
+| [docs/adrs/](docs/adrs/) | Architecture decision records |
+| [AGENTS.md](AGENTS.md) | AI agent / contributor guidelines |
 
 ---
 

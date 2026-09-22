@@ -493,7 +493,9 @@ flowchart LR
 
 | Event type | Trigger | Destination webhook | Payload highlights |
 |------------|---------|---------------------|-------------------|
-| `technician_login` | User signs in | `N8N_WEBHOOK_URL` | User id, name, role |
+| `appointment_scheduled` | Admin schedules visit (`POR_AGENDAR`) | `N8N_AGENDAMENTO_WEBHOOK_URL` | Task, client, address, `cancelUrl`, `evaluationUrl` |
+| `appointment_cancelled_by_client` | Client cancels via `/cancelamento` | `N8N_AGENDAMENTO_WEBHOOK_URL` | Task, reason, technician, client email |
+| `technician_login` | User signs in | `N8N_WEBHOOK_URL` | Email, name |
 | `technician_report` | Task cancelled / incomplete | `N8N_WEBHOOK_URL` | Reason, task, opportunity |
 | `service_completed` | Task completed | `N8N_WEBHOOK_URL` | Client, address, technician |
 | `MEASUREMENTS_REPORT_GENERATION` | Measurements saved | `N8N_WEBHOOK_URL` | Room dimensions, opportunity id |

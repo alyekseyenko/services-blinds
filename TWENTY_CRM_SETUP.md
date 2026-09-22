@@ -7,7 +7,7 @@ This application integrates directly with Twenty CRM using REST API to manage te
 
 - Twenty CRM instance running (default: `http://localhost:3001`)
 - Twenty CRM API key with Admin permissions
-- n8n instance for webhooks (optional but recommended)
+- n8n instance for webhooks (optional but recommended) — see [N8N_SETUP.md](N8N_SETUP.md)
 
 ## Configuration
 
@@ -18,7 +18,9 @@ Update the `.env.local` file with your Twenty CRM credentials:
 ```env
 TWENTY_API_KEY=your_api_key_here
 TWENTY_API_URL=http://localhost:3001
-N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/technician-sync
+# See N8N_SETUP.md for all webhook URLs (scheduling, reports, push)
+N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/your-general-webhook
+N8N_AGENDAMENTO_WEBHOOK_URL=https://your-n8n-instance.com/webhook/your-scheduling-webhook
 ```
 
 ### 2. Twenty CRM API Configuration

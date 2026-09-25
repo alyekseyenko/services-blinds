@@ -1,324 +1,247 @@
 # Blinds Technical Services — Field Operations Platform
 
-A production-grade **Progressive Web App** for blinds installation companies: scheduling, field work, warehouse prep, executive analytics, and customer self-service — synchronized with **Twenty CRM** and built **offline-first** for technicians on the road.
+[![CI](https://github.com/alyekseyenko/services-blinds/actions/workflows/ci.yml/badge.svg)](https://github.com/alyekseyenko/services-blinds/actions/workflows/ci.yml)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![React 19](https://img.shields.io/badge/React-19-61dafb?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)
+![Tests](https://img.shields.io/badge/unit%20tests-169%2B-brightgreen)
 
-> Branding is env-driven (`NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_SHORT_NAME`). Defaults in `.env.example` are generic placeholders — override on the production server.
+**Production-grade PWA** for field-service teams (scheduling, measurements, warehouse prep, executive analytics, customer self-service). Syncs with **Twenty CRM** over GraphQL. Built **offline-first** for technicians on unreliable mobile networks.
 
----
-
-## Table of contents
-
-1. [Why we built this](#why-we-built-this)
-2. [Features](#features)
-3. [Integrations](#integrations)
-4. [Architecture](#architecture)
-5. [Tech stack](#tech-stack)
-6. [Getting started](#getting-started)
-7. [Project structure](#project-structure)
-8. [Documentation](#documentation)
+> Portfolio / case-study repository. Branding, domains, and secrets are **placeholders** in Git; real values live only on the deployment server (see [Security](#security--privacy)).
 
 ---
 
-## Why we built this
+## At a glance (for recruiters)
 
-### Problem
-
-A blinds company serving **more than 15,000 customers** was stuck in organizational chaos.
-
-- Customers called every day: *Where is my order? When will materials arrive? When can a technician visit?*
-- **Hundreds of hours per month** were lost on phone calls, chats, and manual status checks.
-- Route planning, travel spend, fuel, tolls, and stock were tracked in spreadsheets — or not at all.
-- Departments worked on **paper and siloed tools**. When someone needed an answer, no one had the full picture.
-- Data died between **sales, scheduling, warehouse, field teams, and leadership**.
-
-### Solution
-
-**Blinds Technical Services** connects the full lifecycle in one platform:
-
-| Role | Capability |
-|------|------------|
-| **CEO** | Revenue, pipeline forecast, technician rankings, fleet km, NPS, follow-ups |
-| **Admin** | Full operational panel + SRE observability |
-| **Member** | Operational admin (map, calendar, scheduling) — no CEO or SRE console |
-| **Technicians (PWA)** | Day agenda, GPS, millimetre measurements, visit closure — **offline-first** |
-| **Warehouse** | Per-item preparation status before installation |
-| **Customers** | HMAC-signed links to rate a service or cancel an appointment |
-
-All roles sync with **Twenty CRM**. Pipeline workflow is **stage-first** (`ENTRADA`, `MANUTENCAO`, `REPARACAO`, `MARCAR_INSTALACAO`, etc.) — the app derives visit type from **opportunity stage + title**, not a separate service-type field. Offline mutations queue in IndexedDB and replay when connectivity returns.
-
-### Impact
-
-- Single source of truth from **lead → measurement → install → payment**
-- Fewer inbound calls — status lives in CRM and surfaces on the right screen
-- Measurable logistics: optimized routes, cost estimates, zone insights
-- Field teams stop re-typing; warehouse prepares before vans leave
-- Leadership sees live metrics instead of month-end guesses
+| Dimension | What this project demonstrates |
+|-----------|--------------------------------|
+| **Product** | Multi-role B2B ops tool (~20 concurrent users): technicians, warehouse, ops admin, CEO, SRE |
+| **Reliability** | Offline IndexedDB queue, transactional outbox to automations, circuit breaker on CRM |
+| **Architecture** | Layered design: UI → Server Actions → `lib/crm` (infra only), Zod at boundaries |
+| **Security** | JWT + RBAC, HMAC public portals, session-scoped APIs, no CRM mutations from client bundles |
+| **Ops** | Docker production deploy, SRE dashboard, extensible E2E health registry, CI on every push |
+| **Quality** | 169+ Vitest unit tests, Playwright smoke E2E, TypeScript strict, GitHub Actions pipeline |
 
 ---
 
-## Features
+## Skills highlighted
 
-### Technician mobile PWA
+**Frontend & mobile**
 
-- Offline task list with IndexedDB sync queue and retry jitter
-- On-site states: scheduled → in progress → complete / incomplete / cancelled
-- Product-group measurement forms
-- One-tap navigation (Google Maps / Waze)
-- Sync telemetry for operations monitoring
+- Next.js 16 App Router, React 19, Server Actions, route-level auth (`src/proxy.ts`)
+- PWA: service worker, install prompts, push opt-in
+- Tailwind CSS v4, responsive / touch-first UI (48px targets, field workflows)
+- Google Maps: clustering, geocoding, live technician map (admin)
 
-### Admin control center
+**Backend & integration**
 
-- Map: unscheduled vs scheduled visits, overdue indicators, live technician pins
-- Filters: measurements, installations, and **assistance** (maintenance / repair)
-- Calendar per technician
-- AI route strategy with fuel/toll estimates
-- Mass scheduling, opportunity drawer, automatic geocoding
-- Service history API with **50 items per page**
+- TypeScript end-to-end, **Zod** schemas as single source of truth (`z.infer` types)
+- Twenty CRM **GraphQL** client with retries, timeouts, **circuit breaker**
+- **Transactional outbox** → n8n webhooks (idempotency keys, dead-letter, background drain)
+- NextAuth.js (JWT), role helpers (`admin` / `member` / `ceo` / `technician` / `warehouse`)
+- Redis-backed CRM cache (optional), file-backed durable state on Docker volume
 
-### CEO executive dashboard
+**Data & offline**
 
-- Won revenue, pipeline, weighted forecast, win rate
-- Monthly evolution & funnel by stage
-- Technician success rate and estimated km
-- Customer ratings and follow-up urgency
-- **Year-filtered CRM queries** (server-side date filters)
+- **Dexie (IndexedDB)** sync queue: ordering, retries, multi-tab lock, sync telemetry
+- Domain contract layer: CRM stages, task status, scheduling rules (`src/lib/crm/contract.ts`)
 
-### Warehouse
+**Testing & delivery**
 
-- Service items linked to opportunities
-- Preparation workflow before installation
+- Vitest (domain + integration-style unit tests), Playwright (smoke + task flows)
+- `npm run validate` = type-check + tests; CI: lint (advisory), build, E2E smoke
+- Docker multi-stage image, Compose stack, host nginx TLS (documented, not tied to one vendor)
 
-### SRE observability *(admin role only)*
+**Architecture & process**
 
-- CRM latency & circuit breaker
-- Transactional outbox (pending / failed / reprocess)
-- **Complete E2E Suite** — CRM, n8n routing, outbox, public portals, app health
-- **Luxury Workflow E2E** — full business simulation with real CRM records (opt-in)
-- Offline sync telemetry per technician
-- QA 360 diagnostic runner
-
-### Public customer portals
-
-- Service rating — signed expiring token (`/avaliacao/{id}?t=…`)
-- Appointment cancellation — token + state guard (`/cancelamento/{id}?t=…`)
-
-### Engineering quality
-
-- Zod schemas, clean architecture (UI → actions → CRM layer)
-- Single CRM contract in `src/lib/crm/contract.ts` (stages, transitions, RBAC helpers)
-- Circuit breaker, transactional outbox, **86+** unit tests, Playwright e2e
-- GitHub Actions CI: type-check, test, build, smoke e2e
-- RBAC: **admin**, **member**, **ceo**, **technician**, **warehouse**
+- Spec-driven / DDD-style boundaries, ADRs in `docs/adrs/`
+- Observability suite: CRM latency, outbox stats, n8n routing checks, optional “luxury” business E2E
+- Env-driven branding — safe defaults for open-source portfolio (`src/lib/branding.ts`)
 
 ---
 
-## Integrations
+## Architecture choices (and why)
 
-| System | Role |
-|--------|------|
-| **Twenty CRM** | GraphQL source of truth — opportunities, tasks, measurements, roles |
-| **n8n** | Outbound automations — WhatsApp, email, PDF/Excel reports, Google Drive, push |
-| **Google Maps** | Geocoding and navigation (optional `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`) |
-| **Web Push (VAPID)** | Technician visit alerts via service worker + n8n |
-
-### n8n automations
-
-The UI never calls n8n directly. Server events are written to a **transactional outbox** (`src/lib/outboxQueue.ts`), then delivered with HTTP POST, retries, and `Idempotency-Key` headers. Failed deliveries can be reprocessed from `/admin/observabilidade`.
-
-| Env variable | Events routed here |
-|--------------|-------------------|
-| `N8N_WEBHOOK_URL` | `technician_login`, `technician_report`, `service_completed`, `MEASUREMENTS_REPORT_GENERATION` |
-| `N8N_AGENDAMENTO_WEBHOOK_URL` | `appointment_scheduled`, `appointment_cancelled_by_client` |
-| `N8N_WEBHOOK_URL_REPORTS` | `SERVICE_REPORT_SUBMITTED` (photos + Drive folder metadata) |
-| `N8N_WEBHOOK_URL_PUSH` | `PUSH_SUBSCRIPTION` (browser push opt-in) |
-| `N8N_FORM_CONFIRM_URL` | Optional override for the client visit confirmation form |
-
-Scheduling payloads include HMAC-signed `cancelUrl` and `evaluationUrl` for the public portals (`/cancelamento`, `/avaliacao`).
-
-**Setup:** [N8N_SETUP.md](N8N_SETUP.md) · **Validate:** [docs/E2E_OBSERVABILITY_SUITE.md](docs/E2E_OBSERVABILITY_SUITE.md) · **Business flow:** [docs/END_TO_END_BUSINESS_FLOW.md](docs/END_TO_END_BUSINESS_FLOW.md)
-
----
-
-## Architecture
+| Decision | Rationale |
+|----------|-----------|
+| **Offline-first queue (client)** | Field users lose signal often; UI stays usable; mutations replay with explicit failure states ([ADR 002](docs/adrs/002-offline-queue.md)). |
+| **Server Actions as use-case layer** | Thin mutations with `{ success, data?, error? }`; CRM access only in `src/lib/crm/*` with `server-only`. |
+| **CRM contract module** | Twenty field names and pipeline stages centralized — UI and tests depend on domain helpers, not raw API strings. |
+| **Transactional outbox (server)** | CRM commit and n8n notification decoupled; retries and SRE reprocess without double-charging the UI thread. |
+| **Circuit breaker on CRM** | Prevents cascade when GraphQL is slow; shared failure mode for all users. |
+| **Stage-first workflow** | Visit type derived from opportunity **stage + title**, not a duplicate “service type” field — fewer sync bugs. |
+| **Public portals with HMAC tokens** | Rating / cancellation without login; expiring, scoped links ([ADR 003](docs/adrs/003-public-portal-tokens.md)). |
+| **RBAC at proxy + actions** | Route middleware for pages/APIs; resource checks (e.g. task assignee) in actions — defense in depth. |
+| **Next.js 16 `proxy.ts` (not legacy middleware)** | Central auth matcher aligned with this codebase’s Next version. |
 
 ```mermaid
 graph TB
     subgraph Clients
         TECH[Technician PWA]
-        ADMIN[Admin Console]
-        CEO[CEO Dashboard]
+        ADMIN[Admin console]
+        CEO[CEO dashboard]
         WH[Warehouse]
     end
 
-    subgraph "Next.js App"
-        PROXY[Auth proxy + RBAC<br/>src/proxy.ts]
+    subgraph NextApp["Next.js application"]
+        PROXY[Auth proxy + RBAC]
         ACTIONS[Server Actions]
-        OFFLINE[IndexedDB + sync queue]
+        IDB[IndexedDB sync queue]
         OUTBOX[Transactional outbox]
-        OBS[SRE observability API]
+        OBS[SRE observability]
     end
 
     subgraph External
-        CRM[(Twenty CRM — GraphQL)]
-        N8N[n8n webhooks<br/>scheduling · reports · push]
+        CRM[(Twenty CRM GraphQL)]
+        N8N[n8n webhooks]
         MAPS[Maps / geocoding]
-        PORTALS[Public portals<br/>/avaliacao · /cancelamento]
+        PORTALS[Public HMAC portals]
     end
 
     TECH --> PROXY
     ADMIN --> PROXY
     CEO --> PROXY
     WH --> PROXY
-    PROXY --> OFFLINE --> ACTIONS
+    PROXY --> IDB --> ACTIONS
     ACTIONS --> CRM
     ACTIONS --> OUTBOX --> N8N
-    N8N --> PORTALS
+    OUTBOX --> PORTALS
     ACTIONS --> MAPS
     OBS --> CRM
     OBS --> OUTBOX
 ```
 
-**Offline sync**
+**Offline sync (simplified)**
 
 ```mermaid
 sequenceDiagram
     participant Tech as Technician
     participant UI as React UI
     participant IDB as IndexedDB
-    participant API as Server Action
+    participant Action as Server Action
     participant CRM as CRM GraphQL
 
-    Tech->>UI: Submit measurement / close visit
-    UI->>IDB: Save locally
+    Tech->>UI: Close visit / save measurements
     alt Online
-        UI->>API: Sync mutation
-        API->>CRM: Persist
+        UI->>Action: Authorized mutation
+        Action->>CRM: Persist
     else Offline
         UI->>IDB: Enqueue pending action
+        Note over IDB,Action: Replay on reconnect with retries
     end
 ```
 
 ---
 
-## Tech stack
+## Problem → solution (business context)
 
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 16, React 19 |
-| Language | TypeScript, Zod |
-| Styling | Tailwind CSS v4 |
-| Local data | Dexie.js (IndexedDB) |
-| CRM | Twenty (GraphQL + contract layer) |
-| Auth | NextAuth.js, JWT, RBAC |
-| Automation | n8n webhooks |
-| Tests | Vitest (86+), Playwright |
-| Deploy | Docker Compose, Nginx |
+A mid-size **blinds / shading installation** company ran scheduling, warehouse, and field work across spreadsheets and phone calls. This platform unifies:
+
+| Role | Capability |
+|------|------------|
+| **Technicians** | Day agenda, GPS, mm-precise measurements, visit closure — **offline-capable** |
+| **Warehouse** | Per-item preparation before install |
+| **Ops (admin / member)** | Map, calendar, mass scheduling, route hints, history |
+| **CEO** | Revenue, pipeline, technician performance, NPS-style feedback |
+| **Customers** | Signed links to rate a visit or cancel (no account) |
+| **SRE (admin)** | Health checks, outbox, CRM breaker, sync telemetry |
+
+Impact themes: single source of truth in CRM, fewer status calls, measurable routes/zones, leadership metrics without month-end spreadsheets.
 
 ---
 
-## Getting started
+## Feature map (engineering view)
 
-### Prerequisites
+- **Technician PWA** — `useSyncQueue`, measurement forms, visit state machine, sync telemetry  
+- **Admin** — map filters, clustering, calendar, mass schedule, opportunity drawer, geocoding  
+- **CEO** — aggregated CRM metrics with server-side date filters  
+- **Warehouse** — preparation workflow tied to opportunities  
+- **Observability** — pluggable E2E registry (`src/lib/observability/`), luxury workflow simulator (opt-in)  
+- **Automations** — event catalog via env-routed n8n webhooks ([N8N_SETUP.md](N8N_SETUP.md))
 
-- Node.js 20+
-- Twenty CRM instance + API key
+---
 
-### Install
+## Tech stack
+
+| Layer | Choices |
+|-------|---------|
+| App | Next.js 16, React 19, TypeScript |
+| Validation | Zod |
+| Styling | Tailwind CSS v4 |
+| Client persistence | Dexie / IndexedDB |
+| Auth | NextAuth.js, JWT, custom RBAC |
+| CRM | Twenty (GraphQL) |
+| Cache / queue | Redis (optional), file outbox on volume |
+| Automation | n8n (HTTP webhooks) |
+| Tests | Vitest, Playwright |
+| CI/CD | GitHub Actions |
+| Runtime | Node 20, Docker Compose |
+
+---
+
+## Getting started (local)
+
+**Prerequisites:** Node 20+, a Twenty CRM instance (or mock URL for UI-only exploration).
 
 ```bash
 git clone https://github.com/alyekseyenko/services-blinds.git
 cd services-blinds
 npm install
+cp .env.example .env.local   # fill TWENTY_* and NEXTAUTH_* — never commit this file
+npm run dev
 ```
 
-### Environment
+| Command | Purpose |
+|---------|---------|
+| `npm run validate` | Type-check + unit tests |
+| `npm run test:e2e:smoke` | Playwright smoke (login path) |
+| `npm run build` | Production build |
 
-```bash
-cp .env.example .env.local
-```
-
-Copy `.env.example` and set at least:
-
-| Variable | Purpose |
-|----------|---------|
-| `TWENTY_API_URL` / `TWENTY_API_KEY` | Twenty CRM GraphQL |
-| `NEXTAUTH_SECRET` / `NEXTAUTH_URL` | Session auth (32+ char secret) |
-| `NEXT_PUBLIC_APP_URL` | Public app URL (portal links, n8n payloads) |
-| `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` | Branding |
-
-**Optional — n8n automations** (leave empty for local dev only; **required in Docker production**):
-
-| Variable | Purpose |
-|----------|---------|
-| `N8N_WEBHOOK_URL` | General notifications (login, task status, measurements) |
-| `N8N_AGENDAMENTO_WEBHOOK_URL` | Scheduling + client cancellation |
-| `N8N_WEBHOOK_URL_REPORTS` | Service reports with photos |
-| `N8N_WEBHOOK_URL_PUSH` | Web push subscription registry |
-| `N8N_FORM_CONFIRM_URL` | Client visit confirmation form (optional override) |
-
-See [N8N_SETUP.md](N8N_SETUP.md) for placeholders and [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md) for server setup.
-
-Production values live **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md). Never commit `.env.local`.
-
-### Commands
-
-```bash
-npm run dev         # development server
-npm run validate    # type-check + unit tests
-npm run test:e2e:smoke
-npm run build       # production build
-```
+Full env reference: [.env.example](.env.example) · Production-only vars: [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md)
 
 ---
 
-## Project structure
+## Repository layout
 
 ```
 src/
-├── actions/              # Server Actions (use cases)
-├── app/
-│   ├── admin/            # Map, calendar, history, observability
-│   ├── ceo/              # Executive dashboard
-│   ├── dashboard/        # Technician PWA
-│   ├── armazem/          # Warehouse
-│   ├── avaliacao/        # Public rating portal
-│   └── cancelamento/     # Public cancellation portal
-├── components/
-├── hooks/                # useSync, useSyncQueue
-├── lib/crm/              # GraphQL integration + contract layer (stages, transitions)
-└── proxy.ts              # Next.js 16 auth + route RBAC (not middleware.ts)
-docs/adrs/                # Architecture decision records
+├── actions/           # Server Actions (authorized use cases)
+├── app/               # Routes: dashboard, admin, ceo, armazem, public portals, API
+├── components/        # UI by domain
+├── hooks/             # useSyncQueue, useMeasurements, map helpers
+├── lib/crm/           # GraphQL + domain contract (server-only)
+├── lib/observability/ # SRE checks & E2E registry
+└── proxy.ts           # Auth + RBAC matcher (Next.js 16)
+docs/adrs/             # Architecture decision records
 ```
 
 ---
 
-## Documentation
+## Further reading
 
-| Doc | Contents |
-|-----|----------|
-| [ARCHITECTURE_MASTER_BLUEPRINT.md](ARCHITECTURE_MASTER_BLUEPRINT.md) | System design overview |
-| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | UI tokens, glassmorphism, mobile PWA rules |
-| [N8N_SETUP.md](N8N_SETUP.md) | Webhook URLs, event catalog, recommended workflows |
-| [docs/END_TO_END_BUSINESS_FLOW.md](docs/END_TO_END_BUSINESS_FLOW.md) | Full lifecycle: CRM stages → field → n8n |
-| [docs/E2E_OBSERVABILITY_SUITE.md](docs/E2E_OBSERVABILITY_SUITE.md) | SRE checks, Luxury Workflow E2E |
-| [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md) | Server-only env vars (no secrets in Git) |
-| [TWENTY_CRM_SETUP.md](TWENTY_CRM_SETUP.md) | Twenty CRM fields and API setup |
-| [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md) | Docker Compose deployment |
-| [docs/adrs/](docs/adrs/) | Architecture decision records |
-| [AGENTS.md](AGENTS.md) | AI agent / contributor guidelines |
+| Document | Topic |
+|----------|--------|
+| [ARCHITECTURE_MASTER_BLUEPRINT.md](ARCHITECTURE_MASTER_BLUEPRINT.md) | Deep system design |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | UI tokens & PWA UX rules |
+| [N8N_SETUP.md](N8N_SETUP.md) | Webhook events & env routing |
+| [docs/E2E_OBSERVABILITY_SUITE.md](docs/E2E_OBSERVABILITY_SUITE.md) | SRE checks |
+| [docs/END_TO_END_BUSINESS_FLOW.md](docs/END_TO_END_BUSINESS_FLOW.md) | CRM stages → field → automation |
+| [TWENTY_CRM_SETUP.md](TWENTY_CRM_SETUP.md) | CRM field mapping |
+| [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md) | Docker / VPS deployment pattern |
+| [AGENTS.md](AGENTS.md) | Contributor & agent guidelines |
 
 ---
 
-## Security & privacy (GitHub)
+## Security & privacy
 
-- **Never commit** `.env.local` — it holds API keys, secrets, and real domains.
-- The repo uses **placeholders** for secrets, domains, and branding (`your_api_key`, `yourcompany.com`, `Blinds Technical Services`) — no production URLs, client names, or API keys in Git.
-- Production branding and URLs are set **only on the server** — see [docs/PRODUCTION_ENV.md](docs/PRODUCTION_ENV.md).
-- Keep the repository **Private** if you want extra protection.
-- Deploy and ops tooling stay **outside Git** — production secrets and server access are never published.
+- **Do not commit** `.env.local` — API keys, `NEXTAUTH_SECRET`, and production URLs belong on the server only.
+- This public repo uses **generic placeholders** (`yourcompany.com`, sample keys in CI).
+- Customer-facing copy in the product is **Portuguese (Portugal)**; this README is English for an international audience.
+- Deploy scripts and server credentials are **intentionally excluded** from Git (see `.gitignore`).
 
 ---
 
 ## License
 
-Private — all rights reserved.
+All rights reserved — portfolio / demonstration source. Not licensed for commercial reuse without permission.

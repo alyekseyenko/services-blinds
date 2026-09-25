@@ -1,13 +1,29 @@
+export type ZonePriority = "Critical" | "High" | "Medium" | "Low";
+export type ZoneImpact = ZonePriority;
+
 export interface ZoneInsight {
   name: string;
-  priority: string;
+  key: string;
+  priority: ZonePriority;
+  impact: ZoneImpact;
   count: number;
   distance: number;
   logisticsCost: number;
   score: number;
 }
 
-export type MapCategoryFilter = "all" | "medicoes" | "instalacoes" | "assistencia";
+/** Twenty-aligned service marker keys (+ all). */
+export type MapCategoryFilter =
+  | "all"
+  | "INSTALACAO"
+  | "MANUTENCAO"
+  | "REPARACAO"
+  | "TIRAR_MEDIDAS"
+  | "REMEDICAO";
+
+export type MapStallFilter = "all" | "idle14" | "idle30";
+
+export type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 
 export interface RawAddress {
   addressStreet1?: string;
@@ -30,6 +46,7 @@ export interface Opportunity {
   scheduledAt: string | Date | null;
   dueDate: Date | null;
   hasScheduledTask: boolean;
+  hasPendingProposal?: boolean;
   taskStatus: string;
   taskId: string;
   pointOfContactId?: string;
@@ -39,6 +56,7 @@ export interface Opportunity {
   report?: string;
   nsi?: string;
   serviceType?: string | string[];
+  createdOnSite?: boolean;
   technician?: string;
   scheduledBy?: string;
   start?: Date;

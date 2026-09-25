@@ -21,10 +21,9 @@ export default function BottomNav({ view, setView, setSelectedTask }: BottomNavP
   return (
     <nav
       aria-label="Navegação Principal"
-      className="fixed bottom-0 left-0 z-40 w-full shrink-0 border-t border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden"
-      style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
+      className="fixed bottom-0 left-0 z-40 w-full shrink-0 border-t border-border bg-card/95 px-3 py-2 text-foreground shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl safe-bottom"
     >
-      <div className="mx-auto flex max-w-md items-center justify-around">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-around md:max-w-4xl">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = view === item.id;

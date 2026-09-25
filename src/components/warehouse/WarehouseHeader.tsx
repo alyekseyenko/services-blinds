@@ -12,8 +12,8 @@ export interface WarehouseHeaderProps {
 
 export default function WarehouseHeader({ greeting, userName, onLogout }: WarehouseHeaderProps) {
   return (
-    <header className="glass-panel-light border-b border-slate-200 sticky top-0 z-50 transition-all duration-300">
-      <div className="max-w-full mx-auto px-6 md:px-12 h-24 flex items-center justify-between">
+    <header className="safe-top glass-panel-light sticky top-0 z-50 border-b border-slate-200 transition-all duration-300">
+      <div className="mx-auto flex h-20 max-w-full items-center justify-between px-4 md:h-24 md:px-12">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 flex items-center justify-center group shrink-0">
             <Image

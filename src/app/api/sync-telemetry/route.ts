@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAppSession, isAdminRole, isStrictAdminRole } from "@/lib/auth/session";
+import { isAdminRole, isStrictAdminRole } from "@/lib/auth/session";
+import { getAppSession } from '@/lib/auth/session.server';
 import { SyncTelemetryReportSchema } from "@/lib/schemas/syncTelemetry";
 import { syncTelemetryStore } from "@/lib/syncTelemetryStore";
 

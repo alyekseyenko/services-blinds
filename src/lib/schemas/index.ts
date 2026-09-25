@@ -73,6 +73,51 @@ export const MeasurementsPayloadSchema = z.object({
   groups: z.array(ServiceItemGroupSchema)
 });
 
+export const ExtraServiceTypeEnum = z.enum([
+  "TIRAR_MEDIDAS",
+  "REMEDICAO",
+  "MANUTENCAO",
+  "REPARACAO",
+]);
+
+export const VisitServiceModeEnum = z.enum(["now", "later"]);
+
+export const VisitServiceSchema = z.object({
+  opportunityId: z.string().uuid(),
+  name: z.string(),
+  nsi: z.string().optional(),
+  stage: z.string().optional(),
+  serviceType: z.string(),
+  mode: VisitServiceModeEnum,
+  isPrimary: z.boolean(),
+  createdOnSite: z.boolean().optional(),
+  clientRequestId: z.string().optional(),
+  pendingSync: z.boolean().optional(),
+});
+
+export const CreateVisitServicePayloadSchema = z.object({
+  taskId: z.string().uuid(),
+  clientRequestId: z.string().min(8).max(64),
+  serviceType: ExtraServiceTypeEnum,
+  mode: VisitServiceModeEnum.optional(),
+  notes: z.string().max(4000).optional(),
+  measurements: MeasurementsPayloadSchema.optional(),
+});
+
+export const UpdateVisitServicePayloadSchema = z.object({
+  taskId: z.string().uuid(),
+  opportunityId: z.string().uuid(),
+  serviceType: ExtraServiceTypeEnum,
+  mode: VisitServiceModeEnum.optional(),
+  notes: z.string().max(4000).optional(),
+  measurements: MeasurementsPayloadSchema.optional(),
+});
+
+export const DeleteVisitServicePayloadSchema = z.object({
+  taskId: z.string().uuid(),
+  opportunityId: z.string().uuid(),
+});
+
 // --- Distributed Sync & Conflict Detection ---
 
 export const VersionedEntitySchema = z.object({
@@ -97,6 +142,12 @@ export type TaskStatus = z.infer<typeof TaskStatusEnum>;
 export type ServiceItem = z.infer<typeof ServiceItemSchema>;
 export type ServiceItemGroup = z.infer<typeof ServiceItemGroupSchema>;
 export type MeasurementsPayload = z.infer<typeof MeasurementsPayloadSchema>;
+export type ExtraServiceType = z.infer<typeof ExtraServiceTypeEnum>;
+export type VisitServiceMode = z.infer<typeof VisitServiceModeEnum>;
+export type VisitService = z.infer<typeof VisitServiceSchema>;
+export type CreateVisitServicePayload = z.infer<typeof CreateVisitServicePayloadSchema>;
+export type UpdateVisitServicePayload = z.infer<typeof UpdateVisitServicePayloadSchema>;
+export type DeleteVisitServicePayload = z.infer<typeof DeleteVisitServicePayloadSchema>;
 export type VersionedEntity = z.infer<typeof VersionedEntitySchema>;
 export type SyncConflict = z.infer<typeof SyncConflictSchema>;
 

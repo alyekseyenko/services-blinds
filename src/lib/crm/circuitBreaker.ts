@@ -19,15 +19,18 @@ export class CircuitBreaker {
   private state: CircuitState = 'CLOSED';
   private failureCount = 0;
   private successCount = 0;
+  private halfOpenInFlight = 0;
   private lastStateChange: number = Date.now();
   private readonly failureThreshold: number;
   private readonly cooldownPeriodMs: number;
+  private readonly maxHalfOpenConcurrent: number;
   private readonly name: string;
 
   constructor(name = 'TwentyCRM', options: CircuitBreakerOptions = {}) {
     this.name = name;
     this.failureThreshold = options.failureThreshold || 5;
     this.cooldownPeriodMs = options.cooldownPeriodMs || 30000; // 30 segundos
+    this.maxHalfOpenConcurrent = 2;
   }
 
   public getState(): CircuitState {
@@ -52,13 +55,25 @@ export class CircuitBreaker {
       throw new CircuitBreakerOpenException(`O serviço ${this.name} está temporariamente indisponível. A proteger o sistema.`);
     }
 
+    if (currentState === 'HALF_OPEN' && this.halfOpenInFlight >= this.maxHalfOpenConcurrent) {
+      throw new CircuitBreakerOpenException(`O serviço ${this.name} está em recuperação. Tente novamente em instantes.`);
+    }
+
+    if (currentState === 'HALF_OPEN') {
+      this.halfOpenInFlight++;
+    }
+
     try {
       const result = await action();
       this.onSuccess();
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.onFailure(error);
       throw error;
+    } finally {
+      if (currentState === 'HALF_OPEN') {
+        this.halfOpenInFlight = Math.max(0, this.halfOpenInFlight - 1);
+      }
     }
   }
 
@@ -91,8 +106,14 @@ export class CircuitBreaker {
     const oldState = this.state;
     this.state = newState;
     this.lastStateChange = Date.now();
-    this.failureCount = 0;
-    this.successCount = 0;
+    if (newState === 'CLOSED') {
+      this.failureCount = 0;
+      this.successCount = 0;
+      this.halfOpenInFlight = 0;
+    } else if (newState === 'HALF_OPEN') {
+      this.successCount = 0;
+      this.halfOpenInFlight = 0;
+    }
 
     logger.warn(`[CircuitBreaker:${this.name}] Transição de estado: ${oldState} -> ${newState}`, {
       timestamp: new Date().toISOString()

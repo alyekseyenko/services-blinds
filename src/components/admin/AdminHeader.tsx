@@ -1,19 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
-import { LogOut, ShieldCheck, RefreshCw, Filter, Map as MapIcon, Calendar as CalendarIcon, History, Activity, TrendingUp } from "lucide-react";
+import {
+  LogOut,
+  RefreshCw,
+  Map as MapIcon,
+  Calendar as CalendarIcon,
+  History,
+  Activity,
+  TrendingUp,
+  MoreVertical,
+  X,
+} from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { canAccessCeoPanel, isStrictAdminRole } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
 import { APP_LOGO_PATH } from "@/lib/branding";
 import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 interface AdminHeaderProps {
   opportunitiesCount: number;
   lastSync: Date | null;
   loading: boolean;
   isSyncing: boolean;
-  isAdminMenuOpen: boolean;
-  setIsAdminMenuOpen: (open: boolean) => void;
   router: any;
   onRefresh: () => void;
   userName: string;
@@ -21,151 +30,260 @@ interface AdminHeaderProps {
   setView: (v: string) => void;
 }
 
-export default function AdminHeader({ 
-  opportunitiesCount, 
-  lastSync, 
-  loading, 
+export default function AdminHeader({
+  opportunitiesCount,
+  lastSync,
+  loading,
   isSyncing,
-  isAdminMenuOpen, 
-  setIsAdminMenuOpen, 
   router,
   onRefresh,
   userName,
   view,
-  setView
+  setView,
 }: AdminHeaderProps) {
   const { data: session } = useSession();
   const userRole = (session?.user as { role?: AppRole } | undefined)?.role;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const syncLabel = lastSync ? lastSync.toLocaleTimeString("pt-PT") : "Sincronizando...";
+
   return (
-    <div className="bg-white/95 backdrop-blur-xl border-b border-slate-200 p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-30 gap-4 shrink-0">
-      <div className="flex items-center justify-between w-full md:w-auto gap-4">
+    <div
+      className="safe-top relative z-30 flex shrink-0 flex-col items-center justify-between gap-3 border-b border-border bg-card/95 p-3 text-card-foreground shadow-sm backdrop-blur-xl md:flex-row md:gap-4 md:p-4"
+    >
+      <div className="flex w-full items-center justify-between gap-4 md:w-auto">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-10 h-10 flex items-center justify-center group shrink-0">
-              <Image 
-                src={APP_LOGO_PATH} 
-                alt="Company logo" 
-                width={40} 
-                height={40} 
-                className="w-10 h-10 object-contain group-hover:scale-105 transition-transform drop-shadow-sm" 
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center group">
+              <Image
+                src={APP_LOGO_PATH}
+                alt="Logótipo da empresa"
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain transition-transform group-hover:scale-105 drop-shadow-sm"
               />
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-lime-500 border-2 border-white rounded-full animate-pulse"></div>
+            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-white bg-lime-500" />
           </div>
           <div>
-            <h1 className="font-black text-slate-900 leading-none tracking-tighter text-sm uppercase italic">
-              {userName ? userName : 'Administrador'}
+            <h1 className="text-sm font-black uppercase italic leading-none tracking-tighter text-foreground">
+              {userName ? userName : "Administrador"}
             </h1>
-            <div className="flex items-center gap-1.5 mt-1">
-               <div className="w-1.5 h-1.5 rounded-full bg-lime-500 animate-ping"></div>
-               <p className="text-xs font-black uppercase tracking-widest text-slate-600">{opportunitiesCount} Serviços Ativos</p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <div className="h-1.5 w-1.5 animate-ping rounded-full bg-lime-500" />
+              <p className="text-xs font-black uppercase tracking-widest text-slate-600">
+                {opportunitiesCount} Serviços Ativos
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Mobile controls for right aligned header items */}
-        <div className="flex items-center gap-2 md:hidden">
-          <button 
+        <div className="flex items-center gap-2 lg:hidden">
+          <button
+            type="button"
             onClick={onRefresh}
             disabled={loading || isSyncing}
-            className={`p-2 rounded-xl transition-all ${isSyncing ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-500'}`}
+            aria-label="Sincronizar CRM"
+            className={`flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-xl transition-all ${
+              isSyncing ? "bg-amber-50 text-amber-500" : "bg-slate-50 text-slate-500"
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${isSyncing ? "animate-spin" : ""}`} />
           </button>
-          <button 
-            onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
-            className={`p-2 rounded-xl transition-all flex items-center gap-1 border ${isAdminMenuOpen ? 'bg-lime-500 border-lime-500 text-slate-950 shadow-md' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Mais opções"
+            className="flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
           >
-            <Filter className="w-4 h-4" />
+            <MoreVertical className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      {/* PERSISTENT HIGH-END SEGMENTED VIEW NAVIGATOR (LIGHT PREMIUM) */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 flex w-full md:w-auto max-w-md shadow-inner gap-1">
+      <div className="hidden w-full max-w-md gap-1 rounded-2xl border border-slate-200/80 bg-slate-100 p-1.5 shadow-inner lg:flex lg:w-auto">
         <button
+          type="button"
           onClick={() => setView("map")}
-          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "map" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all lg:flex-none ${
+            view === "map"
+              ? "border border-slate-200 bg-white text-lime-600 shadow-md"
+              : "text-slate-500 hover:text-slate-800"
+          }`}
         >
-          <MapIcon className="w-3.5 h-3.5" /> Mapa
+          <MapIcon className="h-3.5 w-3.5" /> Mapa
         </button>
         <button
+          type="button"
           onClick={() => setView("calendar")}
-          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "calendar" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all lg:flex-none ${
+            view === "calendar"
+              ? "border border-slate-200 bg-white text-lime-600 shadow-md"
+              : "text-slate-500 hover:text-slate-800"
+          }`}
         >
-          <CalendarIcon className="w-3.5 h-3.5" /> Agenda
+          <CalendarIcon className="h-3.5 w-3.5" /> Agenda
         </button>
         <button
+          type="button"
           onClick={() => setView("history")}
-          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all md:flex-none ${view === "history" ? "border border-slate-200 bg-white text-lime-600 shadow-md" : "text-slate-500 hover:text-slate-800"}`}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black uppercase tracking-wider transition-all lg:flex-none ${
+            view === "history"
+              ? "border border-slate-200 bg-white text-lime-600 shadow-md"
+              : "text-slate-500 hover:text-slate-800"
+          }`}
         >
-          <History className="w-3.5 h-3.5" /> Histórico
+          <History className="h-3.5 w-3.5" /> Histórico
         </button>
       </div>
 
-      {/* Desktop items */}
-      <div className="hidden md:flex items-center gap-2">
-        <div className="flex flex-col items-end mr-3">
-          <p className="mb-1 text-xs font-black uppercase tracking-widest leading-none text-slate-600">
+      <div className="hidden items-center gap-2 lg:flex lg:ml-auto">
+        <div className="mr-3 flex flex-col items-end">
+          <p className="mb-1 text-xs font-black uppercase leading-none tracking-widest text-slate-600">
             CRM Sync
           </p>
-          <p className={`text-xs font-black tracking-wider transition-colors ${isSyncing ? 'text-amber-500' : 'text-lime-600'}`}>
-            {lastSync ? lastSync.toLocaleTimeString('pt-PT') : 'Sincronizando...'}
+          <p
+            className={`text-xs font-black tracking-wider transition-colors ${
+              isSyncing ? "text-amber-500" : "text-lime-600"
+            }`}
+          >
+            {syncLabel}
           </p>
         </div>
 
-        <button 
+        <ThemeToggle />
+
+        <button
+          type="button"
           onClick={onRefresh}
           disabled={loading || isSyncing}
-          className={`p-3 rounded-xl transition-all border border-slate-200 ${isSyncing ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800'}`}
+          className={`rounded-xl border border-slate-200 p-3 transition-all ${
+            isSyncing
+              ? "bg-amber-50 text-amber-500"
+              : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          }`}
           title="Sincronizar CRM"
+          aria-label="Sincronizar CRM"
         >
-          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
         </button>
 
         {session && userRole && canAccessCeoPanel(userRole) && (
           <button
+            type="button"
             onClick={() => router.push("/ceo")}
-            className="p-3 bg-white text-slate-800 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-lime-500/50 transition-all shadow-sm flex items-center gap-2 animate-in fade-in"
+            className="flex animate-in fade-in items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-sm transition-all hover:border-lime-500/50 hover:bg-slate-50"
             title="Painel Executivo do CEO"
+            aria-label="Painel CEO"
           >
-            <TrendingUp className="w-4 h-4 text-lime-600" />
-            <span className="text-[9px] font-black uppercase tracking-widest hidden lg:inline">Painel CEO</span>
+            <TrendingUp className="h-4 w-4 text-lime-600" />
+            <span className="hidden text-xs font-black uppercase tracking-widest lg:inline">
+              Painel CEO
+            </span>
           </button>
         )}
 
         {session && userRole && isStrictAdminRole(userRole) && (
           <button
+            type="button"
             onClick={() => router.push("/admin/observabilidade")}
-            className="p-3 bg-slate-900 text-lime-400 border border-slate-800 rounded-xl hover:bg-slate-800 hover:border-lime-500/50 transition-all shadow-sm flex items-center gap-2"
-            title="Consola de Observabilidade & SRE do Criador"
+            className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 p-3 text-lime-400 shadow-sm transition-all hover:border-lime-500/50 hover:bg-slate-800"
+            title="Consola de Observabilidade e SRE"
+            aria-label="Consola SRE"
           >
-            <Activity className="w-4 h-4 text-lime-400 animate-pulse" />
-            <span className="text-[9px] font-black uppercase tracking-widest hidden lg:inline">SRE Console</span>
+            <Activity className="h-4 w-4 animate-pulse text-lime-400" />
+            <span className="hidden text-xs font-black uppercase tracking-widest lg:inline">
+              SRE Console
+            </span>
           </button>
         )}
 
-        <button 
-          onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
-          className={`p-3 rounded-xl transition-all flex items-center gap-2 border ${isAdminMenuOpen ? 'bg-lime-500 border-lime-500 text-slate-950 shadow-md font-bold' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-100'}`}
-        >
-          <Filter className="w-4 h-4" />
-          <span className="text-[9px] font-black uppercase tracking-widest">
-            Filtros & IA Strategy
-          </span>
-        </button>
-
-        <button 
+        <button
+          type="button"
           onClick={async () => {
             clearSessionStoragePreservingPreferences();
             await signOut({ callbackUrl: "/" });
-          }} 
+          }}
           className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600"
           aria-label="Terminar sessão"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="h-4 w-4" />
         </button>
       </div>
+
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col justify-end bg-slate-950/60 backdrop-blur-sm lg:hidden"
+          role="presentation"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="safe-bottom rounded-t-3xl border border-slate-200 bg-white p-5 shadow-2xl"
+            role="dialog"
+            aria-label="Menu do administrador"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm font-black uppercase tracking-tight text-slate-900">Menu</p>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+                aria-label="Fechar menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-xs font-semibold text-slate-600">
+              Última sincronização:{" "}
+              <span className="font-black text-slate-900">{syncLabel}</span>
+            </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                <span className="text-xs font-bold text-slate-700">Tema</span>
+                <ThemeToggle />
+              </div>
+              {session && userRole && canAccessCeoPanel(userRole) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    router.push("/ceo");
+                  }}
+                  className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-4 text-left text-sm font-bold text-slate-800"
+                >
+                  <TrendingUp className="h-5 w-5 text-lime-600" />
+                  Painel CEO
+                </button>
+              )}
+              {session && userRole && isStrictAdminRole(userRole) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    router.push("/admin/observabilidade");
+                  }}
+                  className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 px-4 text-left text-sm font-bold text-lime-400"
+                >
+                  <Activity className="h-5 w-5" />
+                  Consola SRE
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  clearSessionStoragePreservingPreferences();
+                  await signOut({ callbackUrl: "/" });
+                }}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-black text-red-700"
+              >
+                <LogOut className="h-5 w-5" />
+                Terminar sessão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

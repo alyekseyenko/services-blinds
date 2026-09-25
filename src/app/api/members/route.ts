@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { fetchWorkspaceMembers } from '@/lib/crm';
-import { getAppSession, isAdminRole } from '@/lib/auth/session';
+import { fetchWorkspaceMembers } from '@/lib/crm/members';
+import { isAdminRole } from '@/lib/auth/session';
+import { getAppSession } from '@/lib/auth/session.server';
 
 export async function GET() {
   try {

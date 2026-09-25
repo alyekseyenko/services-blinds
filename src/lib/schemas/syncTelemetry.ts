@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SyncFailedItemSchema = z.object({
-  action: z.enum(["UPDATE_STATUS", "SAVE_MEASUREMENTS", "ADD_NOTE"]),
+  action: z.enum(["UPDATE_STATUS", "SAVE_MEASUREMENTS", "ADD_NOTE", "CREATE_VISIT_SERVICE"]),
   taskId: z.string().min(1),
   lastError: z.string().optional(),
   retries: z.number().int().min(0).optional(),

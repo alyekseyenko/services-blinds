@@ -1,6 +1,6 @@
 "use server";
 
-import { getAppSession } from "@/lib/auth/session";
+import { getAppSession } from "@/lib/auth/session.server";
 import { ActionResponse } from "@/lib/types/action-response";
 import { fetchPreparationList, updateOpportunityStage } from "@/lib/crm/opportunities";
 import { updateItemPreparationStatus } from "@/lib/crm/items";

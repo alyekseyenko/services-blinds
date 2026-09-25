@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { geocodeAddress } from '@/lib/geocoder';
 import { CRM_STAGES, isTaskCompleted, isTaskCancelled, isTaskInProgress } from './contract';

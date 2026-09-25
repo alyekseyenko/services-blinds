@@ -10,6 +10,9 @@ import {
   normalizeTaskStatus,
   toTwentyTaskStatus,
   isTaskActive,
+  isTaskPendingConfirmation,
+  canClientCancelTask,
+  isTaskBlockingSchedule,
   isTaskInProgress,
   isTaskCompleted,
   isTaskCancelled,
@@ -21,16 +24,19 @@ import {
   classifyOpportunityWorkflow,
   deriveWorkflowMarkerKey,
   getNextStageOnSchedule,
+  getReusableTaskId,
   isNeedsSchedulingStage,
   mapLegacyServiceTypeToStage,
+  parseCrmClientRating,
+  formatCrmClientRating,
 } from '../contract';
 
 describe('CRM Contract Layer', () => {
   it('deve ter todos os objetos e tabelas CRM definidos', () => {
     expect(CRM_OBJECTS.opportunity.queryName).toBe('opportunities');
     expect(CRM_OBJECTS.task.queryName).toBe('tasks');
-    expect(CRM_OBJECTS.serviceItem.name).toBe('Itemdeservico');
-    expect(CRM_OBJECTS.serviceItem.queryName).toBe('itemdeservicos');
+    expect(CRM_OBJECTS.serviceItem.name).toBe('Produto');
+    expect(CRM_OBJECTS.serviceItem.queryName).toBe('produtos');
     expect(CRM_OBJECTS.workspaceMember.queryName).toBe('workspaceMembers');
   });
 
@@ -40,6 +46,25 @@ describe('CRM Contract Layer', () => {
     expect(CRM_FIELDS.task.repairAddress).toBe('moradaDaReparacao');
     expect(CRM_FIELDS.serviceItem.prepared).toBe('preparado');
     expect(CRM_FIELDS.serviceItem.warehouseState).toBe('estadoDoArmazem');
+  });
+
+  describe('parseCrmClientRating', () => {
+    it('parses Twenty RATING enum strings and numeric values', () => {
+      expect(parseCrmClientRating('RATING_5')).toBe(5);
+      expect(parseCrmClientRating('RATING_3')).toBe(3);
+      expect(parseCrmClientRating(4)).toBe(4);
+      expect(parseCrmClientRating('4')).toBe(4);
+      expect(parseCrmClientRating(null)).toBeNull();
+      expect(parseCrmClientRating('RATING_0')).toBeNull();
+    });
+  });
+
+  describe('formatCrmClientRating', () => {
+    it('formats ratings for Twenty SELECT/TEXT fields', () => {
+      expect(formatCrmClientRating(5)).toBe('RATING_5');
+      expect(formatCrmClientRating(1)).toBe('RATING_1');
+      expect(() => formatCrmClientRating(0)).toThrow();
+    });
   });
 
   describe('normalizeString', () => {
@@ -65,6 +90,29 @@ describe('CRM Contract Layer', () => {
       expect(isTaskInProgress('EM CURSO')).toBe(true);
       expect(isTaskActive('Concluído')).toBe(false);
       expect(isTaskInProgress('Agendado')).toBe(false);
+    });
+
+    it('reutiliza tasks canceladas ou pendentes ao reagendar', () => {
+      expect(getReusableTaskId('task-1', 'CANCELADO')).toBe('task-1');
+      expect(getReusableTaskId('task-1', 'POR_AGENDAR')).toBe('task-1');
+      expect(getReusableTaskId('task-1', 'AGENDADO')).toBeUndefined();
+      expect(getReusableTaskId(undefined, 'CANCELADO')).toBeUndefined();
+    });
+
+    it('permite cancelamento publico para propostas e visitas activas', () => {
+      expect(canClientCancelTask('POR_AGENDAR')).toBe(true);
+      expect(canClientCancelTask('AGENDADO')).toBe(true);
+      expect(canClientCancelTask('EM_CURSO')).toBe(true);
+      expect(canClientCancelTask('CONCLUIDO')).toBe(false);
+    });
+
+    it('distingue propostas pendentes de visitas confirmadas', () => {
+      expect(isTaskPendingConfirmation('POR_AGENDAR')).toBe(true);
+      expect(isTaskPendingConfirmation('Por Agendar')).toBe(true);
+      expect(isTaskActive('POR_AGENDAR')).toBe(false);
+      expect(isTaskBlockingSchedule('POR_AGENDAR')).toBe(true);
+      expect(isTaskBlockingSchedule('AGENDADO')).toBe(true);
+      expect(isTaskBlockingSchedule('CANCELADO')).toBe(false);
     });
   });
 
@@ -121,6 +169,7 @@ describe('CRM Contract Layer', () => {
       expect(deriveWorkflowMarkerKey('REPARACAO')).toBe('REPARACAO');
       expect(deriveWorkflowMarkerKey('INSTALACAO')).toBe('INSTALACAO');
       expect(deriveWorkflowMarkerKey('TIRAR_MEDIDAS')).toBe('TIRAR_MEDIDAS');
+      expect(deriveWorkflowMarkerKey('REAGENDAR', 'Visita cliente')).toBe('REAGENDAR');
     });
   });
 

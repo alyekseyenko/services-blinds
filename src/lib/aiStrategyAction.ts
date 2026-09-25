@@ -1,5 +1,8 @@
 "use server";
 
+import { canAccessAdminPanel } from "@/lib/auth/session";
+import { getAppSession } from "@/lib/auth/session.server";
+
 export interface RouteDataInput {
   distanceKm: number;
   durationMin: number;
@@ -27,6 +30,11 @@ export async function analyzeRouteStrategy(
   fuelInfo?: FuelInfoInput
 ): Promise<RouteStrategyResult> {
   try {
+    const ctx = await getAppSession();
+    if (!ctx?.user.role || !canAccessAdminPanel(ctx.user.role)) {
+      return { error: "Acesso não autorizado." };
+    }
+
     const totalDayMin = routeData.durationMin + (routeData.stopsCount * 90);
     const score = totalDayMin > 540 ? 65 : 92; // Penaliza se passar de 9h
     

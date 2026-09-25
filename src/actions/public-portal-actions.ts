@@ -8,7 +8,7 @@ import {
 } from "@/lib/schemas/publicPortal";
 import { submitServiceFeedback, getOpportunityClientRating } from "@/lib/crm/opportunities";
 import { cancelAppointmentByClient, getTaskStatusForPublicPortal } from "@/lib/crm/tasks";
-import { isTaskActive } from "@/lib/crm/contract";
+import { canClientCancelTask } from "@/lib/crm/contract";
 import type { ActionResponse } from "@/lib/types/action-response";
 
 const RATE_LIMIT_MS = 5000;
@@ -29,8 +29,9 @@ function isRateLimited(key: string): boolean {
 async function getClientIp(): Promise<string> {
   const headerStore = await headers();
   return (
-    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerStore.get("x-real-ip") ||
+    headerStore.get("x-real-ip")?.trim() ||
+    headerStore.get("cf-connecting-ip")?.trim() ||
+    headerStore.get("x-forwarded-for")?.split(",").pop()?.trim() ||
     "unknown"
   );
 }
@@ -105,7 +106,7 @@ export async function cancelAppointmentAction(
     if (!status) {
       return { success: false, error: "Agendamento não encontrado." };
     }
-    if (!isTaskActive(status)) {
+    if (!canClientCancelTask(status)) {
       return { success: false, error: "Este agendamento já não pode ser cancelado." };
     }
 

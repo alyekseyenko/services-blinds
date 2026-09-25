@@ -1,16 +1,13 @@
 import fs from 'fs';
 
-import path from 'path';
+import { writeJsonFileAtomic } from '@/lib/server/atomicJsonFile';
+import { resolveAppDataFile, ensureAppDataDir } from '@/lib/server/scratchPath';
 
-const MEMORY_FILE = path.join(process.cwd(), 'src/scratch/agent_memory.json');
-const OPS_LOGS_FILE = path.join(process.cwd(), 'src/scratch/ops_performance.json');
+const MEMORY_FILE = resolveAppDataFile('agent_memory.json');
+const OPS_LOGS_FILE = resolveAppDataFile('ops_performance.json');
 
-// Garantir que os diretórios existem
 const ensureDir = () => {
-  const dirs = [path.dirname(MEMORY_FILE), path.dirname(OPS_LOGS_FILE)];
-  dirs.forEach(dir => {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  });
+  ensureAppDataDir();
 };
 
 export interface OperationalEvent {
@@ -52,7 +49,7 @@ export async function logOperationalEvent(event: OperationalEvent) {
   };
 
   logs.events.push(newEvent);
-  fs.writeFileSync(OPS_LOGS_FILE, JSON.stringify(logs, null, 2));
+  writeJsonFileAtomic(OPS_LOGS_FILE, logs);
   
   return newEvent;
 }
@@ -114,7 +111,7 @@ export async function saveLearning(category: string, insight: string): Promise<L
   }
   const newLearning: LearningItem = { id: Date.now(), category, insight, timestamp: new Date().toISOString() };
   memory.learnings.push(newLearning);
-  fs.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2));
+  writeJsonFileAtomic(MEMORY_FILE, memory);
   return newLearning;
 }
 

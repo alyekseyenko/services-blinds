@@ -2,23 +2,29 @@
 
 import { ActionResponse } from "@/lib/types/action-response";
 import { MeasurementsPayloadSchema, MeasurementsPayload } from "@/lib/schemas";
+import { assertCanMutateTask } from "@/lib/auth/taskAccess";
+import { assertCanAccessOpportunity } from "@/lib/auth/opportunityAccess";
 import { saveMeasurements } from "@/lib/crm/measurements";
 import { fetchServiceItemsByOpportunity } from "@/lib/crm/items";
 
 export async function submitMeasurementsAction(
   taskId: string,
   oppId: string,
-  rawData: any
+  rawData: unknown
 ): Promise<ActionResponse<void>> {
   try {
-    // 1. Validar a entrada com Zod
+    const access = await assertCanMutateTask(taskId);
+    if (!access.ok) {
+      return { success: false, error: access.error };
+    }
+
     const validationResult = MeasurementsPayloadSchema.safeParse(rawData);
-    
+
     if (!validationResult.success) {
       console.error("[Zod Validation Error]", validationResult.error.format());
       return {
         success: false,
-        error: "Dados de medidas inválidos. Por favor, verifique o formulário."
+        error: "Dados de medidas inválidos. Por favor, verifique o formulário.",
       };
     }
 
@@ -33,28 +39,36 @@ export async function submitMeasurementsAction(
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[submitMeasurementsAction] Falha crítica:", error);
-    
-    // Devolver resposta gracefull
+
+    const message = error instanceof Error ? error.message : "Ocorreu um erro ao comunicar com a Base de Dados.";
     return {
       success: false,
-      error: error.message || "Ocorreu um erro ao comunicar com a Base de Dados."
+      error: message,
     };
   }
 }
 
 export async function getServiceItemsByOpportunityAction(
-  opportunityId: string
-): Promise<ActionResponse<any[]>> {
+  opportunityId: string,
+  taskId?: string
+): Promise<ActionResponse<unknown[]>> {
   try {
     if (!opportunityId) {
       return { success: false, error: "ID de Oportunidade em falta." };
     }
+
+    const access = await assertCanAccessOpportunity(opportunityId, taskId);
+    if (!access.ok) {
+      return { success: false, error: access.error };
+    }
+
     const items = await fetchServiceItemsByOpportunity(opportunityId);
     return { success: true, data: items };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[getServiceItemsByOpportunityAction] Error:", error);
-    return { success: false, error: error.message || "Não foi possível carregar os itens." };
+    const message = error instanceof Error ? error.message : "Não foi possível carregar os itens.";
+    return { success: false, error: message };
   }
 }

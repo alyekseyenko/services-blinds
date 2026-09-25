@@ -37,6 +37,7 @@
     "react-leaflet": "^5.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "server-only": "^0.0.1",
     "swr": "^2.4.2",
     "web-push": "^3.6.7"
   },

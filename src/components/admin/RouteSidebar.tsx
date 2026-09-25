@@ -1,7 +1,24 @@
-import React from 'react';
-import { Navigation, Brain, Sparkles, Loader2, MapPin, Trash2, ShieldCheck } from "lucide-react";
-import { RouteStop, RouteData } from '@/types/admin';
-import { HQ_LABEL } from '@/lib/branding';
+"use client";
+
+import React, { useMemo, useState } from "react";
+import {
+  Navigation,
+  Brain,
+  Loader2,
+  MapPin,
+  Trash2,
+  ShieldCheck,
+  X,
+  ListOrdered,
+  Euro,
+  LogOut,
+} from "lucide-react";
+import { RouteStop, RouteData } from "@/types/admin";
+import type { OptimizedRouteStop } from "@/lib/admin/routeOptimization";
+import { HQ_LABEL } from "@/lib/branding";
+import { cn } from "@/lib/cn";
+
+type RouteTab = "paragens" | "custos";
 
 interface RouteSidebarProps {
   selectedForRoute: RouteStop[];
@@ -13,17 +30,104 @@ interface RouteSidebarProps {
   tollCost: number;
   setTollCost: (cost: number) => void;
   realRouteData: RouteData | null;
-  optimizedRoute: any[] | null;
-  setOptimizedRoute: (route: any[] | null) => void;
+  optimizedRoute: OptimizedRouteStop[] | null;
+  setOptimizedRoute: (route: OptimizedRouteStop[] | null) => void;
   isOptimizing: boolean;
   calculateOptimizedRoute: () => Promise<void> | void;
-  aiAnalysis: any;
-  setAiAnalysis: (analysis: any) => void;
+  aiAnalysis: unknown;
+  setAiAnalysis: (analysis: unknown) => void;
   isAiAnalyzing: boolean;
   handleAiAudit: () => Promise<void> | void;
   unoptimizedTotalDistance: number | null;
   savingRatio: number;
   setShowMassScheduleModal: (show: boolean) => void;
+  onClosePanel?: () => void;
+  onExitSelection?: () => void;
+}
+
+function formatDurationMinutes(totalMin: number): string {
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function RouteFuelInputs({
+  fuelPrice,
+  setFuelPrice,
+  fuelConsumption,
+  setFuelConsumption,
+  tollCost,
+  setTollCost,
+  realRouteData,
+}: {
+  fuelPrice: number;
+  setFuelPrice: (v: number) => void;
+  fuelConsumption: number;
+  setFuelConsumption: (v: number) => void;
+  tollCost: number;
+  setTollCost: (v: number) => void;
+  realRouteData: RouteData | null;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <label className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        Preço gasolina (€/L)
+        <input
+          type="number"
+          step="0.01"
+          inputMode="decimal"
+          value={fuelPrice}
+          onChange={(e) => setFuelPrice(parseFloat(e.target.value) || 0)}
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-xs font-bold text-slate-800 focus:border-lime-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-lime-400/20"
+        />
+      </label>
+      <label className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        Consumo (L/100 km)
+        <input
+          type="number"
+          step="0.1"
+          inputMode="decimal"
+          value={fuelConsumption}
+          onChange={(e) => setFuelConsumption(parseFloat(e.target.value) || 0)}
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-2.5 text-xs font-bold text-slate-800 focus:border-lime-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-lime-400/20"
+        />
+      </label>
+      <label className="col-span-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+        <span className="flex items-center justify-between gap-2">
+          Portagens total (€)
+          {realRouteData?.hasTolls && (
+            <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[8px] font-black uppercase text-amber-800">
+              Portagens detetadas
+            </span>
+          )}
+        </span>
+        <div className="relative mt-1">
+          <input
+            type="number"
+            step="0.5"
+            inputMode="decimal"
+            value={tollCost}
+            onChange={(e) => setTollCost(parseFloat(e.target.value) || 0)}
+            className={cn(
+              "w-full rounded-lg border px-2 py-2.5 pr-20 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-lime-400/20",
+              realRouteData?.hasTolls
+                ? "border-amber-300 bg-amber-50/40 text-amber-900 focus:border-amber-500"
+                : "border-slate-200 bg-slate-50 text-slate-800 focus:border-lime-500 focus:bg-white"
+            )}
+          />
+          {realRouteData?.hasTolls && tollCost === 0 && (
+            <button
+              type="button"
+              onClick={() => setTollCost(Math.round(realRouteData.distanceKm * 0.08))}
+              className="absolute right-1 top-1 bottom-1 rounded-md bg-amber-500 px-2.5 text-[9px] font-black uppercase text-white hover:bg-amber-600"
+            >
+              Estimar
+            </button>
+          )}
+        </div>
+      </label>
+    </div>
+  );
 }
 
 export default function RouteSidebar({
@@ -45,343 +149,415 @@ export default function RouteSidebar({
   isAiAnalyzing,
   handleAiAudit,
   unoptimizedTotalDistance,
-  savingRatio,
-  setShowMassScheduleModal
+  setShowMassScheduleModal,
+  onClosePanel,
+  onExitSelection,
 }: RouteSidebarProps) {
+  const [tab, setTab] = useState<RouteTab>("paragens");
+
+  const displayStops: (RouteStop | OptimizedRouteStop)[] = optimizedRoute ?? selectedForRoute;
+  const stopCount = selectedForRoute.length;
+  const step = optimizedRoute ? 3 : stopCount > 0 ? 2 : 1;
+
+  const fuelCost = realRouteData
+    ? realRouteData.distanceKm * (fuelConsumption / 100) * fuelPrice
+    : 0;
+  const totalCost = fuelCost + tollCost;
+
+  const travelLabel = realRouteData
+    ? formatDurationMinutes(realRouteData.durationMin)
+    : "—";
+  const distanceLabel = realRouteData ? `${realRouteData.distanceKm.toFixed(1)} km` : "—";
+
+  const listItems = useMemo(() => {
+    const rows: {
+      key: string;
+      kind: "hq-start" | "stop" | "hq-end";
+      stop?: RouteStop | OptimizedRouteStop;
+      index?: number;
+    }[] = [];
+    if (stopCount === 0) return rows;
+    rows.push({ key: "hq-start", kind: "hq-start" });
+    let stopIndex = 0;
+    for (const item of displayStops) {
+      if (item.isReturn) {
+        rows.push({ key: "hq-end", kind: "hq-end", stop: item });
+        continue;
+      }
+      stopIndex += 1;
+      rows.push({ key: item.id, kind: "stop", stop: item, index: stopIndex });
+    }
+    if (!optimizedRoute) {
+      rows.push({ key: "hq-end-pending", kind: "hq-end" });
+    }
+    return rows;
+  }, [displayStops, optimizedRoute, stopCount]);
+
   return (
-    <div className="w-full lg:w-[500px] xl:w-[550px] bg-slate-50 border-t lg:border-t-0 lg:border-l border-slate-200 flex flex-col shadow-2xl z-20 h-full max-h-full min-h-0 overflow-hidden shrink-0 animate-in fade-in slide-in-from-bottom-4 lg:slide-in-from-right-4 duration-300">
-      
-      {/* HEADER: Inputs de Custos (Design limpo, light, premium) */}
-      <div className="p-6 border-b border-slate-200 bg-white shrink-0 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-slate-900 flex items-center gap-2.5 uppercase tracking-tight italic text-base">
-            <div className="w-8 h-8 bg-lime-100 rounded-lg flex items-center justify-center border border-lime-200">
-              <Navigation className="w-4.5 h-4.5 text-lime-600" />
-            </div>
-            Roteiro do Dia
-          </h3>
-          <span className="text-xs font-black bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-widest">
-            {selectedForRoute.length} {selectedForRoute.length === 1 ? 'Paragem' : 'Paragens'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1">Preço Gasolina (€/L)</label>
-            <input 
-              type="number" 
-              step="0.01"
-              value={fuelPrice}
-              onChange={(e) => setFuelPrice(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-lime-400/20 focus:border-lime-500 outline-none transition-all"
-            />
+    <aside
+      className="flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden border-l border-slate-200/90 bg-[#f8fafc] lg:max-w-[26rem]"
+      aria-label="Planeamento do roteiro"
+    >
+      {/* Cabeçalho */}
+      <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              Planeamento
+            </p>
+            <h2 className="truncate text-sm font-black uppercase tracking-tight text-slate-900">
+              Roteiro do dia
+            </h2>
           </div>
-          <div>
-            <label className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1">Consumo (L/100km)</label>
-            <input 
-              type="number" 
-              step="0.1"
-              value={fuelConsumption}
-              onChange={(e) => setFuelConsumption(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-lime-400/20 focus:border-lime-500 outline-none transition-all"
-            />
-          </div>
-          <div className="col-span-2">
-            <div className="flex justify-between items-end mb-1">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-wider">Custo Portagens Total (€)</label>
-              {realRouteData?.hasTolls && (
-                <span className="text-[8px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200/60 animate-pulse uppercase tracking-widest">
-                  Portagens Detetadas
-                </span>
-              )}
-            </div>
-            <div className="relative">
-              <input 
-                type="number" 
-                step="0.5"
-                value={tollCost}
-                onChange={(e) => setTollCost(parseFloat(e.target.value) || 0)}
-                className={`w-full pl-3 pr-24 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold transition-all outline-none focus:ring-2 focus:ring-lime-400/20 ${realRouteData?.hasTolls ? 'border-amber-400 text-amber-800 bg-amber-50/10 focus:border-amber-500' : 'border-slate-200 text-slate-800 focus:border-lime-500'}`}
-              />
-              {realRouteData?.hasTolls && tollCost === 0 && (
-                <button 
-                  onClick={() => setTollCost(Math.round(realRouteData.distanceKm * 0.08))}
-                  className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 bg-amber-500 text-white text-xs font-black rounded-lg hover:bg-amber-600 transition-colors uppercase tracking-wider"
-                >
-                  Estimar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* AI STRATEGY (Redesigned with beautiful, premium light purple card layout) */}
-      {optimizedRoute && (
-        <div className="shrink-0 px-6 mt-4">
-          <div className="bg-purple-50/60 rounded-2xl border border-purple-100 p-4 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Brain className="w-4.5 h-4.5 text-purple-600 animate-pulse" />
-                <h4 className="text-xs font-black text-purple-900 uppercase tracking-wider">Auditória Estratégica (IA)</h4>
-              </div>
-              {!aiAnalysis && (
-                <button
-                  onClick={handleAiAudit}
-                  disabled={isAiAnalyzing}
-                  className="bg-purple-600 hover:bg-slate-950 text-white text-xs font-black px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wider"
-                >
-                  {isAiAnalyzing ? <Loader2 className="w-3 h-3 animate-spin text-white" /> : <Sparkles className="w-3 h-3 text-lime-300" />}
-                  Auditar ROI
-                </button>
-              )}
-            </div>
-
-            {aiAnalysis ? (
-              <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 border border-purple-100/80 shadow-inner space-y-3">
-                <div className="flex justify-between items-center pb-2 border-b border-purple-50">
-                  <span className="text-xs font-black text-purple-800 uppercase tracking-wider">Score de Eficiência</span>
-                  <div className={`text-xs font-black px-2.5 py-0.5 rounded-full ${aiAnalysis.score > 80 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
-                    {aiAnalysis.score}/100
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-xs font-medium text-slate-600 leading-relaxed">
-                  <div>
-                    <p className="text-[8px] font-black text-purple-800 uppercase tracking-wider mb-0.5">Logística</p>
-                    <p className="italic">"{aiAnalysis.efficiency}"</p>
-                  </div>
-                  <div className="border-l border-purple-50 pl-2.5">
-                    <p className="text-[8px] font-black text-purple-800 uppercase tracking-wider mb-0.5">Conselho de ROI</p>
-                    <p className="text-emerald-700 font-bold">"{aiAnalysis.roi_advice}"</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setAiAnalysis(null)}
-                  className="w-full text-[8px] text-slate-400 hover:text-slate-600 text-center uppercase font-black tracking-widest pt-1"
-                >
-                  Limpar Relatório
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-purple-600/70 italic text-center font-bold">Analise esta rota para obter insights automáticos de combustível e impacto de faturação.</p>
+          <div className="flex shrink-0 items-center gap-1">
+            {onExitSelection && (
+              <button
+                type="button"
+                onClick={onExitSelection}
+                className="flex min-h-10 items-center gap-1 rounded-lg px-2 text-[10px] font-black uppercase tracking-wide text-red-600 hover:bg-red-50"
+                title="Terminar seleção"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            )}
+            {onClosePanel && (
+              <button
+                type="button"
+                onClick={onClosePanel}
+                className="flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                aria-label="Fechar painel"
+              >
+                <X className="h-4 w-4" />
+              </button>
             )}
           </div>
         </div>
-      )}
 
-      {/* CONTEÚDO SCROLLABLE: Apenas a Lista de Serviços (Design limpo, light, premium) */}
-      <div className="flex-1 min-h-0 relative mt-4">
-        <div className="absolute inset-0 overflow-y-auto pr-1">
-          <div className="px-6 pb-6 space-y-3">
-            {selectedForRoute.length === 0 ? (
-              <div className="h-48 flex flex-col items-center justify-center text-center p-6 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                <MapPin className="w-10 h-10 mb-3 text-slate-300" />
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-normal">Selecione serviços no mapa<br />para construir a sua rota.</p>
-              </div>
-            ) : (
-              <>
-                {/* Partida Card */}
-                <div className="bg-lime-50/50 border border-lime-100/80 rounded-2xl p-4 flex items-start gap-3.5 shadow-sm">
-                  <div className="w-9 h-9 bg-lime-500 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-lime-500/15">
-                    <ShieldCheck className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-lime-700 uppercase tracking-widest">Partida do Roteiro</p>
-                    <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">{HQ_LABEL}</p>
-                  </div>
-                </div>
+        <ol className="mt-3 flex gap-1" aria-label="Passos do roteiro">
+          {[
+            { n: 1, label: "Selecionar" },
+            { n: 2, label: "Otimizar" },
+            { n: 3, label: "Agendar" },
+          ].map(({ n, label }) => (
+            <li
+              key={n}
+              className={cn(
+                "flex-1 rounded-lg py-1.5 text-center text-[9px] font-black uppercase tracking-wide",
+                step === n
+                  ? "bg-[#84cc16]/20 text-[#3f6212]"
+                  : step > n
+                    ? "bg-slate-100 text-slate-500"
+                    : "bg-slate-50 text-slate-300"
+              )}
+            >
+              {label}
+            </li>
+          ))}
+        </ol>
 
-                {/* Timeline connector */}
-                <div className="flex flex-col gap-1 items-center justify-center py-1">
-                  <div className="w-0.5 h-3 bg-slate-200"></div>
-                </div>
-
-                <div className="space-y-3">
-                  {(optimizedRoute || selectedForRoute).map((item, idx) => {
-                    if (item.isReturn) {
-                      return (
-                        <div key="return-hq" className="bg-slate-100 border border-slate-200/80 rounded-2xl p-4 flex items-start gap-3.5 shadow-sm">
-                          <div className="w-9 h-9 bg-slate-600 rounded-xl flex items-center justify-center shrink-0 shadow-md">
-                            <MapPin className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Fim do Roteiro</p>
-                            <p className="text-sm text-slate-800 font-black tracking-tight mt-0.5">Regresso à Sede (HQ)</p>
-                            <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                              <span className="text-xs text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
-                                <Navigation className="w-3.5 h-3.5" /> +{item.distanceFromLast} km
-                              </span>
-                              <span className="text-xs text-slate-400 font-bold">
-                                ~{Math.round(item.distanceFromLast * 2)} min (trânsito real)
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={item.id}>
-                        <div className="group bg-white border border-slate-200/80 rounded-2xl p-4 hover:border-lime-400 hover:shadow-lg transition-all relative">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md uppercase tracking-widest border border-slate-200">
-                              Paragem #{idx + 1}
-                            </span>
-                            <button 
-                              onClick={() => toggleSelectionForRoute(item)} 
-                              className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                              title="Remover da Rota"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <h4 className="font-black text-slate-800 text-sm leading-snug uppercase tracking-tight italic group-hover:text-lime-600 transition-colors">{item.title}</h4>
-                          <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1.5 font-medium">
-                            <MapPin className="w-3.5 h-3.5 text-lime-500" /> {item.client}
-                          </p>
-                          
-                          {item.distanceFromLast && (
-                            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-xs text-lime-600 font-black flex items-center gap-1.5 uppercase tracking-wider">
-                                <Navigation className="w-3.5 h-3.5" /> +{item.distanceFromLast} km
-                              </span>
-                              <span className="text-xs text-slate-400 font-bold">
-                                ~{Math.round(item.distanceFromLast * 2)} min (trânsito real)
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Connector */}
-                        <div className="flex flex-col gap-1 items-center justify-center py-1">
-                          <div className="w-0.5 h-3 bg-slate-200"></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Simulated return if not optimized */}
-                {!optimizedRoute && (
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex items-start gap-3.5 opacity-60">
-                    <div className="w-9 h-9 bg-slate-400 rounded-xl flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Fim Estimado</p>
-                      <p className="text-sm text-slate-700 font-black tracking-tight mt-0.5">Regresso à Sede (HQ)</p>
-                      <p className="text-xs text-slate-400 mt-1 italic">Distância calculada após otimização IA</p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* RODAPÉ: Totais Financeiros e Botões de Agendamento (Design de luxo, light) */}
-      <div className="p-6 border-t border-slate-200 bg-white shrink-0 space-y-4 shadow-[0_-15px_40px_rgba(0,0,0,0.03)]">
-        {selectedForRoute.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between text-xs font-black text-lime-600 tracking-wider">
-              <span>Métricas de Trânsito Real</span>
-              <span className="bg-lime-100 px-1.5 py-0.5 rounded border border-lime-200 uppercase">Cálculo Google Maps</span>
+        {stopCount > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
+            <div>
+              <p className="text-[9px] font-bold uppercase text-slate-400">Paragens</p>
+              <p className="text-sm font-black text-slate-900">{stopCount}</p>
             </div>
-            
-            {unoptimizedTotalDistance && realRouteData && unoptimizedTotalDistance > realRouteData.distanceKm && (
-              <div className="space-y-1.5 bg-emerald-50/50 border border-emerald-100 rounded-2xl p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                    <span className="text-xs font-black text-emerald-800 uppercase tracking-wider">Redução Logística IA</span>
-                  </div>
-                  <div className="text-right font-black text-emerald-700 text-xs tracking-tighter">
-                    <span>-{Math.max(0, (unoptimizedTotalDistance - realRouteData.distanceKm)).toFixed(1)} km</span>
-                    <span className="mx-1.5 text-emerald-300">|</span>
-                    <span>-{Math.max(0, (unoptimizedTotalDistance - realRouteData.distanceKm) * (fuelConsumption/100) * fuelPrice).toFixed(2)}€</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center text-[8px] font-bold text-slate-400 border-t border-emerald-100/60 pt-1.5 mt-1.5 uppercase">
-                  <span>Custo Não Otimizado</span>
-                  <span className="line-through decoration-red-500/60 font-black">
-                    {((unoptimizedTotalDistance * (fuelConsumption / 100) * fuelPrice) + tollCost).toFixed(2)}€
-                  </span>
-                </div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs font-bold text-slate-500">
-              <div>
-                <span className="block text-[8px] text-slate-400 uppercase tracking-wider mb-0.5">Tempo de Viagem</span>
-                <span className="text-slate-800 font-black">{realRouteData ? Math.floor(realRouteData.durationMin / 60) + 'h ' + (realRouteData.durationMin % 60) + 'm' : '...'}</span>
-              </div>
-              <div className="border-l border-slate-200 pl-3">
-                <span className="block text-[8px] text-slate-400 uppercase tracking-wider mb-0.5">Intervenção Estimada</span>
-                <span className="text-slate-800 font-black">{Math.floor((selectedForRoute.length * 90) / 60)}h { (selectedForRoute.length * 90) % 60 }m</span>
-              </div>
+            <div className="border-x border-slate-200">
+              <p className="text-[9px] font-bold uppercase text-slate-400">Distância</p>
+              <p className="text-sm font-black text-slate-900">{distanceLabel}</p>
             </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-              <div className="flex justify-between text-xs font-bold text-slate-600">
-                <span>Combustível ({realRouteData ? realRouteData.distanceKm.toFixed(1) : '0'} km)</span>
-                <span className="font-black text-slate-800">
-                  {realRouteData ? ((realRouteData.distanceKm * (fuelConsumption / 100) * fuelPrice)).toFixed(2) : "0.00"}€
-                </span>
-              </div>
-              <div className="flex justify-between text-xs font-bold text-slate-600">
-                <span>Portagens Associadas</span>
-                <span className="font-black text-slate-800">{tollCost.toFixed(2)}€</span>
-              </div>
-              <div className="flex justify-between text-sm font-black text-lime-700 border-t border-slate-200 pt-2.5 mt-1.5 uppercase">
-                <span>Despesa Operacional</span>
-                <span className="text-lg tracking-tight">
-                  {realRouteData ? ((realRouteData.distanceKm * (fuelConsumption / 100) * fuelPrice) + tollCost).toFixed(2) : "0.00"}€
-                </span>
-              </div>
-            </div>
-            
-            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-              <div 
-                className={`h-full transition-all duration-500 ${selectedForRoute.length > 5 ? 'bg-amber-500' : 'bg-lime-500'}`}
-                style={{ width: `${Math.min(100, (selectedForRoute.length * 90 + (optimizedRoute ? optimizedRoute.reduce((acc, curr) => acc + (parseFloat(curr.distanceFromLast) || 0) * 2, 0) : 0)) / 4.8)}%` }}
-              ></div>
+            <div>
+              <p className="text-[9px] font-bold uppercase text-slate-400">Viagem</p>
+              <p className="text-sm font-black text-slate-900">{travelLabel}</p>
             </div>
           </div>
         )}
 
-        {/* Buttons Section */}
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+          <p className="mb-2 text-[9px] font-black uppercase tracking-wide text-slate-500">
+            Parâmetros de combustível
+          </p>
+          <RouteFuelInputs
+            fuelPrice={fuelPrice}
+            setFuelPrice={setFuelPrice}
+            fuelConsumption={fuelConsumption}
+            setFuelConsumption={setFuelConsumption}
+            tollCost={tollCost}
+            setTollCost={setTollCost}
+            realRouteData={realRouteData}
+          />
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className="flex shrink-0 gap-1 border-b border-slate-200 bg-white px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setTab("paragens")}
+          className={cn(
+            "flex flex-1 min-h-10 items-center justify-center gap-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide",
+            tab === "paragens" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+          )}
+        >
+          <ListOrdered className="h-3.5 w-3.5" />
+          Paragens
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("custos")}
+          disabled={stopCount === 0}
+          className={cn(
+            "flex flex-1 min-h-10 items-center justify-center gap-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide disabled:opacity-40",
+            tab === "custos" ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+          )}
+        >
+          <Euro className="h-3.5 w-3.5" />
+          Custos
+        </button>
+      </div>
+
+      {/* Conteúdo */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+        {tab === "paragens" && (
+          <div className="space-y-2">
+            {stopCount === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+                <MapPin className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                <p className="text-xs font-bold text-slate-600">
+                  Toque nos pins do mapa para adicionar visitas ao roteiro.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {listItems.map((row) => {
+                  if (row.kind === "hq-start") {
+                    return (
+                      <li
+                        key={row.key}
+                        className="flex items-center gap-3 rounded-xl border border-lime-200/80 bg-lime-50/80 px-3 py-2.5"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-lime-500 text-[10px] font-black text-white">
+                          HQ
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase text-lime-700">Partida</p>
+                          <p className="truncate text-xs font-bold text-slate-800">{HQ_LABEL}</p>
+                        </div>
+                      </li>
+                    );
+                  }
+                  if (row.kind === "hq-end") {
+                    const km =
+                      row.stop && "distanceFromLast" in row.stop
+                        ? row.stop.distanceFromLast
+                        : undefined;
+                    return (
+                      <li
+                        key={row.key}
+                        className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-600 text-[10px] font-black text-white">
+                          ↩
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-black uppercase text-slate-500">
+                            {optimizedRoute ? "Regresso sede" : "Regresso (após otimizar)"}
+                          </p>
+                          <p className="text-xs font-bold text-slate-700">Sede</p>
+                          {km != null && (
+                            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                              +{km} km · ~{Math.round(Number(km) * 2)} min
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  }
+                  const item = row.stop!;
+                  const km = "distanceFromLast" in item ? item.distanceFromLast : undefined;
+                  return (
+                    <li
+                      key={row.key}
+                      className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                    >
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-black text-[#84cc16]">
+                        {row.index}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-xs font-black uppercase leading-snug text-slate-900">
+                          {item.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{item.client}</p>
+                        {km && (
+                          <p className="mt-1 text-[10px] font-semibold text-lime-700">
+                            +{km} km · ~{Math.round(parseFloat(String(km)) * 2)} min
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleSelectionForRoute(item)}
+                        className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label="Remover paragem"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {tab === "custos" && stopCount > 0 && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-semibold text-slate-500">
+              Os valores de combustível e portagens estão no topo do painel — ajuste lá e veja o resumo abaixo.
+            </p>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2 text-xs">
+              <div className="flex justify-between font-semibold text-slate-600">
+                <span>Combustível</span>
+                <span className="font-black text-slate-900">{fuelCost.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between font-semibold text-slate-600">
+                <span>Portagens</span>
+                <span className="font-black text-slate-900">{tollCost.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-100 pt-2 text-sm font-black uppercase text-lime-800">
+                <span>Total operacional</span>
+                <span>{totalCost.toFixed(2)} €</span>
+              </div>
+            </div>
+
+            {unoptimizedTotalDistance && realRouteData && unoptimizedTotalDistance > realRouteData.distanceKm && (
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-800">
+                Poupança estimada:{" "}
+                {(unoptimizedTotalDistance - realRouteData.distanceKm).toFixed(1)} km (
+                {(
+                  (unoptimizedTotalDistance - realRouteData.distanceKm) *
+                  (fuelConsumption / 100) *
+                  fuelPrice
+                ).toFixed(2)}{" "}
+                €)
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 text-center text-[11px]">
+              <div className="rounded-lg border border-slate-200 bg-white p-2">
+                <p className="font-bold uppercase text-slate-400">Tempo viagem</p>
+                <p className="font-black text-slate-900">{travelLabel}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-2">
+                <p className="font-bold uppercase text-slate-400">Em campo (~90m/visita)</p>
+                <p className="font-black text-slate-900">
+                  {formatDurationMinutes(stopCount * 90)}
+                </p>
+              </div>
+            </div>
+
+            {optimizedRoute && (
+              <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-purple-900">
+                    <Brain className="h-3.5 w-3.5" />
+                    Auditoria IA
+                  </div>
+                  {!aiAnalysis && (
+                    <button
+                      type="button"
+                      onClick={handleAiAudit}
+                      disabled={isAiAnalyzing}
+                      className="rounded-lg bg-purple-600 px-2 py-1 text-[9px] font-black uppercase text-white"
+                    >
+                      {isAiAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Analisar"}
+                    </button>
+                  )}
+                </div>
+                {aiAnalysis &&
+                typeof aiAnalysis === "object" &&
+                aiAnalysis !== null &&
+                "score" in aiAnalysis ? (
+                  <div className="mt-2 space-y-2 text-[11px] text-slate-600">
+                    <p className="font-black text-purple-800">
+                      Score {(aiAnalysis as { score: number }).score}/100
+                    </p>
+                    <p className="italic">
+                      {(aiAnalysis as { efficiency?: string }).efficiency ?? "—"}
+                    </p>
+                    <p className="font-semibold text-emerald-700">
+                      {(aiAnalysis as { roi_advice?: string }).roi_advice ?? "—"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAiAnalysis(null)}
+                      className="text-[9px] font-black uppercase text-slate-400 hover:text-slate-600"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-purple-700/80">Opcional: ROI e eficiência da rota.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Ações fixas */}
+      <footer className="shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
         {!optimizedRoute ? (
           <button
-            disabled={selectedForRoute.length < 1 || isOptimizing}
-            onClick={calculateOptimizedRoute}
-            className="w-full bg-lime-500 text-slate-950 font-black py-4 rounded-xl shadow-xl shadow-lime-500/10 hover:bg-slate-950 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-wider"
+            type="button"
+            disabled={stopCount < 1 || isOptimizing}
+            onClick={() => {
+              calculateOptimizedRoute();
+              setTab("custos");
+            }}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#84cc16] text-xs font-black uppercase tracking-wide text-[#090d16] disabled:opacity-40"
           >
-            {isOptimizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4.5 h-4.5" />}
-            {selectedForRoute.length === 1 ? 'Calcular Despesas' : 'Otimizar Ordem de Paragens'}
+            {isOptimizing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Navigation className="h-4 w-4" />
+            )}
+            {stopCount <= 1 ? "Calcular rota" : "Otimizar paragens"}
           </button>
         ) : (
           <div className="flex gap-2">
             <button
-              onClick={() => setOptimizedRoute(null)}
-              className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-xl hover:bg-slate-200 transition-all uppercase text-xs tracking-wider border border-slate-200"
+              type="button"
+              onClick={() => {
+                setOptimizedRoute(null);
+                setTab("paragens");
+              }}
+              className="min-h-12 flex-1 rounded-xl border border-slate-200 text-xs font-black uppercase text-slate-600"
             >
-              Voltar
+              Reordenar
             </button>
             <button
-              onClick={() => {
-                if (selectedForRoute.length > 0) {
-                  setShowMassScheduleModal(true);
-                }
-              }}
-              className="flex-[2] bg-lime-500 text-slate-950 font-black py-4 rounded-xl shadow-xl shadow-lime-500/10 hover:bg-slate-950 hover:text-white transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-wider"
+              type="button"
+              onClick={() => setShowMassScheduleModal(true)}
+              className="flex min-h-12 flex-[2] items-center justify-center gap-1.5 rounded-xl bg-[#84cc16] text-xs font-black uppercase text-[#090d16]"
             >
-              <ShieldCheck className="w-4.5 h-4.5" />
-              Agendar Roteiro
+              <ShieldCheck className="h-4 w-4" />
+              Agendar
             </button>
           </div>
         )}
-      </div>
-    </div>
+
+        {onClosePanel && (
+          <button
+            type="button"
+            onClick={onClosePanel}
+            className="min-h-10 w-full text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-800"
+          >
+            Voltar ao mapa
+          </button>
+        )}
+      </footer>
+    </aside>
   );
 }

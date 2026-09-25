@@ -66,36 +66,49 @@ export default function OpportunityDrawer({
     loadNotes();
   }, [selectedOpportunity]);
 
+  if (!selectedOpportunity) return null;
+
   return (
-    <div 
-      ref={trapRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="opportunity-drawer-title"
-      className={`absolute bottom-0 left-0 w-full bg-white rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.15)] transition-transform duration-300 ease-out z-20 flex flex-col ${selectedOpportunity ? 'translate-y-0' : 'translate-y-full'}`} 
-      style={{ maxHeight: '85vh' }}
-    >
-      {selectedOpportunity && (
-        <div className="p-6 md:p-8 overflow-y-auto pb-32">
-          <div className="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-8 cursor-pointer hover:bg-slate-300 transition-colors" onClick={() => setSelectedOpportunity(null)} />
-          
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <h2 id="opportunity-drawer-title" className="text-2xl font-bold text-slate-800 leading-tight">{selectedOpportunity.title}</h2>
-                    <div className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 text-xs font-black text-slate-500 uppercase tracking-tighter">NSI #{selectedOpportunity.nsi}</div>
-                </div>
-                <button 
-                  type="button"
-                  aria-label="Fechar detalhes"
-                  onClick={() => setSelectedOpportunity(null)}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-sm"
+        aria-hidden
+        onClick={() => setSelectedOpportunity(null)}
+      />
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="opportunity-drawer-title"
+        className="fixed bottom-0 left-0 z-50 flex w-full max-h-[min(88dvh,720px)] flex-col rounded-t-3xl border border-border bg-card text-card-foreground shadow-2xl lg:bottom-6 lg:left-auto lg:right-6 lg:max-w-md lg:rounded-3xl"
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-8 custom-scrollbar md:p-5">
+          <button
+            type="button"
+            className="mx-auto mb-4 flex h-1.5 w-12 shrink-0 rounded-full bg-muted hover:bg-muted-foreground/30"
+            onClick={() => setSelectedOpportunity(null)}
+            aria-label="Fechar painel"
+          />
+
+          <div className="mb-3 flex w-full items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="opportunity-drawer-title"
+                  className="text-base font-bold leading-snug text-foreground md:text-lg"
                 >
-                  <X className="w-6 h-6" />
-                </button>
+                  {selectedOpportunity.title}
+                </h2>
+                <div className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                  NSI #{selectedOpportunity.nsi}
+                </div>
+                {selectedOpportunity.createdOnSite && (
+                  <div className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1 text-xs font-black uppercase tracking-tighter text-lime-800">
+                    Criado no local
+                  </div>
+                )}
               </div>
-              
+
               {selectedOpportunity.serviceType && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(() => {
@@ -120,36 +133,60 @@ export default function OpportunityDrawer({
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
-              {(() => {
-                const isCompleted = ["PREPARACAO", "CONCLUIDO"].includes((selectedOpportunity.stage || "").toUpperCase()) || 
-                                    ["CONCLUIDO", "DONE"].includes((selectedOpportunity.taskStatus || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-                return selectedOpportunity.hasScheduledTask && !isCompleted && (
-                  <button
-                    onClick={() => handleCancelAppointment(selectedOpportunity)}
-                    className="bg-red-50 text-red-600 px-5 py-2.5 rounded-xl font-bold border border-red-100 hover:bg-red-100 transition-all flex items-center gap-2 shadow-sm"
-                  >
-                    <Trash2 className="w-5 h-5" /> Cancelar
-                  </button>
-                );
-              })()}
+
+            <div className="flex shrink-0 items-center gap-2">
               {(() => {
                 const canSchedule = isNeedsSchedulingStage(selectedOpportunity.stage);
-                return canSchedule && !selectedOpportunity.hasScheduledTask && (
-                  <button
-                    onClick={() => openScheduleModal(selectedOpportunity)}
-                    className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2"
-                  >
-                    <CalendarIcon className="w-5 h-5" /> Agendar Visita
-                  </button>
+                return (
+                  canSchedule &&
+                  !selectedOpportunity.hasScheduledTask && (
+                    <button
+                      type="button"
+                      onClick={() => openScheduleModal(selectedOpportunity)}
+                      aria-label="Agendar visita"
+                      title="Agendar visita"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200/80 transition-colors hover:border-blue-700 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 active:scale-95"
+                    >
+                      <CalendarIcon className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden />
+                    </button>
+                  )
                 );
               })()}
+              {(() => {
+                const isCompleted =
+                  ["PREPARACAO", "CONCLUIDO"].includes((selectedOpportunity.stage || "").toUpperCase()) ||
+                  ["CONCLUIDO", "DONE"].includes(
+                    (selectedOpportunity.taskStatus || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                  );
+                return (
+                  selectedOpportunity.hasScheduledTask &&
+                  !isCompleted && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelAppointment(selectedOpportunity)}
+                      aria-label="Cancelar agendamento"
+                      title="Cancelar agendamento"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-600 shadow-sm transition-colors hover:border-red-200 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 active:scale-95"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" strokeWidth={2.25} aria-hidden />
+                    </button>
+                  )
+                );
+              })()}
+              <button
+                type="button"
+                aria-label="Fechar detalhes"
+                onClick={() => setSelectedOpportunity(null)}
+                className="-mr-1 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2"
+              >
+                <X className="h-6 w-6" strokeWidth={2} aria-hidden />
+              </button>
             </div>
           </div>
           
-          <div className="space-y-3 mb-8">
-            <p className="text-slate-600 flex items-center gap-3 text-base">
-              <span className="font-medium">Cliente:</span> {selectedOpportunity.client}
+          <div className="mb-6 space-y-3 text-sm">
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <span className="font-semibold text-foreground">Cliente:</span> {selectedOpportunity.client}
             </p>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
               <p className="text-slate-600 flex items-start gap-3 text-base flex-1">
@@ -390,16 +427,8 @@ export default function OpportunityDrawer({
 
           <div className="h-px bg-slate-100 w-full mb-8"></div>
 
-          <div className="flex flex-col gap-3 mb-8">
-            <button
-              onClick={() => setSelectedOpportunity(null)}
-              className="w-full py-4 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-colors border border-slate-200"
-            >
-              Fechar Painel
-            </button>
-          </div>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

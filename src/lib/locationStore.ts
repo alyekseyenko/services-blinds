@@ -1,6 +1,7 @@
 import fs from 'fs';
-import path from 'path';
 import { logger } from './logger';
+import { readJsonFile, writeJsonFileAtomic } from '@/lib/server/atomicJsonFile';
+import { resolveAppDataFile } from '@/lib/server/scratchPath';
 
 export interface TechnicianLocation {
   technicianId: string;
@@ -11,22 +12,12 @@ export interface TechnicianLocation {
   accuracy?: number;     // precisão GPS em metros
 }
 
-const CACHE_FILE = path.join(process.cwd(), 'src/scratch/locations_cache.json');
+const CACHE_FILE = resolveAppDataFile('locations_cache.json');
+const LOCATION_REDIS_PREFIX = 'tech:location:';
 
 // In-memory local cache for 0ms ultra-fast reads
 const memoryStore = new Map<string, TechnicianLocation>();
 let isLoadedFromFile = false;
-
-function ensureCacheDir() {
-  try {
-    const dir = path.dirname(CACHE_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  } catch {
-    // Non-blocking
-  }
-}
 
 function loadInitialState() {
   if (isLoadedFromFile) return;
@@ -55,11 +46,33 @@ function loadInitialState() {
 
 function persistToFile() {
   try {
-    ensureCacheDir();
     const data = Array.from(memoryStore.values());
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
+    writeJsonFileAtomic(CACHE_FILE, data);
   } catch {
     // Non-blocking fallback
+  }
+}
+
+async function syncLocationToRedis(location: TechnicianLocation): Promise<void> {
+  if (!process.env.REDIS_URL) return;
+  try {
+    const { default: RedisCtor } = await import('ioredis');
+    const client = new RedisCtor(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+      connectTimeout: 2000,
+    });
+    await client.connect();
+    await client.setex(
+      `${LOCATION_REDIS_PREFIX}${location.technicianId}`,
+      3600,
+      JSON.stringify(location)
+    );
+    client.disconnect();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn('[LocationStore:Redis] Redis sync skipped, using local fallback', { error: message });
   }
 }
 
@@ -75,16 +88,7 @@ export const locationStore = {
     loadInitialState();
     memoryStore.set(location.technicianId, location);
     persistToFile();
-
-    // Se REDIS_URL estiver presente, envia para Redis de forma assíncrona (não bloqueante)
-    if (process.env.REDIS_URL) {
-      try {
-        // Suporte a Redis se configurado no ambiente
-        logger.debug(`[LocationStore:Redis] Synced location for ${location.technicianId}`);
-      } catch (err: any) {
-        logger.warn('[LocationStore:Redis] Redis sync skipped, using local fallback', { error: err.message });
-      }
-    }
+    void syncLocationToRedis(location);
   },
 
   /**
@@ -103,6 +107,10 @@ export const locationStore = {
         memoryStore.delete(id);
       }
     });
+
+    if (memoryStore.size !== active.length) {
+      persistToFile();
+    }
 
     return active;
   },

@@ -1,5 +1,5 @@
 import { isNeedsSchedulingStage } from "@/lib/crm/contract";
-import { euclideanKm, normalizeLocationKey } from "@/lib/admin/geo";
+import { citiesMatch, euclideanKm, resolveCityKeyFromOpportunity } from "@/lib/admin/geo";
 import type { Opportunity, RouteStop } from "@/types/admin";
 
 export interface OptimizedRouteStop extends RouteStop {
@@ -107,12 +107,10 @@ export function selectRouteStopsForZone(
   hqCoordinates: [number, number],
   maxStops = 5
 ): RouteStop[] {
-  const normalizedZone = normalizeLocationKey(zoneName);
-
   const zoneOpps = opportunities.filter((opp) => {
-    const oppCity = normalizeLocationKey(opp.addressCity || "Outros");
+    const { display } = resolveCityKeyFromOpportunity(opp);
     return (
-      oppCity === normalizedZone &&
+      citiesMatch(display, zoneName) &&
       isNeedsSchedulingStage(opp.stage) &&
       !opp.hasScheduledTask &&
       opp.coordinates

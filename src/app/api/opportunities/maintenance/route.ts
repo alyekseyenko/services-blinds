@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppSession, isAdminRole } from '@/lib/auth/session';
+import { isAdminRole } from '@/lib/auth/session';
+import { getAppSession } from '@/lib/auth/session.server';
 import { runOpportunityMaintenance } from '@/lib/crm/opportunityMaintenance';
+import { runMaintenanceThrottled } from '@/lib/server/maintenanceThrottle';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +14,18 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const forceRegeocode = searchParams.get('regeocode');
 
-    const result = await runOpportunityMaintenance(forceRegeocode);
+    const throttled = await runMaintenanceThrottled(() =>
+      runOpportunityMaintenance(forceRegeocode)
+    );
+    if (throttled.skipped) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: throttled.reason,
+      });
+    }
+
+    const result = throttled.data;
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro desconhecido';

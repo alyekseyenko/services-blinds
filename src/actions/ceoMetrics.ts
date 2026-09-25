@@ -3,7 +3,8 @@
 import { ActionResponse } from "@/lib/types/action-response";
 import { CeoMetrics } from "@/lib/schemas/ceoMetrics";
 import { fetchCeoMetricsFromCRM } from "@/lib/crm/ceoMetrics";
-import { canAccessCeoPanel, getAppSession } from "@/lib/auth/session";
+import { canAccessCeoPanel } from "@/lib/auth/session";
+import { getAppSession } from "@/lib/auth/session.server";
 
 export async function getCeoMetricsAction(year?: number | null): Promise<ActionResponse<CeoMetrics>> {
   try {

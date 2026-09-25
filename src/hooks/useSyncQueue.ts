@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, SyncQueueItem } from '@/lib/db';
-import { updateTaskStatus, saveMeasurements } from '@/lib/crm';
+import { syncUpdateTaskStatusAction } from '@/actions/tasks-actions';
+import { submitMeasurementsAction } from '@/actions/measurements-actions';
 import { createOpportunityNoteAction } from '@/actions/notes-actions';
+import { createVisitServiceAction } from '@/actions/visit-services-actions';
 import type { SyncFailedItem } from '@/lib/schemas/syncTelemetry';
 
 const MAX_SYNC_RETRIES = 5;
@@ -63,6 +65,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     try {
       await fetch('/api/sync-telemetry', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           technicianId,
@@ -98,6 +101,9 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
 
   const processQueue = useCallback(async () => {
     if (syncingRef.current || typeof window === 'undefined' || !navigator.onLine) return;
+
+    const run = async () => {
+    if (syncingRef.current) return;
     syncingRef.current = true;
     setSyncing(true);
 
@@ -118,14 +124,17 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
 
         try {
           if (item.action === 'UPDATE_STATUS') {
-            await updateTaskStatus(
+            const statusResult = await syncUpdateTaskStatusAction(
               item.payload.taskId,
               item.payload.status,
               item.payload.reason,
               item.payload.photos || []
             );
+            if (!statusResult.success) {
+              throw new Error(statusResult.error || 'Falha ao sincronizar o estado da visita.');
+            }
           } else if (item.action === 'SAVE_MEASUREMENTS') {
-            const result = await saveMeasurements(
+            const result = await submitMeasurementsAction(
               item.payload.taskId,
               item.payload.opportunityId,
               item.payload.data
@@ -138,10 +147,16 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
               item.payload.opportunityId,
               item.payload.personId || null,
               item.payload.title,
-              item.payload.body
+              item.payload.body,
+              item.payload.taskId
             );
             if (!noteResult.success) {
               throw new Error(noteResult.error || 'Falha ao sincronizar nota.');
+            }
+          } else if (item.action === 'CREATE_VISIT_SERVICE') {
+            const visitResult = await createVisitServiceAction(item.payload);
+            if (!visitResult.success) {
+              throw new Error(visitResult.error || 'Failed to sync on-site service.');
             }
           }
 
@@ -175,6 +190,17 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         setLastSyncSuccess(Date.now());
       }
       await refreshCounts();
+    }
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+      try {
+        await navigator.locks.request('fieldops-sync-queue', { mode: 'exclusive' }, run);
+      } catch {
+        await run();
+      }
+    } else {
+      await run();
     }
   }, [refreshCounts]);
 
@@ -240,7 +266,10 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
   ) => {
     if (navigator.onLine) {
       try {
-        await updateTaskStatus(taskId, status, reason, photos);
+        const direct = await syncUpdateTaskStatusAction(taskId, status, reason, photos);
+        if (!direct.success) {
+          throw new Error(direct.error || 'Falha ao atualizar o estado da visita.');
+        }
         await refreshCounts();
         return { success: true, queued: false };
       } catch (error) {
@@ -280,7 +309,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
   ) => {
     if (navigator.onLine) {
       try {
-        const result = await saveMeasurements(taskId, opportunityId, data);
+        const result = await submitMeasurementsAction(taskId, opportunityId, data);
         if (!result.success) {
           throw new Error(result.error || 'Falha ao guardar medições.');
         }
@@ -316,15 +345,69 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     return { success: true, queued: true };
   }, [refreshCounts]);
 
+  const enqueueVisitService = useCallback(async (payload: Record<string, unknown>) => {
+    const clientRequestId = String(payload.clientRequestId || '');
+    if (navigator.onLine) {
+      try {
+        const result = await createVisitServiceAction(payload);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create on-site service.');
+        }
+        await refreshCounts();
+        return { success: true, queued: false, opportunityId: result.data?.opportunityId };
+      } catch (error) {
+        console.warn('[SyncQueue] On-site service failed online, queueing offline...', error);
+      }
+    }
+
+    const taskId = String(payload.taskId || '');
+    const item: SyncQueueItem = {
+      taskId,
+      action: 'CREATE_VISIT_SERVICE',
+      payload,
+      timestamp: Date.now(),
+      status: 'pending',
+      retries: 0,
+    };
+
+    const existing = await db.syncQueue
+      .where('taskId')
+      .equals(taskId)
+      .filter(
+        (i) =>
+          i.action === 'CREATE_VISIT_SERVICE' &&
+          i.status === 'pending' &&
+          i.payload?.clientRequestId === clientRequestId
+      )
+      .first();
+
+    if (existing?.id) {
+      item.id = existing.id;
+      await db.syncQueue.put(item);
+    } else {
+      await db.syncQueue.add(item);
+    }
+
+    await refreshCounts();
+    return { success: true, queued: true };
+  }, [refreshCounts]);
+
   const enqueueNote = useCallback(async (
     opportunityId: string,
     personId: string | null,
     title: string,
-    body: string
+    body: string,
+    taskId?: string
   ) => {
     if (navigator.onLine) {
       try {
-        const result = await createOpportunityNoteAction(opportunityId, personId, title, body);
+        const result = await createOpportunityNoteAction(
+          opportunityId,
+          personId,
+          title,
+          body,
+          taskId
+        );
         if (!result.success) {
           throw new Error(result.error || 'Falha ao criar nota.');
         }
@@ -336,9 +419,9 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     }
 
     const item: SyncQueueItem = {
-      taskId: opportunityId,
+      taskId: taskId || opportunityId,
       action: 'ADD_NOTE',
-      payload: { opportunityId, personId, title, body },
+      payload: { opportunityId, personId, title, body, taskId },
       timestamp: Date.now(),
       status: 'pending',
       retries: 0,
@@ -358,6 +441,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     enqueueStatusUpdate,
     enqueueMeasurementsSave,
     enqueueNote,
+    enqueueVisitService,
     processQueue,
     retryFailed,
   };

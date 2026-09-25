@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 import { crmFetch } from './client';
 
 export interface AppNote {

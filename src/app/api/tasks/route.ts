@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTechnicianTasks, updateTaskStatus, getTaskAssigneeId } from '@/lib/crm';
-import { getAppSession, isAdminRole } from '@/lib/auth/session';
+import { fetchTechnicianTasks, updateTaskStatus, getTaskAssigneeId } from '@/lib/crm/tasks';
+import { isAdminRole } from '@/lib/auth/session';
+import { getAppSession } from '@/lib/auth/session.server';
 
 export async function GET(request: NextRequest) {
   try {

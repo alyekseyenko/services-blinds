@@ -1,90 +1,219 @@
 import { isNeedsSchedulingStage } from "@/lib/crm/contract";
-import { euclideanKm } from "@/lib/admin/geo";
-import type { Opportunity, ZoneInsight } from "@/types/admin";
+import { matchesServiceTypeFilters } from "@/lib/admin/mapFilterConfig";
+
+import { euclideanKm, resolveCityKeyFromOpportunity } from "@/lib/admin/geo";
+
+import type { MapCategoryFilter, Opportunity, ZoneInsight } from "@/types/admin";
+
+
 
 interface ZoneGroup {
+
   name: string;
+
+  key: string;
+
   count: number;
+
   coords: [number, number] | null;
+
   services: Opportunity[];
+
 }
 
-function titleCaseCity(raw: string): string {
-  return raw
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
+
+
+export interface ZoneInsightsOptions {
+
+  fuelConsumption?: number;
+
+  fuelPrice?: number;
+
+  serviceTypeFilters?: readonly MapCategoryFilter[];
+
 }
 
-function resolveCityKey(opp: Opportunity): { key: string; display: string } {
-  let rawLocation = opp.addressCity || "";
-  if (!rawLocation && opp.address) {
-    const parts = opp.address.split(",");
-    if (parts.length > 1) {
-      rawLocation = parts[parts.length - 2]?.trim() || parts[1]?.trim() || "";
-    }
+
+
+function matchesCategoryFilter(
+  opp: Opportunity,
+  serviceTypeFilters: readonly MapCategoryFilter[]
+): boolean {
+  return matchesServiceTypeFilters(opp, serviceTypeFilters);
+}
+
+
+
+function priorityToImpact(priority: ZoneInsight["priority"]): ZoneInsight["impact"] {
+
+  switch (priority) {
+
+    case "Critical":
+
+      return "Critical";
+
+    case "High":
+
+      return "High";
+
+    case "Medium":
+
+      return "Medium";
+
+    default:
+
+      return "Low";
+
   }
 
-  const trimmed = rawLocation.trim() || "Outras Zonas";
-  const key = trimmed
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  return { key, display: titleCaseCity(trimmed) };
 }
+
+
+
+export function countUnscheduledWithoutGps(opportunities: Opportunity[]): number {
+
+  return opportunities.filter(
+
+    (opp) =>
+
+      isNeedsSchedulingStage(opp.stage) &&
+
+      !opp.hasScheduledTask &&
+
+      !opp.coordinates
+
+  ).length;
+
+}
+
+
 
 export function computeZoneInsights(
+
   opportunities: Opportunity[],
+
   hqCoordinates: [number, number],
-  fuelConsumption = 7.0,
-  fuelPrice = 1.9
+
+  options: ZoneInsightsOptions = {}
+
 ): ZoneInsight[] {
+
+  const {
+
+    fuelConsumption = 7.0,
+
+    fuelPrice = 1.9,
+
+    serviceTypeFilters = [],
+
+  } = options;
+
+
+
   if (opportunities.length === 0) return [];
 
+
+
   const unscheduled = opportunities.filter(
-    (o) => isNeedsSchedulingStage(o.stage) && !o.hasScheduledTask
+
+    (opp) =>
+
+      isNeedsSchedulingStage(opp.stage) &&
+
+      !opp.hasScheduledTask &&
+
+      matchesCategoryFilter(opp, serviceTypeFilters)
+
   );
 
+
+
   const groups = unscheduled.reduce<Record<string, ZoneGroup>>((acc, opp) => {
-    const { key, display } = resolveCityKey(opp);
+
+    const { key, display } = resolveCityKeyFromOpportunity(opp);
+
+
 
     if (!acc[key]) {
-      acc[key] = { name: display, count: 0, coords: opp.coordinates || null, services: [] };
+
+      acc[key] = { name: display, key, count: 0, coords: opp.coordinates || null, services: [] };
+
     }
+
     acc[key].count++;
+
     acc[key].services.push(opp);
+
     if (opp.coordinates && (!acc[key].coords || acc[key].count === 1)) {
+
       acc[key].coords = opp.coordinates;
+
     }
+
     return acc;
+
   }, {});
 
+
+
   return Object.values(groups)
+
     .map((group) => {
+
       if (!group.coords) return null;
 
+
+
       const dist = euclideanKm(group.coords, hqCoordinates);
-      const fuelCost = (dist * 2 / 100) * fuelConsumption * fuelPrice;
+
+      const fuelCost = ((dist * 2) / 100) * fuelConsumption * fuelPrice;
+
       const tollEst = dist > 50 ? 15 : 0;
+
       const totalLogistics = fuelCost + tollEst;
+
       const score = group.count * 40 - dist / 1.5;
 
-      let priority = "Baixa";
-      if (score > 120 || group.count >= 5) priority = "Crítica";
-      else if (score > 70) priority = "Alta";
-      else if (score > 30) priority = "Média";
+
+
+      let priority: ZoneInsight["priority"] = "Low";
+
+      if (score > 120 || group.count >= 5) priority = "Critical";
+
+      else if (score > 70) priority = "High";
+
+      else if (score > 30) priority = "Medium";
+
+
 
       return {
+
         name: group.name,
+
+        key: group.key,
+
         count: group.count,
+
         distance: Math.round(dist),
+
         logisticsCost: Math.round(totalLogistics),
+
         priority,
+
+        impact: priorityToImpact(priority),
+
         score,
+
       };
+
     })
-    .filter((i): i is ZoneInsight => i !== null && i.count >= 1)
+
+    .filter((insight): insight is ZoneInsight => insight !== null && insight.count >= 1)
+
     .sort((a, b) => b.score - a.score)
+
     .slice(0, 6);
+
 }
+
+

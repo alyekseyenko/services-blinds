@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -17,24 +17,35 @@ import {
 } from "@/actions/admin-actions";
 import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
 import {
+  buildMapTechnicianOptions,
   extractTechnicianNames,
   filterCalendarOpportunities,
   filterMapOpportunities,
 } from "@/lib/admin/opportunityFilters";
-import { computeZoneInsights } from "@/lib/admin/zoneInsights";
+import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
+import { computeZoneInsights, countUnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
+import { computeRouteSlots, findScheduleConflicts } from "@/lib/admin/routeScheduleSlots";
 import {
   calculateOptimizedRoute as buildOptimizedRoute,
   selectRouteStopsForZone,
   type OptimizedRouteStop,
 } from "@/lib/admin/routeOptimization";
 import type { View } from "@/lib/admin/calendarLocalizer";
-import { Opportunity, WorkspaceMember, RouteStop, RouteData, ZoneInsight, MapCategoryFilter } from "@/types/admin";
+import {
+  Opportunity,
+  WorkspaceMember,
+  RouteStop,
+  RouteData,
+  ZoneInsight,
+  MapCategoryFilter,
+  MapStallFilter,
+} from "@/types/admin";
 import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
 import { MapSkeleton } from "@/components/ui/Skeleton";
 import AdminHeader from "@/components/admin/AdminHeader";
-import AdminControlCenter from "@/components/admin/AdminControlCenter";
+import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
 import AdminMapView from "@/components/admin/views/AdminMapView";
 import AdminCalendarView from "@/components/admin/views/AdminCalendarView";
 import AdminHistoryView from "@/components/admin/views/AdminHistoryView";
@@ -93,21 +104,35 @@ export default function Admin() {
   const [savingRatio, setSavingRatio] = useState(1);
   const [zoneInsights, setZoneInsights] = useState<ZoneInsight[]>([]);
   const [cityFilter, setCityFilter] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<MapCategoryFilter>("all");
+  const [serviceTypeFilters, setServiceTypeFilters] = useState<MapCategoryFilter[]>([]);
+  const [mapTechnicianFilter, setMapTechnicianFilter] = useState<string | null>(null);
+  const [historyOutcomes, setHistoryOutcomes] = useState<MapHistoryOutcome[]>([]);
+  const [stallFilter, setStallFilter] = useState<MapStallFilter>("all");
+
+  const historyMapFetchEnabled = historyOutcomes.length > 0;
+  const { data: mapHistoryPage } = useSync<{ items: Opportunity[] }>(
+    historyMapFetchEnabled ? "/api/opportunities/history?page=1&pageSize=250" : null
+  );
+  const mapHistoryItems = useMemo(
+    () => normalizeOpportunityList(mapHistoryPage?.items ?? []),
+    [mapHistoryPage]
+  );
   const [showMassScheduleModal, setShowMassScheduleModal] = useState(false);
   
   const [massScheduleForm, setMassScheduleForm] = useState({
     date: "",
-    technicianId: ""
+    technicianId: "",
+    globalNotes: "",
+    stopNotes: {} as Record<string, string>,
+    urgent: false,
   });
   
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<View>("month");
-  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
-    title: "", date: "", time: "09:00", technicianId: "", notes: "",
+    title: "", date: "", time: "09:00", technicianId: "", urgent: false, notes: "",
     addressStreet1: "", addressStreet2: "", addressCity: "", addressState: "",
     addressPostcode: "", addressCountry: "Portugal", addressLat: null, addressLng: null
   });
@@ -138,7 +163,7 @@ export default function Admin() {
 
   useEffect(() => {
     const runMaintenance = () => {
-      fetch('/api/opportunities/maintenance', { method: 'POST' }).catch(() => {});
+      fetch('/api/opportunities/maintenance', { method: 'POST', credentials: 'include' }).catch(() => {});
     };
 
     runMaintenance();
@@ -146,18 +171,68 @@ export default function Admin() {
     return () => clearInterval(interval);
   }, []);
 
+  const withoutGpsCount = useMemo(
+    () => countUnscheduledWithoutGps(opportunities),
+    [opportunities]
+  );
+
   useEffect(() => {
-    setZoneInsights(computeZoneInsights(opportunities, HQ_LOCATION.coordinates));
-  }, [opportunities]);
+    setZoneInsights(
+      computeZoneInsights(opportunities, HQ_LOCATION.coordinates, {
+        fuelConsumption,
+        fuelPrice,
+        serviceTypeFilters,
+      })
+    );
+  }, [opportunities, fuelConsumption, fuelPrice, serviceTypeFilters]);
 
   const technicians = useMemo(
     () => extractTechnicianNames(opportunities),
     [opportunities]
   );
 
+  const mapTechnicianOptions = useMemo(
+    () => buildMapTechnicianOptions(opportunities, techniciansLocations),
+    [opportunities, techniciansLocations]
+  );
+
+  const toggleServiceTypeFilter = (key: MapCategoryFilter) => {
+    if (key === "all") {
+      setServiceTypeFilters([]);
+      return;
+    }
+    setServiceTypeFilters((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const toggleHistoryOutcome = (outcome: MapHistoryOutcome) => {
+    setHistoryOutcomes((prev) =>
+      prev.includes(outcome) ? prev.filter((o) => o !== outcome) : [...prev, outcome]
+    );
+  };
+
   const mapOpportunities = useMemo(
-    () => filterMapOpportunities(opportunities, { mapTab, cityFilter, categoryFilter }),
-    [opportunities, mapTab, cityFilter, categoryFilter]
+    () =>
+      filterMapOpportunities(opportunities, {
+        mapTab,
+        cityFilter,
+        serviceTypeFilters,
+        stallFilter,
+        technicianFilter: mapTechnicianFilter,
+        historyOutcomes,
+        historyItems: mapHistoryItems,
+      }),
+    [
+      opportunities,
+      mapTab,
+      cityFilter,
+      serviceTypeFilters,
+      stallFilter,
+      mapTechnicianFilter,
+      historyOutcomes,
+      mapHistoryItems,
+    ]
   );
 
   const calendarOpportunities = useMemo(
@@ -176,6 +251,16 @@ export default function Admin() {
     setIsOptimizing(false);
   };
 
+  const resetRoutePlanningState = useCallback(() => {
+    setSelectedForRoute([]);
+    setOptimizedRoute(null);
+    setRealRouteData(null);
+    setUnoptimizedTotalDistance(null);
+    setAiAnalysis(null);
+    setRouteSelectionMode(false);
+    setShowRouteSheet(false);
+  }, []);
+
   const toggleSelectionForRoute = (opportunity: RouteStop) => {
     setSelectedForRoute(prev => {
       const exists = prev.find(item => item.id === opportunity.id);
@@ -185,11 +270,7 @@ export default function Admin() {
   };
 
   const handleMapTaskSelect = (opp: Opportunity) => {
-    if (routeSelectionMode) {
-      toggleSelectionForRoute(opp as RouteStop);
-    } else {
-      setSelectedOpportunity(opp);
-    }
+    setSelectedOpportunity(opp);
   };
 
   const autoGenerateRouteForZone = (zoneName: string) => {
@@ -227,7 +308,10 @@ export default function Admin() {
         mutateOpps();
         return;
       }
-      toast.success("Agendamento Cancelado", "O serviço voltou à lista de agendamentos pendentes.");
+      toast.success(
+        "Agendamento cancelado",
+        "O serviço voltou a pendente e o cliente será notificado por email (se tiver email no CRM)."
+      );
       mutateOpps();
       setSelectedOpportunity(null);
     } catch (error: unknown) {
@@ -304,11 +388,13 @@ export default function Admin() {
   };
 
   const openScheduleModal = (opp: Opportunity) => {
+    setSelectedOpportunity(opp);
     setScheduleForm({
       title: `Visita Técnica - ${opp.title}`,
       date: "",
       time: "09:00",
       technicianId: "",
+      urgent: false,
       notes: opp.report || "",
       addressStreet1: opp.rawAddress?.addressStreet1 || "",
       addressStreet2: opp.rawAddress?.addressStreet2 || "",
@@ -340,6 +426,42 @@ export default function Admin() {
         return;
       }
 
+      if (scheduleForm.urgent) {
+        const dateTimeLabel = dueAt.toLocaleString("pt-PT", {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
+        const conflicts = findScheduleConflicts(
+          [
+            {
+              title: scheduleForm.title,
+              dueAt,
+              opportunityId: selectedOpportunity.twentyId,
+            },
+          ],
+          opportunities,
+          selectedTech.name || "",
+          { excludeOpportunityIds: [selectedOpportunity.twentyId] }
+        );
+        let description = `Tem a certeza que quer ignorar todos os avisos ao cliente e as automações e agendar diretamente para ${dateTimeLabel} com ${selectedTech.name}?`;
+        if (conflicts.length > 0) {
+          const first = conflicts[0];
+          const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          description += ` Atenção: «${first.conflictingTitle}» está marcado às ${timeLabel} para o mesmo técnico.`;
+        }
+        const confirmed = await confirm({
+          title: "Ignorar avisos ao cliente?",
+          description,
+          confirmLabel: "Agendar mesmo assim",
+          cancelLabel: "Cancelar",
+          destructive: true,
+        });
+        if (!confirmed) return;
+      }
+
       const result = await scheduleTechnicalVisitAction({
         title: scheduleForm.title,
         dueAtIso: dueAt.toISOString(),
@@ -361,6 +483,7 @@ export default function Admin() {
         pointOfContactEmail: selectedOpportunity.pointOfContactEmail,
         taskId: selectedOpportunity.taskId,
         currentStage: selectedOpportunity.stage,
+        urgent: scheduleForm.urgent,
       });
 
       if (!result.success) {
@@ -368,7 +491,20 @@ export default function Admin() {
         return;
       }
 
-      toast.success("Visita Agendada!", "A visita técnica foi criada e sincronizada no CRM.");
+      if (scheduleForm.urgent) {
+        const conflictNote = result.data?.conflictWarning
+          ? ` ${result.data.conflictWarning}`
+          : "";
+        toast.success(
+          "Visita agendada",
+          `Agendada diretamente, sem confirmação do cliente.${conflictNote}`
+        );
+      } else {
+        toast.success(
+          "Proposta enviada",
+          "A proposta de visita foi enviada ao cliente e aguarda confirmação."
+        );
+      }
       setShowScheduleModal(false);
       setSelectedOpportunity(null);
       mutateOpps();
@@ -388,34 +524,106 @@ export default function Admin() {
       const selectedTech = workspaceMembers.find(m => m.id === massScheduleForm.technicianId);
       if (!selectedTech?.id || !selectedTech.isWorkspaceMember) {
         toast.error(
-          "Técnico inválido",
-          "Selecione um técnico com conta no Twenty CRM (role Técnicos)."
+          "Invalid technician",
+          "Select a technician with a valid Twenty CRM account (Técnicos role)."
         );
         return;
       }
 
+      const visitStops = optimizedRoute.filter((stop) => !stop.isReturn);
+      const slots = computeRouteSlots(massScheduleForm.date, visitStops.length);
+      const stopsPayload = visitStops.map((stop, index) => ({
+        title: stop.title,
+        twentyId: stop.twentyId,
+        stage: stop.stage,
+        isReturn: stop.isReturn,
+        rawAddress: stop.rawAddress,
+        pointOfContactId: stop.pointOfContactId,
+        pointOfContactEmail: stop.pointOfContactEmail,
+        clientName: stop.client,
+        taskId: stop.taskId,
+        dueAtIso: slots[index]?.dueAt.toISOString() || new Date().toISOString(),
+        notes: massScheduleForm.stopNotes[stop.twentyId] || "",
+      }));
+
+      if (massScheduleForm.urgent) {
+        const dateLabel = new Date(`${massScheduleForm.date}T12:00:00`).toLocaleDateString("pt-PT", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        });
+        const conflicts = findScheduleConflicts(
+          stopsPayload.map((stop) => ({
+            title: stop.title,
+            dueAt: new Date(stop.dueAtIso),
+            opportunityId: stop.twentyId,
+          })),
+          opportunities,
+          selectedTech.name || "",
+          { excludeOpportunityIds: stopsPayload.map((s) => s.twentyId) }
+        );
+        let description = `Tem a certeza que quer ignorar avisos ao cliente e automações e agendar ${visitStops.length} visitas diretamente para ${dateLabel} com ${selectedTech.name}?`;
+        if (conflicts.length > 0) {
+          const first = conflicts[0];
+          const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          description += ` Atenção: «${first.stopTitle}» sobrepõe-se a «${first.conflictingTitle}» às ${timeLabel}.`;
+        }
+        const confirmed = await confirm({
+          title: "Ignorar avisos ao cliente?",
+          description,
+          confirmLabel: "Agendar rota mesmo assim",
+          cancelLabel: "Cancelar",
+          destructive: true,
+        });
+        if (!confirmed) return;
+      }
+
       const result = await scheduleMassVisitsAction(
-        optimizedRoute,
+        stopsPayload,
         massScheduleForm.technicianId,
         selectedTech.name || "",
-        massScheduleForm.date
+        massScheduleForm.globalNotes,
+        massScheduleForm.urgent
       );
 
       if (!result.success) {
-        toast.error("Erro ao agendar roteiro", result.error || "Não foi possível agendar o roteiro.");
+        toast.error("Erro ao agendar rota", result.error || "Não foi possível agendar a rota.");
         return;
       }
 
-      const scheduledCount = result.data?.scheduledCount ?? optimizedRoute.length - 1;
-      toast.success("Roteiro Criado com Sucesso!", `${scheduledCount} visitas foram agendadas para o técnico.`);
+      const scheduledCount = result.data?.scheduledCount ?? visitStops.length;
+      const skippedCount = result.data?.skippedCount ?? 0;
+      const skippedSuffix =
+        skippedCount > 0 ? ` (${skippedCount} já confirmadas e ignoradas)` : "";
+      const conflictNote = result.data?.conflictWarning ? ` ${result.data.conflictWarning}` : "";
+
+      if (massScheduleForm.urgent) {
+        toast.success(
+          "Rota agendada",
+          `${scheduledCount} visitas agendadas diretamente, sem confirmação do cliente.${skippedSuffix}${conflictNote}`
+        );
+      } else {
+        toast.success(
+          "Propostas enviadas",
+          `${scheduledCount} propostas de visita enviadas ao cliente para confirmação${skippedSuffix}.`
+        );
+      }
       setShowMassScheduleModal(false);
-      setOptimizedRoute(null);
-      setSelectedForRoute([]);
-      setRouteSelectionMode(false);
+      setMassScheduleForm({
+        date: "",
+        technicianId: "",
+        globalNotes: "",
+        stopNotes: {},
+        urgent: false,
+      });
+      resetRoutePlanningState();
       mutateOpps();
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Erro ao agendar roteiro";
-      toast.error("Erro ao agendar roteiro", message);
+      const message = e instanceof Error ? e.message : "Failed to schedule route";
+      toast.error("Route scheduling failed", message);
     } finally {
       setIsScheduling(false);
     }
@@ -449,7 +657,7 @@ export default function Admin() {
   }, []);
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-slate-50 relative overflow-hidden">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <AdminCommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
@@ -463,8 +671,6 @@ export default function Admin() {
         lastSync={lastSync}
         loading={loading}
         isSyncing={isSyncing}
-        isAdminMenuOpen={isAdminMenuOpen}
-        setIsAdminMenuOpen={setIsAdminMenuOpen}
         router={router}
         onRefresh={handleRefresh}
         userName={userName}
@@ -472,30 +678,7 @@ export default function Admin() {
         setView={setView}
       />
 
-      <AdminControlCenter 
-        view={view}
-        setView={setView}
-        isAdminMenuOpen={isAdminMenuOpen}
-        setIsAdminMenuOpen={setIsAdminMenuOpen}
-        loading={loading}
-        zoneInsights={zoneInsights}
-        cityFilter={cityFilter}
-        setCityFilter={setCityFilter}
-        mapTab={mapTab}
-        setMapTab={setMapTab}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
-        opportunitiesCount={opportunities.length}
-        unscheduledCount={opportunities.filter(o => isNeedsSchedulingStage(o.stage) && (!o.hasScheduledTask || isTaskCompleted(o.taskStatus))).length}
-        scheduledCount={opportunities.filter(o => o.hasScheduledTask && !isTaskCompleted(o.taskStatus)).length}
-        completedCount={opportunities.filter(o => o.status === "Concluído" || o.status === "CONCLUIDO").length}
-        cancelledCount={opportunities.filter(o => o.status === "Cancelado" || o.status === "CANCELADO").length}
-        routeSelectionMode={routeSelectionMode}
-        setRouteSelectionMode={setRouteSelectionMode}
-        autoGenerateRouteForZone={autoGenerateRouteForZone}
-      />
-
-      <div className="flex-1 relative bg-slate-100 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden bg-slate-100 pb-[max(4.75rem,calc(env(safe-area-inset-bottom)+3.75rem))] lg:pb-0">
         {loading ? (
           <MapSkeleton />
         ) : view === "map" ? (
@@ -503,12 +686,26 @@ export default function Admin() {
             hqLocation={HQ_LOCATION}
             mapOpportunities={mapOpportunities}
             allOpportunities={opportunities}
-            categoryFilter={categoryFilter}
-            setCategoryFilter={setCategoryFilter}
+            mapTab={mapTab}
+            setMapTab={setMapTab}
+            serviceTypeFilters={serviceTypeFilters}
+            onToggleServiceTypeFilter={toggleServiceTypeFilter}
+            mapTechnicianFilter={mapTechnicianFilter}
+            setMapTechnicianFilter={setMapTechnicianFilter}
+            mapTechnicianOptions={mapTechnicianOptions}
+            historyOutcomes={historyOutcomes}
+            onToggleHistoryOutcome={toggleHistoryOutcome}
+            onClearServiceTypeFilters={() => setServiceTypeFilters([])}
+            onClearHistoryOutcomes={() => setHistoryOutcomes([])}
+            stallFilter={stallFilter}
+            setStallFilter={setStallFilter}
             techniciansLocations={techniciansLocations}
             routeSelectionMode={routeSelectionMode}
+            setRouteSelectionMode={setRouteSelectionMode}
+            onExitRoutePlanning={resetRoutePlanningState}
             selectedForRoute={selectedForRoute}
             onTaskSelect={handleMapTaskSelect}
+            onScheduleFromMap={openScheduleModal}
             optimizedRoute={optimizedRoute}
             fuelPrice={fuelPrice}
             setFuelPrice={setFuelPrice}
@@ -532,6 +729,14 @@ export default function Admin() {
             showRouteSheet={showRouteSheet}
             setShowRouteSheet={setShowRouteSheet}
             setShowMassScheduleModal={setShowMassScheduleModal}
+            cityFilter={cityFilter}
+            setCityFilter={setCityFilter}
+            loading={loading}
+            zoneInsights={zoneInsights}
+            withoutGpsCount={withoutGpsCount}
+            onSyncAddresses={handleRefresh}
+            isSyncing={isSyncing}
+            autoGenerateRouteForZone={autoGenerateRouteForZone}
           />
         ) : view === "calendar" ? (
           <AdminCalendarView
@@ -567,6 +772,7 @@ export default function Admin() {
         setScheduleForm={setScheduleForm}
         workspaceMembers={workspaceMembers}
         opportunities={opportunities}
+        schedulingOpportunityId={selectedOpportunity?.twentyId}
         isScheduling={isScheduling}
         handleScheduleVisit={handleScheduleVisit}
       />
@@ -574,13 +780,16 @@ export default function Admin() {
       <MassScheduleModal 
         showMassScheduleModal={showMassScheduleModal}
         setShowMassScheduleModal={setShowMassScheduleModal}
-        selectedForRouteCount={selectedForRoute.length}
+        optimizedRoute={optimizedRoute}
+        opportunities={opportunities}
         massScheduleForm={massScheduleForm}
         setMassScheduleForm={setMassScheduleForm}
         workspaceMembers={workspaceMembers}
         isScheduling={isScheduling}
         handleMassSchedule={handleMassSchedule}
       />
+
+      <AdminBottomNav view={view} setView={setView} />
     </div>
   );
 }

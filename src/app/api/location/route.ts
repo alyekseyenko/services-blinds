@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { locationStore } from '@/lib/locationStore';
+import { isAdminRole } from '@/lib/auth/session';
+import { getAppSession } from '@/lib/auth/session.server';
 
 // Rate limiting: mínimo de 5 segundos entre atualizações do mesmo técnico
 const rateLimitMap = new Map<string, number>();
 const RATE_LIMIT_WINDOW_MS = 5000;
+const RATE_LIMIT_MAX_ENTRIES = 500;
+
+function pruneRateLimitMap(now: number): void {
+  if (rateLimitMap.size <= RATE_LIMIT_MAX_ENTRIES) return;
+  for (const [key, ts] of rateLimitMap.entries()) {
+    if (now - ts > RATE_LIMIT_WINDOW_MS * 4) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
 
 // Horário de trabalho (07:00 às 22:00) com pausa para almoço protegida (13:00 às 14:00)
 const WORK_START_HOUR = 7;
@@ -42,15 +54,32 @@ function isWithinWorkHours(): { allowed: boolean; reason?: string } {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { technicianId, technicianName, lat, lng, accuracy } = body;
+    const auth = await getAppSession();
+    if (!auth?.user?.id) {
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
 
-    if (!technicianId || lat == null || lng == null) {
+    const body = await request.json();
+    const { technicianId: bodyTechnicianId, technicianName, lat, lng, accuracy } = body;
+
+    if (lat == null || lng == null) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
+    }
+
+    const sessionUserId = auth.user.id;
+    const role = auth.user.role;
+    const technicianId =
+      isAdminRole(role!) && typeof bodyTechnicianId === "string" && bodyTechnicianId
+        ? bodyTechnicianId
+        : sessionUserId;
+
+    if (technicianId !== sessionUserId && !isAdminRole(role!)) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
     }
 
     // Rate Limiting por técnico
     const now = Date.now();
+    pruneRateLimitMap(now);
     const lastPostTime = rateLimitMap.get(technicianId) || 0;
     if (now - lastPostTime < RATE_LIMIT_WINDOW_MS) {
       return NextResponse.json({ 
@@ -91,6 +120,14 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
+    const auth = await getAppSession();
+    if (!auth?.user?.id) {
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+    if (!isAdminRole(auth.user.role!)) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
+    }
+
     const activeTechnicians = await locationStore.getActive(5 * 60 * 1000);
     return NextResponse.json({ technicians: activeTechnicians });
   } catch (error: any) {
@@ -105,9 +142,17 @@ export async function GET() {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await getAppSession();
+    if (!auth?.user?.id) {
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const technicianId = searchParams.get('technicianId');
     if (technicianId) {
+      if (technicianId !== auth.user.id && !isAdminRole(auth.user.role!)) {
+        return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
+      }
       await locationStore.remove(technicianId);
       return NextResponse.json({ status: "removed" });
     }

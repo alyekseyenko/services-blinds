@@ -2,13 +2,40 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import { buildServiceTypeMarkerSvg, getServiceTypeColor, resolveServiceType } from '@/lib/techniciansConfig';
+import {
+  buildServiceTypeMarkerSvg,
+  resolveServiceType,
+} from '@/lib/techniciansConfig';
 import { resolveTaskOverdue } from '@/lib/taskUtils';
 import { HQ_LAT, HQ_LNG } from '@/lib/hq';
 import { APP_LOGO_PATH, MAP_HQ_TITLE } from '@/lib/branding';
 import { isNeedsSchedulingStage } from '@/lib/crm/contract';
-
-const HQ_LOGO_MARKER_SIZE = 48;
+import { MapMarkerInfoWindow } from '@/components/admin/MapMarkerInfoWindow';
+import { MapOverlayControls } from '@/components/map/MapOverlayControls';
+import { useMapClusteringEnabled } from '@/hooks/useMapClustering';
+import { MapLegend, useMapLegendOpen } from '@/components/map/MapLegend';
+import { TaskMapInfoWindow } from '@/components/map/TaskMapInfoWindow';
+import { MapInfoWindowShell } from '@/components/map/MapInfoWindowShell';
+import { createMapClusterRenderer } from '@/lib/map/mapClusterRenderer';
+import {
+  buildRouteStopTeardropSvg,
+  MAP_PIN_TIP_X,
+  MAP_PIN_TIP_Y,
+  MAP_PIN_VIEW_HEIGHT,
+  MAP_PIN_VIEW_WIDTH,
+} from '@/lib/map/serviceMarkerArt';
+import { OPERATIONS_MAP_STYLES } from '@/lib/map/googleMapStyles';
+import {
+  getHqLogoPixelSize,
+  getRouteStopPixelSize,
+  getServiceMarkerPixelSize,
+  getTechnicianVanPixelSize,
+  getUserLocationScale,
+  shouldShowDenseLabels,
+  getMapZoomBucket,
+} from '@/lib/map/markerScale';
+import { appendHqAndUser, collectPositionsFromTasks, taskCoordinatesToLatLng } from '@/lib/map/mapBounds';
+import { useMapAutoFit } from '@/hooks/useMapAutoFit';
 
 const containerStyle = {
   width: '100%',
@@ -32,31 +59,54 @@ function getTechnicianColor(technicianName: string | null): string {
   return technicianColors[hash % technicianColors.length];
 }
 
-function buildTaskMarkerIcon(task: any, options: {
-  isLate: boolean;
-  isHighlighted: boolean;
-  alertColor: string | null;
-  showTechnicianColors: boolean;
-  techColor: string;
-}) {
-  const serviceType = resolveServiceType(task);
-  const serviceColor = serviceType ? getServiceTypeColor(serviceType).pin : null;
-  const fillOverride = options.isLate
-    ? '#f59e0b'
-    : serviceColor || (options.showTechnicianColors ? options.techColor : '#3b82f6');
+function teardropAnchor(width: number, height: number) {
+  return new window.google.maps.Point(
+    (MAP_PIN_TIP_X / MAP_PIN_VIEW_WIDTH) * width,
+    (MAP_PIN_TIP_Y / MAP_PIN_VIEW_HEIGHT) * height,
+  );
+}
 
-  const svg = buildServiceTypeMarkerSvg(serviceType || 'GERAL', {
-    isLate: options.isLate,
+function buildTaskMarkerIcon(
+  task: any,
+  options: {
+    isLate: boolean;
+    isUnscheduled: boolean;
+    isHighlighted: boolean;
+    isSelected: boolean;
+    alertColor: string | null;
+    showTechnicianColors: boolean;
+    techColor: string;
+    zoom: number;
+  }
+) {
+  const serviceType = resolveServiceType(task) || 'GERAL';
+
+  const focus = options.isSelected
+    ? 'selected'
+    : options.isHighlighted
+      ? 'highlighted'
+      : 'default';
+  const { width, height } = getServiceMarkerPixelSize(options.zoom, focus);
+
+  const status = options.isLate
+    ? 'late'
+    : options.isUnscheduled
+      ? 'unscheduled'
+      : null;
+
+  const svg = buildServiceTypeMarkerSvg(serviceType, {
+    status,
     isHighlighted: options.isHighlighted,
+    isSelected: options.isSelected,
     alertColor: options.alertColor,
-    fillOverride,
+    size: width,
+    technicianColor: options.showTechnicianColors ? options.techColor : null,
   });
 
-  const size = options.isLate || options.isHighlighted ? 42 : 38;
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new window.google.maps.Size(size, size),
-    anchor: new window.google.maps.Point(size / 2, size / 2),
+    scaledSize: new window.google.maps.Size(width, height),
+    anchor: teardropAnchor(width, height),
   };
 }
 
@@ -84,6 +134,16 @@ interface MapComponentProps {
     accuracy?: number;
   }>;
   onTechnicianSelect?: (tech: any) => void;
+  /** Popup first; full panel opens via actions inside the popup */
+  markerInteraction?: 'popup' | 'direct';
+  onScheduleFromMap?: (task: any) => void;
+  /** Changes to this key re-trigger auto-fit (e.g. filter or day). */
+  autoFitKey?: string;
+  /** When `overdue`, auto-fit / fit button use only overdue task pins. */
+  autoFitScope?: 'all' | 'overdue';
+  routeSelectionMode?: boolean;
+  isTaskInRoute?: (task: any) => boolean;
+  onToggleRouteFromMap?: (task: any) => void;
 }
 
 export default function MapComponent({ 
@@ -102,8 +162,19 @@ export default function MapComponent({
   locationSharingEnabled = true,
   onToggleLocationSharing,
   techniciansLocations = [],
-  onTechnicianSelect
+  onTechnicianSelect,
+  markerInteraction = 'direct',
+  onScheduleFromMap,
+  autoFitKey = 'default',
+  autoFitScope = 'all',
+  routeSelectionMode = false,
+  isTaskInRoute,
+  onToggleRouteFromMap,
 }: MapComponentProps) {
+  const useMarkerPopup = markerInteraction === 'popup';
+  const overlayVariant = isTechnicianView ? 'technician' : 'admin';
+  const { legendOpen, setLegendOpen } = useMapLegendOpen(overlayVariant);
+  const { clusteringEnabled, toggleClustering } = useMapClusteringEnabled();
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
@@ -116,6 +187,7 @@ export default function MapComponent({
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [techLiveRouteDirections, setTechLiveRouteDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral | null>(null);
+  const [mapZoomBucket, setMapZoomBucket] = useState(13);
   const [renderNow, setRenderNow] = useState(() => Date.now());
   const onRouteUpdateRef = useRef(onRouteUpdate);
   const onTaskSelectRef = useRef(onTaskSelect);
@@ -175,26 +247,86 @@ export default function MapComponent({
   }, []);
 
   const onMapIdle = useCallback(() => {
-    if (map) {
-      const c = map.getCenter();
-      if (c) {
-        setMapCenter({ lat: c.lat(), lng: c.lng() });
-      }
+    if (!map) return;
+    const c = map.getCenter();
+    if (c) {
+      setMapCenter({ lat: c.lat(), lng: c.lng() });
     }
+    const z = map.getZoom();
+    if (typeof z !== "number") return;
+    const bucket = getMapZoomBucket(z);
+    setMapZoomBucket((prev) => (prev === bucket ? prev : bucket));
   }, [map]);
+
+  const fitPoints = useMemo(() => {
+    const scopedTasks =
+      autoFitScope === 'overdue'
+        ? tasks.filter((t) => resolveTaskOverdue(t))
+        : tasks;
+    const taskPoints = collectPositionsFromTasks(scopedTasks);
+    if (autoFitScope === 'overdue') return taskPoints;
+    const hq =
+      hqLocation?.coordinates
+        ? taskCoordinatesToLatLng(hqLocation.coordinates)
+        : null;
+    const user = userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null;
+    return appendHqAndUser(taskPoints, hq, user);
+  }, [tasks, hqLocation, userLocation, autoFitScope]);
+
+  const { fitNow, suspendAutoFit } = useMapAutoFit(map, fitPoints, autoFitKey);
+
+  const hqLogoSize = getHqLogoPixelSize(mapZoomBucket);
 
   const hqLogoIcon = useMemo(() => {
     if (!isLoaded || typeof window === "undefined") return undefined;
     return {
       url: APP_LOGO_PATH,
-      scaledSize: new window.google.maps.Size(HQ_LOGO_MARKER_SIZE, HQ_LOGO_MARKER_SIZE),
-      anchor: new window.google.maps.Point(HQ_LOGO_MARKER_SIZE / 2, HQ_LOGO_MARKER_SIZE / 2),
+      scaledSize: new window.google.maps.Size(hqLogoSize, hqLogoSize),
+      anchor: new window.google.maps.Point(hqLogoSize / 2, hqLogoSize / 2),
     };
-  }, [isLoaded]);
+  }, [isLoaded, hqLogoSize]);
+
+  const handleFitToPins = useCallback(() => {
+    fitNow(fitPoints);
+  }, [fitNow, fitPoints]);
+
+  const handleRecenter = useCallback(() => {
+    if (!map) return;
+    if (isTechnicianView && userLocation) {
+      map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      map.setZoom(Math.max(map.getZoom() ?? 14, 15));
+      return;
+    }
+    if (hqLocation?.coordinates) {
+      map.panTo({ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] });
+      map.setZoom(13);
+    }
+  }, [map, isTechnicianView, userLocation, hqLocation]);
 
   const closeTechnicianPanels = useCallback(() => {
     setTechnicianPinPanel(null);
   }, []);
+
+  const closeAllMapPopups = useCallback(() => {
+    setSelectedMarker(null);
+    setSelectedTechMarker(null);
+    closeTechnicianPanels();
+  }, [closeTechnicianPanels]);
+
+  const mapPopupOpen =
+    Boolean(selectedMarker) || Boolean(selectedTechMarker) || technicianPinPanel !== null;
+
+  useEffect(() => {
+    if (!mapPopupOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAllMapPopups();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mapPopupOpen, closeAllMapPopups]);
 
   const panToUserLocation = useCallback(() => {
     if (!map || !userLocation) return;
@@ -281,7 +413,12 @@ export default function MapComponent({
     });
   }, [tasks, selectedTechMarker, techAssignedTasks]);
 
-  const useTaskClustering = !isTechnicianView && clusterableTasks.length >= 6;
+  const clusteringAvailable = !isTechnicianView && clusterableTasks.length >= 6;
+  const useTaskClustering = clusteringAvailable && clusteringEnabled;
+  const clusterTasksKey = clusterableTasks
+    .map((t) => `${t.id}:${t.technician ?? ""}:${t.stage ?? ""}`)
+    .join("|");
+  const highlightedKey = highlightedIds.join(",");
 
   useEffect(() => {
     if (!map || !isLoaded || !useTaskClustering) {
@@ -295,9 +432,18 @@ export default function MapComponent({
       return;
     }
 
+    const clusterRenderer = createMapClusterRenderer();
+    const markerZoom = mapZoomBucket;
+
     const nextMarkers = clusterableTasks.map((task) => {
       const isHighlighted = highlightedIds.includes(task.id);
+      const isSelected =
+        selectedMarker &&
+        (selectedMarker.id === task.id ||
+          (selectedMarker.twentyId && selectedMarker.twentyId === task.twentyId));
       const isLate = resolveTaskOverdue(task);
+      const isUnscheduled =
+        isNeedsSchedulingStage(task.stage) && !task.hasScheduledTask;
       const techColor =
         task.technicianColor ||
         getTechnicianColor(task.technician || (task.stage === "Entrada" ? "Unscheduled" : null));
@@ -317,30 +463,28 @@ export default function MapComponent({
         position: { lat: task.coordinates[0], lng: task.coordinates[1] },
         icon: buildTaskMarkerIcon(task, {
           isLate,
+          isUnscheduled,
           isHighlighted,
+          isSelected: Boolean(isSelected),
           alertColor,
           showTechnicianColors: !!showTechnicianColors,
           techColor,
+          zoom: markerZoom,
         }),
-        animation:
-          isLate || isHighlighted ? google.maps.Animation.BOUNCE : undefined,
-        title: isLate ? `Visita atrasada (${dueTime})` : task.title,
+        title: dueTime
+          ? isLate
+            ? `Atrasada · ${dueTime} · ${task.title}`
+            : `Agendada ${dueTime} · ${task.title}`
+          : task.title,
       });
 
-      if (isLate) {
-        marker.setLabel({
-          text: "ATR",
-          className:
-            "bg-amber-100 text-amber-900 text-xs font-black px-1.5 py-0.5 rounded-md border border-amber-400 shadow-md",
-          color: "#92400e",
-          fontSize: "12px",
-          fontWeight: "bold",
-        });
-      }
+      marker.set("mapHasLate", isLate);
 
       marker.addListener("click", () => {
         setSelectedMarker(task);
-        onTaskSelectRef.current(task);
+        if (!useMarkerPopup) {
+          onTaskSelectRef.current(task);
+        }
       });
 
       return marker;
@@ -352,7 +496,22 @@ export default function MapComponent({
       marker.setMap(null);
     });
 
-    clustererRef.current = new MarkerClusterer({ map, markers: nextMarkers });
+    clustererRef.current = new MarkerClusterer({
+      map,
+      markers: nextMarkers,
+      renderer: clusterRenderer,
+      onClusterClick: (_event, cluster) => {
+        suspendAutoFit();
+        const bounds = cluster.bounds;
+        if (bounds && !bounds.isEmpty()) {
+          map.fitBounds(bounds, { top: 72, right: 72, bottom: 96, left: 72 });
+          return;
+        }
+        map.panTo(cluster.position);
+        const z = map.getZoom();
+        map.setZoom(typeof z === "number" ? Math.min(z + 3, 17) : 15);
+      },
+    });
     clusterMarkersRef.current = nextMarkers;
 
     return () => {
@@ -368,9 +527,14 @@ export default function MapComponent({
     map,
     isLoaded,
     useTaskClustering,
-    clusterableTasks,
-    highlightedIds,
+    clusterTasksKey,
+    highlightedKey,
     showTechnicianColors,
+    useMarkerPopup,
+    mapZoomBucket,
+    selectedMarker,
+    suspendAutoFit,
+    renderNow,
   ]);
 
   const shouldComputeTechLiveRoute = Boolean(
@@ -435,6 +599,7 @@ export default function MapComponent({
 
   useEffect(() => {
     if (!shouldComputeOptimizedRoute || !hqLocation?.coordinates || !optimizedRoute?.length) {
+      setDirectionsResponse(null);
       onRouteUpdateRef.current(null);
       return;
     }
@@ -499,22 +664,20 @@ export default function MapComponent({
         onUnmount={onUnmount}
         onIdle={onMapIdle}
         onClick={() => {
-          setSelectedTechMarker(null);
-          closeTechnicianPanels();
+          closeAllMapPopups();
         }}
         options={{
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
           zoomControl: true,
+          zoomControlOptions: {
+            position: google.maps.ControlPosition.RIGHT_CENTER,
+          },
           gestureHandling: "greedy",
-          styles: [
-            {
-              featureType: "poi",
-              elementType: "labels",
-              stylers: [{ visibility: "off" }]
-            }
-          ]
+          clickableIcons: false,
+          backgroundColor: "#e8eaef",
+          styles: OPERATIONS_MAP_STYLES,
         }}
       >
         {/* Marcador da Sede (logo da empresa) */}
@@ -548,7 +711,7 @@ export default function MapComponent({
               fillOpacity: 1,
               strokeWeight: 4,
               strokeColor: "#ffffff",
-              scale: isTechnicianView ? 8 : 7,
+              scale: getUserLocationScale(mapZoomBucket, isTechnicianView),
             }}
             title={
               locationSharingEnabled
@@ -562,9 +725,9 @@ export default function MapComponent({
         {isTechnicianView && technicianPinPanel === "hq" && hqLocation && (
           <InfoWindow
             position={{ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] }}
-            onCloseClick={closeTechnicianPanels}
+            onCloseClick={closeAllMapPopups}
           >
-            <div className="max-w-[240px] p-1 font-sans">
+            <MapInfoWindowShell onClose={closeAllMapPopups}>
               <div className="mb-3 flex items-center gap-3">
                 <img
                   src={APP_LOGO_PATH}
@@ -591,16 +754,16 @@ export default function MapComponent({
                   Ir para a minha posição
                 </button>
               )}
-            </div>
+            </MapInfoWindowShell>
           </InfoWindow>
         )}
 
         {isTechnicianView && technicianPinPanel === "user" && userLocation && (
           <InfoWindow
             position={{ lat: userLocation.lat, lng: userLocation.lng }}
-            onCloseClick={closeTechnicianPanels}
+            onCloseClick={closeAllMapPopups}
           >
-            <div className="max-w-[240px] p-1 font-sans">
+            <MapInfoWindowShell onClose={closeAllMapPopups}>
               <p className="text-xs font-black uppercase tracking-wider text-slate-900">A sua posição</p>
               {typeof userLocation.accuracy === "number" && (
                 <p className="mt-1 text-xs font-semibold text-slate-600">
@@ -618,7 +781,7 @@ export default function MapComponent({
               >
                 Centrar no mapa
               </button>
-            </div>
+            </MapInfoWindowShell>
           </InfoWindow>
         )}
 
@@ -626,9 +789,12 @@ export default function MapComponent({
         {techniciansLocations && techniciansLocations.map((tech) => {
           const updateAgeMinutes = Math.round((renderNow - new Date(tech.lastUpdate).getTime()) / (60 * 1000));
           const timeLabel = updateAgeMinutes <= 1 ? "Agora mesmo" : `Há ${updateAgeMinutes} min`;
+          const isSelectedTech = selectedTechMarker?.technicianId === tech.technicianId;
+          const vanSize = getTechnicianVanPixelSize(mapZoomBucket, isSelectedTech);
+          const showTechLabel = shouldShowDenseLabels(mapZoomBucket) || isSelectedTech;
           
           // Ícone SVG personalizado de carrinha técnica com glow e contraste
-          const vanSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+          const vanSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vanSize}" height="${vanSize}" viewBox="0 0 40 40">
             <circle cx="20" cy="20" r="18" fill="#090d16" stroke="#84cc16" stroke-width="3"/>
             <circle cx="20" cy="20" r="13" fill="#0284c7" fill-opacity="0.25"/>
             <path d="M11 23h18l-2.5-7h-13z" fill="#84cc16"/>
@@ -647,16 +813,21 @@ export default function MapComponent({
               }}
               icon={{
                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(vanSvg)}`,
-                scaledSize: new window.google.maps.Size(40, 40),
-                anchor: new window.google.maps.Point(20, 20),
+                scaledSize: new window.google.maps.Size(vanSize, vanSize),
+                anchor: new window.google.maps.Point(vanSize / 2, vanSize / 2),
               }}
-              label={{
-                text: `🚗 ${tech.technicianName || 'Técnico'}`,
-                className: 'bg-[#090d16] text-[#84cc16] text-[10px] font-black px-2.5 py-1 rounded-full border border-slate-700 shadow-xl font-sans whitespace-nowrap',
-                color: '#84cc16',
-                fontSize: '10px',
-                fontWeight: 'bold'
-              }}
+              label={
+                showTechLabel
+                  ? {
+                      text: `🚗 ${tech.technicianName || 'Técnico'}`,
+                      className:
+                        'bg-[#090d16] text-[#84cc16] text-[10px] font-black px-2.5 py-1 rounded-full border border-slate-700 shadow-xl font-sans whitespace-nowrap',
+                      color: '#84cc16',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                    }
+                  : undefined
+              }
               title={`Técnico: ${tech.technicianName} (${timeLabel})`}
             />
           );
@@ -671,13 +842,23 @@ export default function MapComponent({
           const isCanc = normStatus === "CANCELADO";
           const isLate = !isDone && !isInc && !isCanc && resolveTaskOverdue(stop);
 
-          const pinColor = isDone ? "#10b981" : (isInc ? "#f59e0b" : (isCanc ? "#ef4444" : (isLate ? "#f59e0b" : "#0284c7")));
-          const symbolText = isDone ? "✓" : (isCanc ? "✕" : `${idx + 1}`);
+          const pinColor = isDone
+            ? "#10b981"
+            : isInc
+              ? "#f59e0b"
+              : isCanc
+                ? "#ef4444"
+                : "#0284c7";
+          const symbolText = isDone ? "✓" : isCanc ? "✕" : `${idx + 1}`;
 
-          const stopSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
-            <circle cx="17" cy="17" r="14" fill="${pinColor}" stroke="${isLate ? "#dc2626" : "#ffffff"}" stroke-width="${isLate ? "3.5" : "2.5"}"/>
-            <text x="17" y="${isDone || isCanc ? '21' : '22'}" font-family="Arial, sans-serif" font-size="${isDone || isCanc ? '15' : '14'}" font-weight="900" fill="#ffffff" text-anchor="middle">${symbolText}</text>
-          </svg>`;
+          const stopWidth = getRouteStopPixelSize(mapZoomBucket);
+          const stopHeight = Math.round(stopWidth * (MAP_PIN_VIEW_HEIGHT / MAP_PIN_VIEW_WIDTH));
+          const stopSvg = buildRouteStopTeardropSvg({
+            pinColor,
+            label: symbolText,
+            isLate,
+            width: stopWidth,
+          });
 
           const statusTitle = isDone ? "Concluído" : (isInc ? "Incompleto" : (isCanc ? "Cancelado" : (isLate ? "Atrasada" : "Pendente")));
 
@@ -689,8 +870,8 @@ export default function MapComponent({
               onClick={() => onTaskSelect(stop)}
               icon={{
                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(stopSvg)}`,
-                scaledSize: new window.google.maps.Size(34, 34),
-                anchor: new window.google.maps.Point(17, 17),
+                scaledSize: new window.google.maps.Size(stopWidth, stopHeight),
+                anchor: teardropAnchor(stopWidth, stopHeight),
               }}
               title={`Paragem #${idx + 1} (${statusTitle}): ${stop.client || stop.title}`}
             />
@@ -729,7 +910,7 @@ export default function MapComponent({
               position={{ lat: selectedTechMarker.lat, lng: selectedTechMarker.lng }}
               onCloseClick={() => setSelectedTechMarker(null)}
             >
-              <div className="p-2 max-w-[310px] font-sans">
+              <MapInfoWindowShell onClose={() => setSelectedTechMarker(null)} wide>
                 {/* Header Técnico */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-2">
                   <div>
@@ -848,7 +1029,7 @@ export default function MapComponent({
                     )}
                   </div>
                 )}
-              </div>
+              </MapInfoWindowShell>
             </InfoWindow>
           );
         })()}
@@ -861,7 +1042,13 @@ export default function MapComponent({
           if (isStopOfSelectedTech) return null;
 
           const isHighlighted = highlightedIds.includes(task.id);
+          const isSelected =
+            selectedMarker &&
+            (selectedMarker.id === task.id ||
+              (selectedMarker.twentyId && selectedMarker.twentyId === task.twentyId));
           const isLate = resolveTaskOverdue(task);
+          const isUnscheduled =
+            isNeedsSchedulingStage(task.stage) && !task.hasScheduledTask;
           const techColor = task.technicianColor || getTechnicianColor(task.technician || (task.stage === "Entrada" ? "Unscheduled" : null));
           const alertColor = isLate
             ? "#dc2626"
@@ -883,95 +1070,106 @@ export default function MapComponent({
               position={{ lat: task.coordinates[0], lng: task.coordinates[1] }}
               onClick={() => {
                 setSelectedMarker(task);
-                onTaskSelect(task);
+                if (!useMarkerPopup) {
+                  onTaskSelect(task);
+                }
               }}
               icon={buildTaskMarkerIcon(task, {
                 isLate,
+                isUnscheduled,
                 isHighlighted,
+                isSelected: Boolean(isSelected),
                 alertColor,
                 showTechnicianColors: !!showTechnicianColors,
                 techColor,
+                zoom: mapZoomBucket,
               })}
-              label={
-                isLate
-                  ? {
-                      text: isTechnicianView ? `! ${dueTime}` : "ATR",
-                      className: "bg-amber-100 text-amber-900 text-[10px] font-black px-1.5 py-0.5 rounded-md border border-amber-400 shadow-md",
-                      color: "#92400e",
-                      fontSize: "10px",
-                      fontWeight: "bold",
-                    }
-                  : undefined
+              title={
+                dueTime
+                  ? isLate
+                    ? `Atrasada · ${dueTime} · ${task.title}`
+                    : `Agendada ${dueTime} · ${task.title}`
+                  : task.title
               }
-              animation={
-                isLate
-                  ? window.google.maps.Animation.BOUNCE
-                  : isHighlighted
-                    ? window.google.maps.Animation.BOUNCE
-                    : undefined
-              }
-              title={isLate ? `Visita atrasada (${dueTime})` : task.title}
             />
           );
         })}
 
-        {/* InfoWindow compacto para técnico (visitas atrasadas) */}
-        {selectedMarker && isTechnicianView && resolveTaskOverdue(selectedMarker) && (
+        {/* InfoWindow — técnico (popup compacto) */}
+        {selectedMarker && isTechnicianView && useMarkerPopup && selectedMarker.coordinates && (
           <InfoWindow
             position={{ lat: selectedMarker.coordinates[0], lng: selectedMarker.coordinates[1] }}
             onCloseClick={() => setSelectedMarker(null)}
+            options={{ maxWidth: 300 }}
           >
-            <div className="p-2 max-w-[220px] font-sans">
-              <div className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 border border-amber-300 px-2 py-1 rounded-lg mb-2">
-                Visita atrasada
-              </div>
-              <div className="font-black text-slate-900 text-sm">{selectedMarker.client || selectedMarker.title}</div>
-              <div className="text-xs text-slate-600 mt-1">{selectedMarker.address}</div>
-              <div className="text-[11px] font-bold text-amber-800 mt-2">
-                Hora prevista:{" "}
-                {selectedMarker.dueDate
-                  ? new Date(selectedMarker.dueDate).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
-                  : "—"}
-              </div>
-              <button
-                onClick={() => onTaskSelect(selectedMarker)}
-                className="w-full mt-2 bg-[#090d16] text-[#84cc16] text-[10px] font-black uppercase tracking-wider py-2 px-2 rounded-xl"
-              >
-                Abrir visita
-              </button>
-            </div>
+            <TaskMapInfoWindow
+              task={selectedMarker}
+              onClose={() => setSelectedMarker(null)}
+              onOpenVisit={() => {
+                onTaskSelect(selectedMarker);
+                setSelectedMarker(null);
+              }}
+            />
           </InfoWindow>
         )}
 
-        {/* InfoWindow para detalhes da Tarefa */}
-        {selectedMarker && !isTechnicianView && (
+        {/* InfoWindow — painel admin (serviço no mapa) */}
+        {selectedMarker && !isTechnicianView && useMarkerPopup && selectedMarker.coordinates && (
+          <InfoWindow
+            position={{ lat: selectedMarker.coordinates[0], lng: selectedMarker.coordinates[1] }}
+            onCloseClick={() => setSelectedMarker(null)}
+            options={{ maxWidth: 300 }}
+          >
+            <MapMarkerInfoWindow
+              marker={selectedMarker}
+              onClose={() => setSelectedMarker(null)}
+              onOpenDetails={() => {
+                onTaskSelect(selectedMarker);
+                setSelectedMarker(null);
+              }}
+              onSchedule={
+                onScheduleFromMap
+                  ? () => {
+                      onScheduleFromMap(selectedMarker);
+                      setSelectedMarker(null);
+                    }
+                  : undefined
+              }
+              routeSelectionMode={routeSelectionMode}
+              isInRoute={isTaskInRoute ? isTaskInRoute(selectedMarker) : false}
+              onToggleRoute={
+                onToggleRouteFromMap
+                  ? () => {
+                      onToggleRouteFromMap(selectedMarker);
+                    }
+                  : undefined
+              }
+            />
+          </InfoWindow>
+        )}
+
+        {/* InfoWindow legado (sem popup admin) */}
+        {selectedMarker && !isTechnicianView && !useMarkerPopup && selectedMarker.coordinates && (
           <InfoWindow
             position={{ lat: selectedMarker.coordinates[0], lng: selectedMarker.coordinates[1] }}
             onCloseClick={() => setSelectedMarker(null)}
           >
-            <div className="p-1 max-w-[200px]">
+            <MapInfoWindowShell onClose={() => setSelectedMarker(null)}>
               <div className="flex justify-between items-start gap-2">
                 <div className="font-bold text-slate-900 text-sm">{selectedMarker.title}</div>
-                <div className="bg-slate-100 text-[9px] font-black px-1.5 py-0.5 rounded text-slate-500 uppercase shrink-0">#{selectedMarker.nsi}</div>
-              </div>
-              {selectedMarker.delayAlert && (
-                <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 mb-1 inline-block ${
-                  selectedMarker.delayAlert === 'red' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                }`}>
-                  ⚠️ Aguarda há {selectedMarker.delayDays} dias
+                <div className="bg-slate-100 text-[9px] font-black px-1.5 py-0.5 rounded text-slate-500 uppercase shrink-0">
+                  #{selectedMarker.nsi}
                 </div>
-              )}
-              <div className="text-xs text-slate-500 mb-2">{selectedMarker.company || selectedMarker.client}</div>
-              <div className="text-[10px] text-slate-600 border-t pt-1 mb-2">
-                {selectedMarker.address}
               </div>
-              <button 
+              <div className="text-xs text-slate-500 mb-2">{selectedMarker.company || selectedMarker.client}</div>
+              <button
+                type="button"
                 onClick={() => onTaskSelect(selectedMarker)}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider py-1.5 px-2 rounded-xl transition-all shadow-sm"
               >
-                Ver no CRM
+                Ver detalhes
               </button>
-            </div>
+            </MapInfoWindowShell>
           </InfoWindow>
         )}
 
@@ -1005,6 +1203,23 @@ export default function MapComponent({
           />
         )}
       </GoogleMap>
+
+      <MapOverlayControls
+        variant={overlayVariant}
+        legendOpen={legendOpen}
+        onToggleLegend={() => setLegendOpen(!legendOpen)}
+        onFitBounds={handleFitToPins}
+        onRecenter={handleRecenter}
+        recenterLabel={isTechnicianView ? "Centrar na minha posição" : "Centrar na sede"}
+        clusteringAvailable={clusteringAvailable}
+        clusteringEnabled={clusteringEnabled}
+        onToggleClustering={toggleClustering}
+      />
+      <MapLegend
+        open={legendOpen}
+        onClose={() => setLegendOpen(false)}
+        variant={overlayVariant}
+      />
 
       {/* Overlay de Info de Rota */}
       {displayDirectionsResponse && optimizedRoute && (

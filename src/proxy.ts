@@ -99,6 +99,7 @@ export const config = {
     "/api/opportunities/:path*",
     "/api/tasks/:path*",
     "/api/members/:path*",
+    "/api/location",
     "/api/location/:path*",
     "/api/qa/:path*",
     "/api/observability/:path*",

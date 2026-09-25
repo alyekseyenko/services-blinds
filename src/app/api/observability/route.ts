@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppSession, isStrictAdminRole } from '@/lib/auth/session';
+import { isStrictAdminRole } from '@/lib/auth/session';
+import { getAppSession } from '@/lib/auth/session.server';
 import { crmCircuitBreaker } from '@/lib/crm/circuitBreaker';
 import { outboxQueue } from '@/lib/outboxQueue';
 import { locationStore } from '@/lib/locationStore';
@@ -102,10 +103,18 @@ export async function POST(request: NextRequest) {
 
       case 'REPROCESS_OUTBOX':
         const result = await outboxQueue.processPending();
-        logger.info(`[SRE Action] Outbox reprocessed: ${result.processed} ok, ${result.failed} failed`);
+        logger.info(`[SRE Action] Outbox reprocessed: ${result.processed} ok, ${result.failed} failed, ${result.pruned} pruned`);
         return NextResponse.json({ 
           success: true, 
-          message: `Fila Outbox processada: ${result.processed} processados, ${result.failed} falhados.` 
+          message: `Outbox processed: ${result.processed} delivered, ${result.failed} failed, ${result.pruned} stale removed.` 
+        });
+
+      case 'PRUNE_STALE_OUTBOX':
+        const pruned = outboxQueue.pruneStalePending();
+        logger.info(`[SRE Action] Outbox stale prune: ${pruned.pruned} removed`);
+        return NextResponse.json({
+          success: true,
+          message: `Removed ${pruned.pruned} stale localhost event(s). ${pruned.remaining} event(s) remain.`,
         });
 
       case 'CLEAR_SEMANTIC_CACHE':

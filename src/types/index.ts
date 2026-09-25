@@ -40,6 +40,8 @@ export interface ProductGroup {
   isOpen?: boolean;
 }
 
+import type { VisitService } from "@/lib/schemas";
+
 export interface Task {
   id: string;
   nsi: string;
@@ -49,4 +51,6 @@ export interface Task {
   opportunityId?: string;
   serviceType?: string;
   scheduledBy?: string;
+  services?: VisitService[];
+  stage?: string;
 }

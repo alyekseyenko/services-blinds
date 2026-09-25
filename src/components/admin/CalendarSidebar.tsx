@@ -28,7 +28,7 @@ export default function CalendarSidebar({
       className={
         embedded
           ? "p-4"
-          : "hidden w-80 overflow-y-auto border-l border-slate-200 bg-slate-50 p-4 lg:block"
+          : "hidden w-64 shrink-0 overflow-y-auto border-l border-slate-200 bg-slate-50 p-3 lg:block xl:w-72 xl:p-4"
       }
     >
       {!embedded && (

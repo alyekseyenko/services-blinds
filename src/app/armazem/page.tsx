@@ -95,7 +95,7 @@ export default function WarehouseDashboard() {
   const greeting = useMemo(() => getWarehouseGreeting(), []);
 
   return (
-    <div className="min-h-screen bg-[#f3f5fa] text-[#090d16] font-sans pb-24 selection:bg-[#84cc16]/20 selection:text-[#090d16]">
+    <div className="min-h-dvh bg-background font-sans pb-24 text-foreground selection:bg-primary/20 selection:text-foreground">
       <WarehouseHeader greeting={greeting} userName={userName} onLogout={handleLogout} />
 
       <WarehouseDashboardView

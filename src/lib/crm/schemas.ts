@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CRM_TASK_STATUS } from './contract';
+import type { VisitService } from '@/lib/schemas';
 
 export const TaskStatusSchema = z.enum([
   CRM_TASK_STATUS.AGENDADO,
@@ -58,4 +59,6 @@ export interface AppTask {
   assigneeId?: string | null;
   technicianName?: string | null;
   isOverdue?: boolean;
+  services?: VisitService[];
+  personId?: string;
 }

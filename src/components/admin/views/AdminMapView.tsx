@@ -1,34 +1,51 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Filter, Navigation } from "lucide-react";
+import { Navigation, X } from "lucide-react";
 import RouteSidebar from "@/components/admin/RouteSidebar";
+import AdminMapFiltersBar from "@/components/admin/AdminMapFiltersBar";
 import { Sheet } from "@/components/ui/Sheet";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 import type { HqLocation } from "@/lib/hq";
 import type { OptimizedRouteStop } from "@/lib/admin/routeOptimization";
-import type { MapCategoryFilter, Opportunity, RouteData, RouteStop } from "@/types/admin";
+import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
+import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
+import type {
+  MapCategoryFilter,
+  MapStallFilter,
+  Opportunity,
+  RouteData,
+  RouteStop,
+  ZoneInsight,
+} from "@/types/admin";
 
 const MapComponent = dynamic(() => import("@/components/MapComponent"), { ssr: false });
-
-const CATEGORY_OPTIONS: { value: MapCategoryFilter; label: string; activeClass: string }[] = [
-  { value: "all", label: "Todos", activeClass: "bg-[#090d16] text-[#84cc16]" },
-  { value: "medicoes", label: "Medições", activeClass: "bg-[#84cc16] text-[#090d16]" },
-  { value: "instalacoes", label: "Instalações", activeClass: "bg-blue-600 text-white" },
-  { value: "assistencia", label: "Assistência", activeClass: "bg-orange-600 text-white" },
-];
 
 export interface AdminMapViewProps {
   hqLocation: HqLocation;
   mapOpportunities: Opportunity[];
   allOpportunities: Opportunity[];
-  categoryFilter: MapCategoryFilter;
-  setCategoryFilter: (filter: MapCategoryFilter) => void;
+  mapTab: string;
+  setMapTab: (tab: string) => void;
+  serviceTypeFilters: MapCategoryFilter[];
+  onToggleServiceTypeFilter: (filter: MapCategoryFilter) => void;
+  mapTechnicianFilter: string | null;
+  setMapTechnicianFilter: (name: string | null) => void;
+  mapTechnicianOptions: MapTechnicianOption[];
+  historyOutcomes: MapHistoryOutcome[];
+  onToggleHistoryOutcome: (outcome: MapHistoryOutcome) => void;
+  onClearServiceTypeFilters: () => void;
+  onClearHistoryOutcomes: () => void;
+  stallFilter: MapStallFilter;
+  setStallFilter: (filter: MapStallFilter) => void;
   techniciansLocations: TechnicianLocation[];
   routeSelectionMode: boolean;
+  setRouteSelectionMode: (enabled: boolean) => void;
+  onExitRoutePlanning: () => void;
   selectedForRoute: RouteStop[];
   onTaskSelect: (opp: Opportunity) => void;
+  onScheduleFromMap: (opp: Opportunity) => void;
   optimizedRoute: OptimizedRouteStop[] | null;
   fuelPrice: number;
   setFuelPrice: (price: number) => void;
@@ -52,18 +69,40 @@ export interface AdminMapViewProps {
   showRouteSheet: boolean;
   setShowRouteSheet: (open: boolean) => void;
   setShowMassScheduleModal: (open: boolean) => void;
+  cityFilter: string | null;
+  setCityFilter: (city: string | null) => void;
+  loading: boolean;
+  zoneInsights: ZoneInsight[];
+  withoutGpsCount: number;
+  onSyncAddresses: () => void;
+  isSyncing: boolean;
+  autoGenerateRouteForZone: (zone: string) => void;
 }
 
 export default function AdminMapView({
   hqLocation,
   mapOpportunities,
   allOpportunities,
-  categoryFilter,
-  setCategoryFilter,
+  mapTab,
+  setMapTab,
+  serviceTypeFilters,
+  onToggleServiceTypeFilter,
+  mapTechnicianFilter,
+  setMapTechnicianFilter,
+  mapTechnicianOptions,
+  historyOutcomes,
+  onToggleHistoryOutcome,
+  onClearServiceTypeFilters,
+  onClearHistoryOutcomes,
+  stallFilter,
+  setStallFilter,
   techniciansLocations,
   routeSelectionMode,
+  setRouteSelectionMode,
+  onExitRoutePlanning,
   selectedForRoute,
   onTaskSelect,
+  onScheduleFromMap,
   optimizedRoute,
   fuelPrice,
   setFuelPrice,
@@ -87,25 +126,15 @@ export default function AdminMapView({
   showRouteSheet,
   setShowRouteSheet,
   setShowMassScheduleModal,
+  cityFilter,
+  setCityFilter,
+  loading,
+  zoneInsights,
+  withoutGpsCount,
+  onSyncAddresses,
+  isSyncing,
+  autoGenerateRouteForZone,
 }: AdminMapViewProps) {
-  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
-  const categoryMenuRef = useRef<HTMLDivElement>(null);
-  const activeCategory =
-    CATEGORY_OPTIONS.find((option) => option.value === categoryFilter) ?? CATEGORY_OPTIONS[0];
-
-  useEffect(() => {
-    if (!showCategoryMenu) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!categoryMenuRef.current?.contains(event.target as Node)) {
-        setShowCategoryMenu(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [showCategoryMenu]);
-
   const routeSidebarProps = {
     selectedForRoute,
     toggleSelectionForRoute,
@@ -129,6 +158,32 @@ export default function AdminMapView({
     setShowMassScheduleModal,
   };
 
+  const highlightedIds = useMemo(
+    () => selectedForRoute.map((s) => s.id),
+    [selectedForRoute]
+  );
+
+  const autoFitKey = `${mapTab}-${serviceTypeFilters.join(",")}-${mapTechnicianFilter ?? "all"}-${historyOutcomes.join(",")}-${stallFilter}-${cityFilter ?? "all"}-${mapOpportunities.length}`;
+
+  useEffect(() => {
+    if (!routeSelectionMode) setShowRouteSheet(false);
+  }, [routeSelectionMode, setShowRouteSheet]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      if (mq.matches) setShowRouteSheet(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [setShowRouteSheet]);
+
+  const closeRoutePanel = () => setShowRouteSheet(false);
+  const exitRouteSelection = () => {
+    onExitRoutePlanning();
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
@@ -137,8 +192,14 @@ export default function AdminMapView({
             tasks={mapOpportunities}
             allOpportunities={allOpportunities}
             onTaskSelect={onTaskSelect}
+            markerInteraction="popup"
+            onScheduleFromMap={onScheduleFromMap}
+            autoFitKey={autoFitKey}
+            routeSelectionMode={routeSelectionMode}
+            isTaskInRoute={(task) => selectedForRoute.some((s) => s.id === task.id)}
+            onToggleRouteFromMap={toggleSelectionForRoute}
             showTechnicianColors={true}
-            highlightedIds={selectedForRoute.map((s) => s.id)}
+            highlightedIds={highlightedIds}
             hqLocation={hqLocation}
             optimizedRoute={optimizedRoute}
             fuelPrice={fuelPrice}
@@ -152,95 +213,93 @@ export default function AdminMapView({
             }}
           />
 
-          <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-2">
-            <div ref={categoryMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setShowCategoryMenu((open) => !open)}
-                className={`flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-wider shadow-2xl backdrop-blur transition-all hover:bg-white ${
-                  showCategoryMenu ? "ring-2 ring-[#84cc16]/40" : ""
-                }`}
-                aria-expanded={showCategoryMenu}
-                aria-haspopup="menu"
-              >
-                <Filter className="h-4 w-4 text-slate-500" />
-                <span className={`rounded-lg px-2 py-1 ${activeCategory.activeClass}`}>
-                  {activeCategory.label}
-                </span>
-              </button>
-
-              {showCategoryMenu && (
-                <div
-                  role="menu"
-                  className="absolute left-0 top-[calc(100%+0.5rem)] min-w-[12rem] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl backdrop-blur"
-                >
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setCategoryFilter(option.value);
-                        setShowCategoryMenu(false);
-                      }}
-                      className={`flex w-full min-h-12 items-center rounded-xl px-3 py-2 text-left text-xs font-black uppercase tracking-wider transition-all ${
-                        categoryFilter === option.value
-                          ? option.activeClass
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-2 pointer-events-none">
+            <AdminMapFiltersBar
+              mapTab={mapTab}
+              setMapTab={setMapTab}
+              serviceTypeFilters={serviceTypeFilters}
+              onToggleServiceTypeFilter={onToggleServiceTypeFilter}
+              mapTechnicianFilter={mapTechnicianFilter}
+              setMapTechnicianFilter={setMapTechnicianFilter}
+              mapTechnicianOptions={mapTechnicianOptions}
+              historyOutcomes={historyOutcomes}
+              onToggleHistoryOutcome={onToggleHistoryOutcome}
+              onClearServiceTypeFilters={onClearServiceTypeFilters}
+              onClearHistoryOutcomes={onClearHistoryOutcomes}
+              stallFilter={stallFilter}
+              setStallFilter={setStallFilter}
+              cityFilter={cityFilter}
+              setCityFilter={setCityFilter}
+              visibleCount={mapOpportunities.length}
+              loading={loading}
+              zoneInsights={zoneInsights}
+              withoutGpsCount={withoutGpsCount}
+              onSyncAddresses={onSyncAddresses}
+              isSyncing={isSyncing}
+              routeSelectionMode={routeSelectionMode}
+              setRouteSelectionMode={setRouteSelectionMode}
+              autoGenerateRouteForZone={autoGenerateRouteForZone}
+            />
 
             {techniciansLocations.length > 0 && (
-              <div className="flex items-center gap-2 rounded-2xl border border-[#84cc16]/40 bg-[#090d16]/90 px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-xl backdrop-blur">
-                <span className="w-2 h-2 rounded-full bg-[#84cc16] animate-pulse" />
+              <div className="pointer-events-auto hidden items-center gap-2 rounded-2xl border border-[#84cc16]/40 bg-[#090d16]/90 px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-xl backdrop-blur sm:flex">
+                <span className="h-2 w-2 rounded-full bg-[#84cc16]" />
                 <span className="text-[#84cc16]">{techniciansLocations.length}</span>
                 <span>
                   {techniciansLocations.length === 1
-                    ? "Técnico em Campo"
-                    : "Técnicos em Campo"}
+                    ? "Técnico em campo"
+                    : "Técnicos em campo"}
                 </span>
               </div>
             )}
-          </div>
 
-          {routeSelectionMode && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-2xl font-bold animate-pulse z-10 border-2 border-white text-xs">
-              Modo de Seleção Ativo
-            </div>
-          )}
+            {routeSelectionMode && (
+              <div className="pointer-events-auto hidden items-center gap-2 rounded-2xl border border-blue-200 bg-blue-600/95 px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-lg backdrop-blur sm:flex">
+                <span>Modo de seleção</span>
+                <span className="rounded-lg bg-white/20 px-2 py-0.5">{selectedForRoute.length} paragens</span>
+                <button
+                  type="button"
+                  onClick={onExitRoutePlanning}
+                  aria-label="Sair do modo de seleção"
+                  className="ml-1 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-slate-900/40 hover:bg-slate-900/60"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {routeSelectionMode && (
           <div className="hidden lg:flex lg:min-h-0 lg:shrink-0">
-            <RouteSidebar {...routeSidebarProps} />
+            <RouteSidebar {...routeSidebarProps} onExitSelection={exitRouteSelection} />
           </div>
         )}
 
-        {routeSelectionMode && (
+        {routeSelectionMode && !showRouteSheet && (
           <button
             type="button"
             onClick={() => setShowRouteSheet(true)}
-            className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 z-20 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#090d16] text-xs font-black uppercase tracking-wider text-[#84cc16] shadow-xl lg:hidden"
+            className="fixed bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] left-4 right-4 z-20 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#090d16] text-xs font-black uppercase tracking-wider text-[#84cc16] shadow-xl lg:hidden"
           >
-            <Navigation className="h-5 w-5" />
-            Rota ({selectedForRoute.length} paragens)
+            <Navigation className="h-5 w-5" aria-hidden />
+            Ver roteiro ({selectedForRoute.length})
           </button>
         )}
       </div>
 
       <Sheet
         open={showRouteSheet}
-        onClose={() => setShowRouteSheet(false)}
+        onClose={closeRoutePanel}
         title="Roteiro do dia"
-        description={`${selectedForRoute.length} paragens selecionadas`}
+        showHeader={false}
+        flexBody
       >
-        <RouteSidebar {...routeSidebarProps} />
+        <RouteSidebar
+          {...routeSidebarProps}
+          onClosePanel={closeRoutePanel}
+          onExitSelection={exitRouteSelection}
+        />
       </Sheet>
     </div>
   );

@@ -1,5 +1,5 @@
 import { crmFetch } from "./client";
-import { CRM_STAGES, CRM_TASK_STATUS } from "./contract";
+import { CRM_STAGES, CRM_TASK_STATUS, parseCrmClientRating, CRM_ADDRESS_GRAPHQL_FIELDS } from "./contract";
 import { recentYears, yearToUtcRange } from "./dateFilters";
 import { HQ_COORDINATES } from "@/lib/hq";
 import { 
@@ -104,10 +104,7 @@ const CEO_OPP_NODE_FIELDS = `
     currencyCode
   }
   moradaDeServico {
-    addressLat
-    addressLng
-    addressCity
-    addressStreet1
+    ${CRM_ADDRESS_GRAPHQL_FIELDS}
   }
   taskTargets {
     edges {
@@ -254,7 +251,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
 
     const itemsQuery = `
       query getCeoItems {
-        itemdeservicos(first: 1000) {
+        produtos(first: 1000) {
           edges {
             node {
               id
@@ -269,12 +266,12 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
     const [oppsRes, tasksRes, itemsRes] = await Promise.allSettled([
       fetchCeoOpportunityNodes(activeYear),
       fetchCeoTaskNodes(activeYear),
-      crmFetch<{ itemdeservicos: { edges: Array<{ node: any }> } }>(itemsQuery),
+      crmFetch<{ produtos: { edges: Array<{ node: any }> } }>(itemsQuery),
     ]);
 
     const filteredOpps = oppsRes.status === "fulfilled" ? oppsRes.value : [];
     const allTaskNodes = tasksRes.status === "fulfilled" ? tasksRes.value : [];
-    const itemNodes = itemsRes.status === "fulfilled" ? itemsRes.value.itemdeservicos?.edges?.map(e => e.node) || [] : [];
+    const itemNodes = itemsRes.status === "fulfilled" ? itemsRes.value.produtos?.edges?.map(e => e.node) || [] : [];
 
     // --- CÁLCULOS FINANCEIROS (RECEITA GANHA, FORECAST, VALOR PERDIDO, WIN RATE) ---
     let wonRevenue = 0;
@@ -483,7 +480,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
         year: yr,
         month: mIdx + 1,
         monthName: MONTH_NAMES[mIdx] || "",
-        rating: typeof node.avaliacaoDoCliente === "number" ? node.avaliacaoDoCliente : null,
+        rating: parseCrmClientRating(node.avaliacaoDoCliente),
         technician: technician,
         amount: amountVal,
         formattedAmount: amountVal !== null ? formatEUR(amountVal) : "Sob Orçamento",
@@ -514,15 +511,27 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
         stageAmounts[stage] += amountVal;
       }
 
-      if (node.avaliacaoDoCliente && typeof node.avaliacaoDoCliente === "number") {
-        ratings.push(node.avaliacaoDoCliente);
+      const clientRating = parseCrmClientRating(node.avaliacaoDoCliente);
+      const clientFeedback = typeof node.feedbackDoCliente === "string"
+        ? node.feedbackDoCliente.trim()
+        : "";
+
+      if (clientRating !== null) {
+        ratings.push(clientRating);
+      }
+
+      if (clientRating !== null || clientFeedback) {
         recentFeedback.push({
           id: node.id,
           clientName: node.name || "Cliente",
           nsi: node.nsi != null ? String(node.nsi) : undefined,
-          rating: node.avaliacaoDoCliente,
-          feedback: node.feedbackDoCliente || undefined,
-          date: node.createdAt ? new Date(node.createdAt).toLocaleDateString("pt-PT") : "Recente",
+          rating: clientRating ?? 0,
+          feedback: clientFeedback || undefined,
+          date: node.updatedAt
+            ? new Date(node.updatedAt).toLocaleDateString("pt-PT")
+            : node.createdAt
+              ? new Date(node.createdAt).toLocaleDateString("pt-PT")
+              : "Recent",
         });
       }
     });

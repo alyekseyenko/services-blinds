@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getAppSession } from '@/lib/auth/session.server';
+import { isStrictAdminRole } from '@/lib/auth/session';
 import { crmFetch } from '@/lib/crm/client';
 import { createOpportunityNote } from '@/lib/crm/notes';
 import { runQA360Diagnostic } from '@/lib/qaDiagnostics';
+import { runE2ESuite } from '@/lib/observability/runE2ESuite';
+import { E2ESuiteDepthSchema } from '@/lib/observability/e2eTypes';
+import { getLuxuryJob } from '@/lib/observability/luxury/luxuryJobStore';
+import { startLuxuryWorkflowJob } from '@/lib/observability/luxury/startLuxuryWorkflowJob';
 
 export async function POST(request: NextRequest) {
   try {
     // 1. Verificação de Segurança: Apenas Administradores Autenticados
-    const session = await getServerSession(authOptions);
-    
-    if (!session || session.user?.role !== 'admin') {
+    const ctx = await getAppSession();
+
+    if (!ctx || !isStrictAdminRole(ctx.user.role!)) {
       return NextResponse.json(
         { 
           success: false, 
@@ -43,6 +47,75 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
+    // MODE 3: COMPLETE E2E OBSERVABILITY SUITE (extensible check registry)
+    // =========================================================================
+    if (mode === 'E2E_FULL_SUITE') {
+      const depthResult = E2ESuiteDepthSchema.safeParse(body?.depth ?? 'safe');
+      const depth = depthResult.success ? depthResult.data : 'safe';
+      const report = await runE2ESuite(depth);
+      return NextResponse.json({
+        success: true,
+        mode: 'E2E_FULL_SUITE',
+        report,
+      });
+    }
+
+    // =========================================================================
+    // MODE 4: LUXURY FULL WORKFLOW E2E (live CRM + n8n integration)
+    // =========================================================================
+    if (mode === 'LUXURY_WORKFLOW_E2E') {
+      const action = body?.action || 'start';
+
+      if (action === 'status') {
+        const jobId = body?.jobId as string | undefined;
+        if (!jobId) {
+          return NextResponse.json(
+            { success: false, error: 'jobId is required for status polling.' },
+            { status: 400 }
+          );
+        }
+        const job = getLuxuryJob(jobId);
+        if (!job) {
+          return NextResponse.json(
+            { success: false, error: 'Luxury workflow job not found or expired.' },
+            { status: 404 }
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          mode: 'LUXURY_WORKFLOW_E2E',
+          action: 'status',
+          job,
+          report: job.report,
+        });
+      }
+
+      const scenarioId = body?.scenarioId || 'brazil-full-workflow';
+      const userId = ctx.user.userId || ctx.user.id || "";
+      if (!userId) {
+        return NextResponse.json(
+          { success: false, error: 'Workspace member ID missing from session. Log out and log in again.' },
+          { status: 400 }
+        );
+      }
+
+      const job = startLuxuryWorkflowJob(scenarioId, {
+        userId,
+        userName: ctx.user.name || ctx.user.email || "Luxury E2E Admin",
+        email: ctx.user.email || undefined,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: 'LUXURY_WORKFLOW_E2E',
+        action: 'start',
+        jobId: job.id,
+        status: job.status,
+        message: 'Luxury workflow started. Poll with action=status and jobId.',
+      });
+    }
+
+    // =========================================================================
     // MODO 2: CRIAÇÃO DE DADOS EXEMPLARES NO CRM (OPORTUNIDADE + CLIENTE + NOTA)
     // =========================================================================
     const logs: string[] = [];
@@ -51,7 +124,7 @@ export async function POST(request: NextRequest) {
       logs.push(msg);
     };
 
-    log(`A iniciar criação de Serviço Completo de Exemplo (Executado por: ${session.user.name || session.user.email})...`);
+    log(`A iniciar criação de Serviço Completo de Exemplo (Executado por: ${ctx.user.name || ctx.user.email})...`);
 
     const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
     const clientEmail = `carlos.mendes.qa${randomSuffix}@example.com`;

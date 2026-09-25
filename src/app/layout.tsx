@@ -5,6 +5,7 @@ import PushOptInPrompt from "@/components/PushOptInPrompt";
 import SWUpdatePrompt from "@/components/SWUpdatePrompt";
 import { APP_NAME, APP_SHORT_NAME, APP_LOGO_PATH } from "@/lib/branding";
 import Providers from "@/components/Providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme/themeInitScript";
 
 export const viewport = {
   themeColor: "#84cc16",
@@ -35,8 +36,11 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt" className="h-full antialiased">
-      <body className="min-h-full flex flex-col font-sans">
+    <html lang="pt" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-background font-sans text-foreground">
         <Providers>
           {children}
           <PWARegistration />

@@ -4,6 +4,7 @@ export const CLIENT_PREF_KEYS = {
   LOCATION_SHARING: "location_sharing_consent",
   PWA_INSTALL_STATUS: "pwa_install_status",
   PWA_INSTALL_DISMISSED_AT: "pwa_install_dismissed_at",
+  COLOR_THEME: "app_color_theme",
 } as const;
 
 const PRESERVED_ON_LOGOUT: string[] = [
@@ -11,6 +12,7 @@ const PRESERVED_ON_LOGOUT: string[] = [
   CLIENT_PREF_KEYS.LOCATION_SHARING,
   CLIENT_PREF_KEYS.PWA_INSTALL_STATUS,
   CLIENT_PREF_KEYS.PWA_INSTALL_DISMISSED_AT,
+  CLIENT_PREF_KEYS.COLOR_THEME,
 ];
 
 /** How long "Not now" suppresses the PWA install banner before it may reappear. */
@@ -97,4 +99,6 @@ export function clearSessionStoragePreservingPreferences(): void {
   for (const [key, value] of Object.entries(preserved)) {
     localStorage.setItem(key, value);
   }
+
+  void import("@/lib/db").then(({ clearOfflineUserData }) => clearOfflineUserData());
 }

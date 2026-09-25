@@ -113,7 +113,7 @@ export default function CeoDashboard() {
 
   if (sessionStatus === "loading" || !session || !userRole || !canAccessCeoPanel(userRole)) {
     return (
-      <div className="min-h-screen bg-[#f3f5fa] flex flex-col items-center justify-center gap-4">
+      <div className="min-h-dvh bg-[#f3f5fa] flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 border-4 border-slate-200 border-t-[#84cc16] rounded-full animate-spin" />
         <p className="text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
           A validar credenciais executivas...
@@ -123,7 +123,7 @@ export default function CeoDashboard() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#f3f5fa] text-slate-800 font-sans pb-24">
+    <div className="min-h-dvh w-full bg-background font-sans pb-24 text-foreground">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#84cc16]/6 rounded-full blur-[140px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-500/3 rounded-full blur-[140px]" />

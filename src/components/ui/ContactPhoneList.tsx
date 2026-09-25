@@ -12,7 +12,7 @@ interface ContactPhoneListProps {
 
 export default function ContactPhoneList({
   phones,
-  emptyLabel = "Not available",
+  emptyLabel = "Indisponível",
   compact = false,
   className = "",
 }: ContactPhoneListProps) {
@@ -45,14 +45,14 @@ export default function ContactPhoneList({
         <div key={`${phone}-${index}`} className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase leading-none text-slate-400 mb-1">
-              {index === 0 ? "Primary phone" : `Additional phone ${index}`}
+              {index === 0 ? "Telefone principal" : `Telefone adicional ${index}`}
             </p>
             <p className="text-slate-800 font-bold font-mono">{phone}</p>
           </div>
           <a
             href={toTelHref(phone)}
             className="bg-white border border-slate-200 p-2 rounded-xl hover:bg-blue-50 transition-colors shadow-sm"
-            aria-label={`Call ${phone}`}
+            aria-label={`Ligar para ${phone}`}
           >
             <Phone className="w-4 h-4 text-blue-600" />
           </a>

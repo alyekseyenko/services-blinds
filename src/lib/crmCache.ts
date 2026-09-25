@@ -3,14 +3,16 @@ import type Redis from "ioredis";
 const memory = new Map<string, { expiresAt: number; value: string }>();
 
 let redisClient: Redis | null | undefined;
-let redisUnavailable = false;
+let redisUnavailableUntil = 0;
+const REDIS_COOLDOWN_MS = 30_000;
 
 const DEFAULT_TTL_SEC = 60;
 const MEMBERS_TTL_SEC = 120;
 
 async function getRedisClient(): Promise<Redis | null> {
-  if (redisUnavailable || !process.env.REDIS_URL) return null;
-  if (redisClient !== undefined) return redisClient;
+  if (!process.env.REDIS_URL) return null;
+  if (Date.now() < redisUnavailableUntil) return null;
+  if (redisClient !== undefined && redisClient !== null) return redisClient;
 
   try {
     const { default: RedisCtor } = await import("ioredis");
@@ -21,13 +23,15 @@ async function getRedisClient(): Promise<Redis | null> {
       connectTimeout: 2000,
     });
     redisClient.on("error", () => {
-      redisUnavailable = true;
+      redisClient = null;
+      redisUnavailableUntil = Date.now() + REDIS_COOLDOWN_MS;
     });
     await redisClient.connect();
+    redisUnavailableUntil = 0;
     return redisClient;
   } catch {
-    redisUnavailable = true;
     redisClient = null;
+    redisUnavailableUntil = Date.now() + REDIS_COOLDOWN_MS;
     return null;
   }
 }

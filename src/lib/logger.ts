@@ -17,12 +17,13 @@ class Logger {
   private ringBuffer: LogRecord[] = [];
   private maxBufferSize = 500;
   private isLoaded = false;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   private getFilePath(): string | null {
     if (typeof window !== 'undefined') return null;
     try {
-      const path = require('path');
-      return path.join(process.cwd(), 'src/scratch/system_logs.json');
+      const { resolveAppDataFile } = require('./server/scratchPath') as typeof import('./server/scratchPath');
+      return resolveAppDataFile('system_logs.json');
     } catch {
       return null;
     }
@@ -66,12 +67,28 @@ class Logger {
     try {
       const filePath = this.getFilePath();
       if (!filePath) return;
-      this.ensureDir(filePath);
-      const fs = require('fs');
-      fs.writeFileSync(filePath, JSON.stringify(this.ringBuffer, null, 2));
+      const { writeJsonFileAtomic } = require('./server/atomicJsonFile') as typeof import('./server/atomicJsonFile');
+      writeJsonFileAtomic(filePath, this.ringBuffer);
     } catch {
       // Non-blocking fallback
     }
+  }
+
+  private schedulePersist(immediate = false) {
+    if (typeof window !== 'undefined') return;
+    if (immediate) {
+      if (this.persistTimer) {
+        clearTimeout(this.persistTimer);
+        this.persistTimer = null;
+      }
+      this.persistLogs();
+      return;
+    }
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.persistLogs();
+    }, 2000);
   }
 
   private recordLog(level: LogLevel, message: string, context?: LogContext) {
@@ -89,7 +106,8 @@ class Logger {
     if (this.ringBuffer.length > this.maxBufferSize) {
       this.ringBuffer.pop();
     }
-    this.persistLogs();
+    const immediate = level === 'error' || level === 'warn';
+    this.schedulePersist(immediate);
   }
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext) {
@@ -144,7 +162,7 @@ class Logger {
 
   clearLogs(): void {
     this.ringBuffer = [];
-    this.persistLogs();
+    this.schedulePersist(true);
   }
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ProductGroup, ProductType, Task } from "@/types";
 import { parseMeasurementsFromReport } from "@/lib/measurementsUtils";
 
-export function useMeasurements(task?: Task) {
+export function useMeasurements(task?: Task, opportunityId?: string) {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([
     {
       id: Date.now(),
@@ -14,7 +14,8 @@ export function useMeasurements(task?: Task) {
   ]);
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
 
-  const DRAFT_KEY = `measurements_draft_${task?.id || "new"}`;
+  const oppKey = opportunityId || task?.opportunityId;
+  const DRAFT_KEY = `measurements_draft_${task?.id || "new"}${oppKey ? `_${oppKey}` : ""}`;
 
   useEffect(() => {
     const savedDraft = localStorage.getItem(DRAFT_KEY);
@@ -117,10 +118,11 @@ export function useMeasurements(task?: Task) {
 
     async function loadFromCrm() {
       // 1. Tentar ler os itens reais de serviço diretamente do CRM primeiro!
-      if (task?.opportunityId) {
+      const loadOppId = opportunityId || task?.opportunityId;
+      if (loadOppId) {
         try {
           const { getServiceItemsByOpportunityAction } = await import("@/actions/measurements-actions");
-          const res = await getServiceItemsByOpportunityAction(task.opportunityId);
+          const res = await getServiceItemsByOpportunityAction(loadOppId, task?.id);
           if (res.success && res.data && res.data.length > 0) {
             console.log(`[useMeasurements] Encontrados ${res.data.length} itens reais de serviço no CRM.`);
             const mappedGroups = parseAndGroupServiceItems(res.data);
@@ -169,7 +171,7 @@ export function useMeasurements(task?: Task) {
     }
 
     loadFromCrm();
-  }, [task, DRAFT_KEY]);
+  }, [task, opportunityId, DRAFT_KEY]);
 
   useEffect(() => {
     if (productGroups.length > 0) {

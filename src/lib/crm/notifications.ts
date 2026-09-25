@@ -1,7 +1,8 @@
-import { serverTriggerNotification } from '../notificationAction';
+import "server-only";
 
 export async function triggerNotification(event: string, data: any) {
   try {
+    const { serverTriggerNotification } = await import("../notificationAction");
     return await serverTriggerNotification(event, data);
   } catch (error: any) {
     console.error('Error in triggerNotification bridge:', error);

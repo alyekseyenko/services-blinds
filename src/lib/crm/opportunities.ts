@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 import { crmFetch } from './client';
 import { 
   CRM_STAGES, 
@@ -7,13 +7,19 @@ import {
   normalizeString,
   normalizeTaskStatus,
   isTaskActive,
+  isTaskPendingConfirmation,
+  isTaskBlockingSchedule,
   isTaskCompleted, 
   isTaskCancelled, 
   isMeasurementService,
   isInstallationService,
   isAssistanceService,
   deriveWorkflowMarkerKey,
+  parseCrmClientRating,
+  formatCrmClientRating,
+  CRM_ADDRESS_GRAPHQL_FIELDS,
 } from './contract';
+import { isOpportunityCreatedOnSite } from './visitServicesMarker';
 import {
   ADMIN_HISTORY_PAGE_SIZE,
   ADMIN_PIPELINE_FETCH_LIMIT,
@@ -39,10 +45,7 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   stage
   createdAt
   moradaDeServico {
-    addressStreet1
-    addressCity
-    addressLat
-    addressLng
+    ${CRM_ADDRESS_GRAPHQL_FIELDS}
   }
   pointOfContact {
     id
@@ -73,6 +76,7 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
           assigneeId
           technicianName
           scheduledBy
+          bodyV2 { markdown }
         }
       }
     }
@@ -219,7 +223,7 @@ function mapOpportunityNode(node: any) {
   const taskStatusPriority = (status: string) => {
     const s = normalizeTaskStatus(status);
     if (s === CRM_TASK_STATUS.AGENDADO) return 5;
-    if (s === "POR_AGENDAR") return 4;
+    if (s === CRM_TASK_STATUS.POR_AGENDAR) return 4;
     if (s === CRM_TASK_STATUS.EM_CURSO) return 4;
     if (s === CRM_TASK_STATUS.INCOMPLETO) return 3;
     if (s === CRM_TASK_STATUS.CONCLUIDO || s === CRM_TASK_STATUS.DONE) return 2;
@@ -227,6 +231,10 @@ function mapOpportunityNode(node: any) {
   };
 
   const task = [...allTasks].sort((a, b) => taskStatusPriority(b.status) - taskStatusPriority(a.status))[0] || null;
+
+  const createdOnSite = (node.taskTargets?.edges || []).some((e: any) =>
+    isOpportunityCreatedOnSite(node.id, e.node?.task?.bodyV2?.markdown)
+  );
 
   let isTaskObsolete = false;
   if (task && isTaskActive(task.status)) {
@@ -260,6 +268,10 @@ function mapOpportunityNode(node: any) {
       computedStatus = CRM_TASK_STATUS.INCOMPLETO;
     } else if (taskStatusNormalized === CRM_TASK_STATUS.EM_CURSO) {
       computedStatus = CRM_TASK_STATUS.EM_CURSO;
+    } else if (taskStatusNormalized === CRM_TASK_STATUS.AGENDADO) {
+      computedStatus = CRM_TASK_STATUS.AGENDADO;
+    } else if (taskStatusNormalized === CRM_TASK_STATUS.POR_AGENDAR) {
+      computedStatus = CRM_TASK_STATUS.POR_AGENDAR;
     }
   }
 
@@ -282,7 +294,11 @@ function mapOpportunityNode(node: any) {
     stage: node.stage,
     status: computedStatus,
     dueDate: node.createdAt,
-    address: [node.moradaDeServico?.addressStreet1, node.moradaDeServico?.addressCity].filter(Boolean).join(", ") || "N/A",
+    address: [
+      node.moradaDeServico?.addressStreet1,
+      node.moradaDeServico?.addressCity,
+      node.moradaDeServico?.addressPostcode,
+    ].filter(Boolean).join(", ") || "N/A",
     addressCity: node.moradaDeServico?.addressCity || "Outros",
     coordinates: node.moradaDeServico?.addressLat ? [node.moradaDeServico.addressLat, node.moradaDeServico.addressLng] : null,
     rawAddress: node.moradaDeServico,
@@ -292,14 +308,20 @@ function mapOpportunityNode(node: any) {
     pointOfContactPhones,
     client: contact ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim() : "Cliente",
     hasScheduledTask: !!task && isTaskActive(task.status) && !isTaskObsolete,
+    hasPendingProposal:
+      !!task && isTaskPendingConfirmation(task.status) && !isTaskObsolete,
     taskStatus: isTaskObsolete ? "CONCLUIDO" : task?.status,
     taskId: task?.id,
-    scheduledAt: isTaskObsolete ? null : task?.dueAt,
+    scheduledAt:
+      isTaskObsolete || !task || !isTaskBlockingSchedule(task.status)
+        ? null
+        : task?.dueAt,
     technician: isTaskObsolete ? "Não Atribuído" : task?.technicianName || "Não Atribuído",
     technicianId: isTaskObsolete ? null : task?.assigneeId,
     scheduledBy: isTaskObsolete ? undefined : task?.scheduledBy || undefined,
     nsi: node.nsi || "N/A",
     serviceType: deriveWorkflowMarkerKey(node.stage, node.name),
+    createdOnSite,
   };
 }
 
@@ -340,6 +362,19 @@ export async function fetchOpportunities(
   return data.opportunities.edges.map((edge) => mapOpportunityNode(edge.node));
 }
 
+export async function updateOpportunityClientAvailability(id: string, disponibilidadeIso: string) {
+  const mutation = `
+    mutation updateOppAvailability($id: UUID!, $disponibilidade: DateTime!) {
+      updateOpportunity(id: $id, data: { disponibilidadeDoCliente: $disponibilidade }) {
+        id
+      }
+    }
+  `;
+  const result = await crmFetch(mutation, { id, disponibilidade: disponibilidadeIso });
+  await invalidateAdminCrmCache();
+  return result;
+}
+
 export async function updateOpportunityStage(id: string, stage: string) {
   const mutation = `
     mutation updateOppStage($id: UUID!, $stage: OpportunityStageEnum!) {
@@ -349,6 +384,52 @@ export async function updateOpportunityStage(id: string, stage: string) {
     }
   `;
   const result = await crmFetch(mutation, { id, stage });
+  await invalidateAdminCrmCache();
+  return result;
+}
+
+export type OpportunityServiceAddressInput = {
+  addressStreet1?: string;
+  addressStreet2?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressPostcode?: string;
+  addressCountry?: string;
+  addressLat?: number | null;
+  addressLng?: number | null;
+};
+
+/** Sync service address on the Opportunity (official field: moradaDeServico). */
+export async function updateOpportunityServiceAddress(
+  id: string,
+  morada: OpportunityServiceAddressInput
+) {
+  const hasText =
+    Boolean(morada.addressStreet1?.trim()) ||
+    Boolean(morada.addressCity?.trim()) ||
+    Boolean(morada.addressPostcode?.trim());
+  if (!hasText && morada.addressLat == null && morada.addressLng == null) {
+    return;
+  }
+
+  const mutation = `
+    mutation updateOppServiceAddress($id: UUID!, $moradaDeServico: AddressObjectInput!) {
+      updateOpportunity(id: $id, data: { moradaDeServico: $moradaDeServico }) {
+        id
+      }
+    }
+  `;
+  const moradaDeServico = {
+    addressStreet1: morada.addressStreet1 ?? "",
+    addressStreet2: morada.addressStreet2 ?? "",
+    addressCity: morada.addressCity ?? "",
+    addressState: morada.addressState ?? "",
+    addressPostcode: morada.addressPostcode ?? "",
+    addressCountry: morada.addressCountry ?? "Portugal",
+    addressLat: morada.addressLat ?? null,
+    addressLng: morada.addressLng ?? null,
+  };
+  const result = await crmFetch(mutation, { id, moradaDeServico });
   await invalidateAdminCrmCache();
   return result;
 }
@@ -395,26 +476,25 @@ export async function getOpportunityClientRating(opportunityId: string): Promise
   `;
 
   const data = await crmFetch<{
-    opportunities: { edges: Array<{ node: { avaliacaoDoCliente?: number | null } }> };
+    opportunities: { edges: Array<{ node: { avaliacaoDoCliente?: unknown } }> };
   }>(query, { id: opportunityId });
 
-  const rating = data.opportunities.edges[0]?.node?.avaliacaoDoCliente;
-  return typeof rating === "number" ? rating : null;
+  return parseCrmClientRating(data.opportunities.edges[0]?.node?.avaliacaoDoCliente);
 }
 
 export async function submitServiceFeedback(opportunityId: string, rating: number, feedback: string) {
   const mutation = `
-    mutation updateFeedback($id: UUID!, $rating: Int, $feedback: String) {
+    mutation updateFeedback($id: UUID!, $rating: String, $feedback: String) {
       updateOpportunity(id: $id, data: { avaliacaoDoCliente: $rating, feedbackDoCliente: $feedback }) { 
         id 
       }
     }
   `;
-  
-  await crmFetch(mutation, { 
-    id: opportunityId, 
-    rating: parseInt(rating.toString()), 
-    feedback 
+
+  await crmFetch(mutation, {
+    id: opportunityId,
+    rating: formatCrmClientRating(rating),
+    feedback,
   });
 
   return true;

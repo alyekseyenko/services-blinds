@@ -19,7 +19,7 @@ export function useTechnicianLocations() {
   useEffect(() => {
     const fetchTechLocations = async () => {
       try {
-        const res = await fetch("/api/location");
+        const res = await fetch("/api/location", { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           setTechniciansLocations(data.technicians || []);

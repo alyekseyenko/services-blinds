@@ -12,10 +12,19 @@ interface DialogProps {
   title: string;
   description?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
 }
 
-export function Dialog({ open, onClose, title, description, children, className = "" }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  className = "",
+}: DialogProps) {
   const trapRef = useFocusTrap(open);
 
   useEffect(() => {
@@ -24,14 +33,19 @@ export function Dialog({ open, onClose, title, description, children, className 
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm max-sm:items-stretch max-sm:p-0"
       role="presentation"
       onClick={onClose}
     >
@@ -42,7 +56,7 @@ export function Dialog({ open, onClose, title, description, children, className 
         aria-labelledby="dialog-title"
         aria-describedby={description ? "dialog-desc" : undefined}
         className={cn(
-          "flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl",
+          "flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl max-sm:max-h-[100dvh] max-sm:max-w-none max-sm:rounded-none max-sm:border-0",
           className
         )}
         onClick={(e) => e.stopPropagation()}
@@ -62,7 +76,12 @@ export function Dialog({ open, onClose, title, description, children, className 
             <X className="h-5 w-5" />
           </IconButton>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+          {footer ? (
+            <div className="shrink-0 border-t border-slate-200 bg-white p-5">{footer}</div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

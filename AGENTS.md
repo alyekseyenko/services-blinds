@@ -28,17 +28,15 @@ Auth: **NextAuth.js** (JWT) with Twenty credential validation. Route protection 
 
 ## Language policy
 
-**All text in this project must be written in English.**
+**User-facing text must be written in Portuguese (Portugal).**
 
 This applies to:
 
 - User-facing UI copy (labels, buttons, toasts, errors, empty states)
 - API error messages returned to the client
-- Code comments and JSDoc added or edited by agents
-- Test descriptions and assertion messages
-- Documentation and commit messages produced by agents
+- Test descriptions and assertion messages for user-visible behaviour
 
-Do **not** introduce Portuguese or other languages in new or modified strings unless the user explicitly requests localization. Existing Portuguese strings may remain until migrated; prefer English when touching those areas.
+Code comments, JSDoc, internal logs, and agent documentation may remain in English when clearer for developers. Prefer **pt-PT** for any string the operator or technician will see.
 
 ---
 
@@ -134,6 +132,7 @@ Supporting docs: [README.md](./README.md), [ARCHITECTURE_MASTER_BLUEPRINT.md](./
 ### Do
 
 - Read surrounding code before editing; match existing patterns.
+- **When adding a new automation, webhook, portal, or external integration**, register an E2E check in `src/lib/observability/e2eRegistry.ts` (see [docs/E2E_OBSERVABILITY_SUITE.md](./docs/E2E_OBSERVABILITY_SUITE.md)). For full business-flow coverage, add a phase or scenario in `src/lib/observability/luxury/luxuryRegistry.ts`.
 - Keep diffs minimal and focused on the requested change.
 - Use `credentials: "include"` on client `fetch` calls that need the session cookie.
 - Use env-driven branding (`src/lib/branding.ts`, `src/lib/hq.ts`) — never hardcode production domains or IPs in committed code.

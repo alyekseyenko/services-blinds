@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { X, User, MapPin, Clock, Map as MapIcon, MessageSquare, Loader2, Plus, CheckCircle, FileText, Ruler, PlayCircle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { X, User, MapPin, Clock, Map as MapIcon, MessageSquare, Loader2, Plus, CheckCircle, FileText, Ruler, PlayCircle, Pencil, Trash2 } from "lucide-react";
+import { deleteVisitServiceAction } from "@/actions/visit-services-actions";
 import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { hasValidMeasurements, formatMeasurementsReport, getMeasurementsDraftKey } from "@/lib/measurementsUtils";
 import { INCOMPLETE_REASONS, formatIncompleteReason } from "@/lib/taskReasons";
@@ -8,14 +9,25 @@ import { isTaskActive, isTaskInProgress, isMeasurementService } from "@/lib/crm/
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getServiceTypeColor } from "@/lib/techniciansConfig";
-import { geocodeAddress, updateTaskCoordinates } from "@/lib/crm";
+import { geocodeTaskAddressAction, updateTaskCoordinatesAction } from "@/actions/task-location-actions";
 import { completeTaskAction } from "@/actions/tasks-actions";
 import { fetchOpportunityNotesAction, createOpportunityNoteAction } from "@/actions/notes-actions";
 import { submitMeasurementsAction } from "@/actions/measurements-actions";
 import { useToast } from "@/components/ui/ToastContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import MeasurementsForm from "@/components/features/measurements/MeasurementsForm";
+import MeasurementsForm, {
+  MeasurementsSaveButton,
+  type MeasurementsFormHandle,
+} from "@/components/features/measurements/MeasurementsForm";
 import ContactPhoneList from "@/components/ui/ContactPhoneList";
+import AddVisitServiceSheet from "@/components/dashboard/AddVisitServiceSheet";
+import type { VisitService } from "@/lib/schemas";
+import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
+import {
+  isUrgentSchedulingNote,
+  isUrgentVisitMarkdown,
+} from "@/lib/crm/urgentSchedulingUi";
 
 interface TaskDetailsDrawerProps {
   selectedTask: any;
@@ -25,7 +37,14 @@ interface TaskDetailsDrawerProps {
   mutateTasks: () => void;
   enqueueStatusUpdate: (id: string, status: string, reason: string, photos: string[], oppId: string) => Promise<{ queued: boolean }>;
   enqueueMeasurementsSave: (id: string, oppId: string, data: any) => Promise<{ queued: boolean }>;
-  enqueueNote: (oppId: string, personId: string | null, title: string, body: string) => Promise<{ queued: boolean }>;
+  enqueueNote: (
+    oppId: string,
+    personId: string | null,
+    title: string,
+    body: string,
+    taskId?: string
+  ) => Promise<{ queued: boolean }>;
+  enqueueVisitService: (payload: Record<string, unknown>) => Promise<{ queued?: boolean; opportunityId?: string }>;
 }
 
 export default function TaskDetailsDrawer({
@@ -37,8 +56,10 @@ export default function TaskDetailsDrawer({
   enqueueStatusUpdate,
   enqueueMeasurementsSave,
   enqueueNote,
+  enqueueVisitService,
 }: TaskDetailsDrawerProps) {
   const toast = useToast();
+  const confirm = useConfirm();
   const drawerRef = useFocusTrap(!!selectedTask);
   const [reason, setReason] = useState("");
   const [reasonPreset, setReasonPreset] = useState("");
@@ -46,6 +67,12 @@ export default function TaskDetailsDrawer({
   const [isUploading, setIsUploading] = useState(false);
   const [isStartingVisit, setIsStartingVisit] = useState(false);
   const [activeTab, setActiveTab] = useState<"info" | "measurements">("info");
+  const [showAddService, setShowAddService] = useState(false);
+  const [editingService, setEditingService] = useState<VisitService | null>(null);
+  const [deletingOppId, setDeletingOppId] = useState<string | null>(null);
+  const [measurementOppId, setMeasurementOppId] = useState<string | undefined>();
+  const measurementsFormRef = useRef<MeasurementsFormHandle>(null);
+  const [measurementsSaving, setMeasurementsSaving] = useState(false);
 
   // Notes state
   const [notes, setNotes] = useState<any[]>([]);
@@ -53,7 +80,81 @@ export default function TaskDetailsDrawer({
   const [newNoteText, setNewNoteText] = useState("");
   const [isCreatingNote, setIsCreatingNote] = useState(false);
 
-  const showMeasurementsTab = isMeasurementService(selectedTask?.stage, selectedTask?.title);
+  const refreshVisit = () => {
+    mutateTasks();
+  };
+
+  const handleDeleteExtraService = async (svc: VisitService) => {
+    if (!selectedTask?.id || !svc.createdOnSite) return;
+    const confirmed = await confirm({
+      title: "Apagar este serviço?",
+      description: `Tem a certeza que quer apagar este serviço? «${svc.name}» será removido do CRM de forma permanente.`,
+      confirmLabel: "Apagar",
+      cancelLabel: "Cancelar",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    if (!isOnline) {
+      toast.error("É necessária ligação à internet para apagar o serviço.");
+      return;
+    }
+
+    setDeletingOppId(svc.opportunityId);
+    try {
+      const result = await deleteVisitServiceAction({
+        taskId: selectedTask.id,
+        opportunityId: svc.opportunityId,
+      });
+      if (!result.success) {
+        toast.error("Não foi possível apagar o serviço", result.error);
+        return;
+      }
+      toast.success("Serviço removido", "Eliminado do CRM.");
+      setSelectedTask({
+        ...selectedTask,
+        services: (selectedTask.services || []).filter(
+          (s: VisitService) => s.opportunityId !== svc.opportunityId
+        ),
+      });
+      refreshVisit();
+    } finally {
+      setDeletingOppId(null);
+    }
+  };
+
+  const visitServices: VisitService[] = selectedTask?.services?.length
+    ? selectedTask.services
+    : selectedTask?.opportunityId
+      ? [
+          {
+            opportunityId: selectedTask.opportunityId,
+            name: selectedTask.title || "Service",
+            nsi: selectedTask.nsi,
+            stage: selectedTask.stage,
+            serviceType: selectedTask.serviceType || "GERAL",
+            mode: "now",
+            isPrimary: true,
+          },
+        ]
+      : [];
+
+  const measurementServices = visitServices.filter(
+    (s) =>
+      isMeasurementService(s.stage, s.name) ||
+      s.serviceType === "TIRAR_MEDIDAS" ||
+      s.serviceType === "REMEDICAO"
+  );
+
+  const showMeasurementsTab =
+    measurementServices.length > 0 ||
+    isMeasurementService(selectedTask?.stage, selectedTask?.title);
+
+  useEffect(() => {
+    const defaultOpp =
+      measurementServices[0]?.opportunityId || selectedTask?.opportunityId;
+    setMeasurementOppId(defaultOpp);
+  }, [selectedTask?.id, measurementServices.length, selectedTask?.opportunityId]);
 
   // Automatically switch tab if not measurement service
   useEffect(() => {
@@ -67,7 +168,7 @@ export default function TaskDetailsDrawer({
     async function loadNotes() {
       if (selectedTask?.opportunityId) {
         setLoadingNotes(true);
-        const result = await fetchOpportunityNotesAction(selectedTask.opportunityId);
+        const result = await fetchOpportunityNotesAction(selectedTask.opportunityId, selectedTask.id);
         if (result.success) {
           setNotes(result.data || []);
         }
@@ -88,13 +189,25 @@ export default function TaskDetailsDrawer({
       const body = newNoteText.trim();
 
       if (isOnline) {
-        const result = await createOpportunityNoteAction(selectedTask.opportunityId, null, title, body);
+        const result = await createOpportunityNoteAction(
+          selectedTask.opportunityId,
+          null,
+          title,
+          body,
+          selectedTask.id
+        );
         if (!result.success) {
           toast.error("Erro ao criar nota", result.error);
           return;
         }
       } else {
-        const result = await enqueueNote(selectedTask.opportunityId, null, title, body);
+        const result = await enqueueNote(
+          selectedTask.opportunityId,
+          null,
+          title,
+          body,
+          selectedTask.id
+        );
         if (result.queued) {
           toast.info("Nota guardada offline", "Será sincronizada quando houver rede.");
         }
@@ -229,6 +342,20 @@ export default function TaskDetailsDrawer({
     }
   };
 
+  const showMeasurementsSaveBar =
+    activeTab === "measurements" &&
+    showMeasurementsTab &&
+    isTaskActive(selectedTask.status);
+
+  const handleDrawerMeasurementsSave = async () => {
+    setMeasurementsSaving(true);
+    try {
+      await measurementsFormRef.current?.save();
+    } finally {
+      setMeasurementsSaving(false);
+    }
+  };
+
   return (
     <>
       {/* Drawer Overlay */}
@@ -243,13 +370,22 @@ export default function TaskDetailsDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-drawer-title"
-        className="fixed bottom-0 left-0 z-[60] flex w-full flex-col rounded-t-[2.5rem] border-t border-slate-200 bg-[#f8fafc] shadow-[0_-15px_40px_rgba(15,23,42,0.12)] transition-transform duration-300 ease-out lg:left-auto lg:right-6 lg:max-w-xl lg:rounded-[2.5rem] lg:border"
-        style={{ maxHeight: "90vh", paddingBottom: "max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem))" }}
+        className="fixed bottom-0 left-0 z-[60] flex w-full min-h-0 max-h-[min(88dvh,720px)] flex-col rounded-t-3xl border border-border bg-card text-card-foreground shadow-2xl lg:left-auto lg:right-6 lg:max-w-md lg:rounded-3xl"
+        style={{
+          maxHeight: "min(88dvh, 720px)",
+          paddingBottom: showMeasurementsSaveBar
+            ? undefined
+            : "max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem))",
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setSelectedTask(null);
         }}
       >
-        <div className="p-6 md:p-8 overflow-y-auto pb-32 text-slate-800 custom-scrollbar">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto p-4 md:p-5 custom-scrollbar ${
+            showMeasurementsSaveBar ? "pb-6" : "pb-28"
+          }`}
+        >
           {/* Barra superior tátil */}
           <div
             className="w-16 h-1.5 bg-slate-300 rounded-full mx-auto mb-6 cursor-pointer hover:bg-slate-400 transition-colors shrink-0"
@@ -257,13 +393,19 @@ export default function TaskDetailsDrawer({
           />
 
           {/* Cabeçalho do Serviço */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 id="task-drawer-title" className="text-2xl font-black uppercase italic leading-none tracking-tight text-[#090d16]">{selectedTask.title}</h2>
-                <span className="bg-white px-3 py-1 rounded-xl border border-slate-200 text-xs font-black text-[#84cc16] uppercase tracking-wider shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="task-drawer-title" className="text-base font-bold leading-snug text-foreground md:text-lg">{selectedTask.title}</h2>
+                <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-primary">
                   NSI #{selectedTask.nsi}
                 </span>
+                {(isUrgentVisitMarkdown(selectedTask.report) ||
+                  notes.some((n) => isUrgentSchedulingNote(n))) && (
+                  <span className="rounded-xl border-2 border-red-500 bg-red-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-red-800">
+                    Visita urgente
+                  </span>
+                )}
               </div>
               {selectedTask.serviceType && (
                 <div className="flex flex-wrap gap-1.5 mt-2.5">
@@ -289,11 +431,12 @@ export default function TaskDetailsDrawer({
               )}
             </div>
             <button
+              type="button"
               onClick={() => setSelectedTask(null)}
-              className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-800"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="Fechar detalhes da visita"
             >
-              <X className="h-6 w-6" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
@@ -373,19 +516,35 @@ export default function TaskDetailsDrawer({
                       />
                     </div>
                   ) : null}
-                  <NavigationChooser
-                    address={selectedTask.address}
-                    coordinates={selectedTask.coordinates}
-                    label="Abrir no GPS / Waze"
-                    className="w-full text-xs bg-[#84cc16] text-[#090d16] px-4 py-3 rounded-2xl font-black uppercase tracking-wider hover:bg-[#9ae62e] transition-all flex items-center justify-center gap-2 shadow-md shadow-[#84cc16]/20"
-                  />
+                  {isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status) && (
+                    <Button
+                      onClick={handleStartVisit}
+                      disabled={isStartingVisit}
+                      className="w-full min-h-12 py-3 bg-[#84cc16] border-2 border-[#65a30d] text-[#090d16] font-black shadow-[0_10px_35px_rgba(132,204,22,0.35)] hover:bg-[#a3e635] hover:border-[#84cc16] active:bg-[#65a30d]"
+                      loading={isStartingVisit}
+                      loadingText="A iniciar visita..."
+                    >
+                      <PlayCircle className="mr-2 h-5 w-5" /> Cheguei ao local
+                    </Button>
+                  )}
                   <button
                     onClick={async () => {
                       try {
                         toast.info("A geolocalizar...", "A recalcular coordenadas com a morada fornecida.");
-                        const newCoords = await geocodeAddress(selectedTask.address);
+                        const geoResult = await geocodeTaskAddressAction(selectedTask.address);
+                        if (!geoResult.success) {
+                          throw new Error(geoResult.error || "Erro ao geolocalizar.");
+                        }
+                        const newCoords = geoResult.data;
                         if (newCoords && newCoords[0]) {
-                          await updateTaskCoordinates(selectedTask.id, newCoords[0], newCoords[1]);
+                          const coordResult = await updateTaskCoordinatesAction(
+                            selectedTask.id,
+                            newCoords[0],
+                            newCoords[1]
+                          );
+                          if (!coordResult.success) {
+                            throw new Error(coordResult.error || "Erro ao guardar coordenadas.");
+                          }
                           setSelectedTask({
                             ...selectedTask,
                             coordinates: newCoords,
@@ -401,9 +560,114 @@ export default function TaskDetailsDrawer({
                     }}
                     className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition-all hover:bg-slate-200 hover:text-slate-900"
                   >
-                    <MapIcon className="w-3.5 h-3.5 text-slate-500" /> Sincronizar Coordenadas
+                    <MapIcon className="w-3.5 h-3.5 text-slate-500" /> Sincronizar coordenadas
                   </button>
+                  <NavigationChooser
+                    address={selectedTask.address}
+                    coordinates={selectedTask.coordinates}
+                    label="Abrir no GPS / Waze"
+                    className="w-full text-xs bg-[#84cc16] text-[#090d16] px-4 py-3 rounded-2xl font-black uppercase tracking-wider hover:bg-[#9ae62e] transition-all flex items-center justify-center gap-2 shadow-md shadow-[#84cc16]/20"
+                  />
                 </Card>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black uppercase tracking-tight text-[#090d16]">
+                    Serviços nesta visita
+                  </h3>
+                  {isTaskActive(selectedTask.status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingService(null);
+                        setShowAddService(true);
+                      }}
+                      className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-[#84cc16] text-[#090d16] shadow-sm"
+                      aria-label="Adicionar serviço extra no local"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {visitServices
+                    .filter((svc) => svc.isPrimary)
+                    .map((svc) => (
+                      <div
+                        key={svc.opportunityId}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700"
+                      >
+                        <span className="font-black uppercase tracking-wide text-slate-500">
+                          Serviço principal da visita
+                        </span>
+                        <p className="mt-1 text-sm text-slate-900">
+                          {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
+                        </p>
+                      </div>
+                    ))}
+
+                  {visitServices.some((s) => s.createdOnSite) && (
+                    <p className="pt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Serviços extra no local (CRM)
+                    </p>
+                  )}
+
+                  {visitServices
+                    .filter((svc) => svc.createdOnSite)
+                    .map((svc) => (
+                      <div
+                        key={svc.opportunityId}
+                        className="flex flex-col gap-2 rounded-2xl border border-lime-200 bg-lime-50/40 px-4 py-3 text-xs font-semibold text-slate-700"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-bold text-slate-900">
+                            {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
+                          </span>
+                          <span className="flex flex-wrap gap-2">
+                            {svc.mode === "later" && (
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+                                Agendar depois
+                              </span>
+                            )}
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black uppercase text-lime-800">
+                              No CRM
+                            </span>
+                          </span>
+                        </div>
+                        {svc.nsi && svc.nsi !== "N/A" && (
+                          <span className="text-slate-500">NSI: {svc.nsi}</span>
+                        )}
+                        {isTaskActive(selectedTask.status) && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingService(svc);
+                                setShowAddService(true);
+                              }}
+                              className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase"
+                            >
+                              <Pencil className="h-3.5 w-3.5" /> Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={deletingOppId === svc.opportunityId}
+                              onClick={() => handleDeleteExtraService(svc)}
+                              className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-red-200 bg-red-50 text-[10px] font-black uppercase text-red-700"
+                            >
+                              {deletingOppId === svc.opportunityId ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              Apagar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
               </div>
 
               {/* Secção de Notas e Instruções do CRM */}
@@ -430,11 +694,26 @@ export default function TaskDetailsDrawer({
                   </p>
                 ) : (
                   <div className="space-y-3.5 max-h-60 overflow-y-auto pr-1.5 custom-scrollbar">
-                    {notes.map((note) => (
-                      <div key={note.id} className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-col gap-2 shadow-sm">
-                        <div className="flex items-center justify-between">
+                    {notes.map((note) => {
+                      const urgentNote = isUrgentSchedulingNote(note);
+                      return (
+                      <div
+                        key={note.id}
+                        className={`flex flex-col gap-2 rounded-2xl p-4 shadow-sm ${
+                          urgentNote
+                            ? "border-2 border-red-500 bg-red-50/70"
+                            : "border border-slate-200 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <User className="w-3.5 h-3.5 text-[#84cc16]" /> {note.title || "Técnico"}
+                            <User className={`w-3.5 h-3.5 ${urgentNote ? "text-red-600" : "text-[#84cc16]"}`} />
+                            {note.title || "Técnico"}
+                            {urgentNote && (
+                              <span className="rounded-md border border-red-300 bg-red-100 px-1.5 py-0.5 text-[9px] font-black text-red-800">
+                                Urgente
+                              </span>
+                            )}
                           </span>
                           <span className="text-[9px] font-black text-slate-500 uppercase bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                             {new Date(note.createdAt).toLocaleDateString("pt-PT", {
@@ -445,9 +724,16 @@ export default function TaskDetailsDrawer({
                             })}
                           </span>
                         </div>
-                        <p className="text-slate-700 text-sm font-semibold whitespace-pre-line leading-relaxed">{note.body}</p>
+                        <p
+                          className={`text-sm font-semibold whitespace-pre-line leading-relaxed ${
+                            urgentNote ? "text-red-950" : "text-slate-700"
+                          }`}
+                        >
+                          {note.body}
+                        </p>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
 
@@ -474,18 +760,6 @@ export default function TaskDetailsDrawer({
                 <>
                   <div className="h-px bg-slate-200 w-full my-8"></div>
                   <div className="space-y-6">
-                    {!isTaskInProgress(selectedTask.status) && (
-                      <Button
-                        onClick={handleStartVisit}
-                        disabled={isStartingVisit}
-                        className="w-full min-h-12 py-4 bg-[#84cc16] border-2 border-[#65a30d] text-[#090d16] font-black shadow-[0_10px_35px_rgba(132,204,22,0.35)] hover:bg-[#a3e635] hover:border-[#84cc16] active:bg-[#65a30d]"
-                        loading={isStartingVisit}
-                        loadingText="A iniciar visita..."
-                      >
-                        <PlayCircle className="mr-2 h-5 w-5" /> Cheguei ao Local
-                      </Button>
-                    )}
-
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-[#84cc16]" />
                       <h3 className="font-black text-[#090d16] text-base uppercase tracking-tight italic">Finalizar Visita Técnica</h3>
@@ -596,20 +870,45 @@ export default function TaskDetailsDrawer({
           {/* ABA 2: MEDIÇÕES DE ESTORES (Dedicada e ultra limpa!) */}
           {activeTab === "measurements" && showMeasurementsTab && (
             <div className="animate-in fade-in duration-300">
+              {measurementServices.length > 1 && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {measurementServices.map((svc) => (
+                    <button
+                      key={svc.opportunityId}
+                      type="button"
+                      onClick={() => setMeasurementOppId(svc.opportunityId)}
+                      className={`min-h-12 rounded-xl px-4 text-xs font-black uppercase ${
+                        measurementOppId === svc.opportunityId
+                          ? "bg-[#84cc16] text-[#090d16]"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <MeasurementsForm
+                ref={measurementsFormRef}
+                saveBarMode="external"
                 task={selectedTask}
+                opportunityId={measurementOppId || selectedTask.opportunityId}
                 isAdmin={!isTaskActive(selectedTask.status)}
                 onSave={async (data) => {
+                  const oppId = measurementOppId || selectedTask.opportunityId;
+                  if (!oppId) {
+                    return { success: false, error: "Nenhum serviço selecionado para medições." };
+                  }
                   let success = false;
                   let errorMessage = "";
                   let queued = false;
 
                   if (isOnline) {
-                    const result = await submitMeasurementsAction(selectedTask.id, selectedTask.opportunityId, data);
+                    const result = await submitMeasurementsAction(selectedTask.id, oppId, data);
                     success = result.success;
                     errorMessage = result.error || "";
                   } else {
-                    const result = await enqueueMeasurementsSave(selectedTask.id, selectedTask.opportunityId, data);
+                    const result = await enqueueMeasurementsSave(selectedTask.id, oppId, data);
                     success = true;
                     queued = result.queued;
                   }
@@ -632,7 +931,39 @@ export default function TaskDetailsDrawer({
             </div>
           )}
         </div>
+
+        {showMeasurementsSaveBar && (
+          <div
+            className="shrink-0 border-t border-slate-200 bg-[#f8fafc] px-6 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:px-8"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            <MeasurementsSaveButton
+              onClick={handleDrawerMeasurementsSave}
+              loading={measurementsSaving}
+            />
+          </div>
+        )}
       </div>
+      {showAddService && (
+        <AddVisitServiceSheet
+          task={{
+            id: selectedTask.id,
+            nsi: selectedTask.nsi || "",
+            client: selectedTask.client,
+            address: selectedTask.address,
+            opportunityId: selectedTask.opportunityId,
+            serviceType: selectedTask.serviceType,
+          }}
+          isOnline={isOnline}
+          editService={editingService}
+          onClose={() => {
+            setShowAddService(false);
+            setEditingService(null);
+          }}
+          onSaved={refreshVisit}
+          enqueueVisitService={enqueueVisitService}
+        />
+      )}
     </>
   );
 }

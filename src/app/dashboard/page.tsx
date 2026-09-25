@@ -23,7 +23,6 @@ import { Card, CardContent } from "@/components/ui/card";
 // Componentes Modularizados do Dashboard
 import Header from "@/components/dashboard/Header";
 import BottomNav from "@/components/dashboard/BottomNav";
-import SideNav from "@/components/dashboard/SideNav";
 import TaskCard from "@/components/dashboard/TaskCard";
 import TaskDetailsDrawer from "@/components/dashboard/TaskDetailsDrawer";
 import { getHqLocation } from "@/lib/hq";
@@ -69,6 +68,11 @@ export default function Dashboard() {
   const [userName, setUserName] = useState("");
   const [userId, setUserId] = useState("");
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [mapFitNonce, setMapFitNonce] = useState(0);
+  const [mapAutoFitScope, setMapAutoFitScope] = useState<"all" | "overdue">("all");
+  useEffect(() => {
+    setMapAutoFitScope("all");
+  }, [calendarDate.toDateString()]);
   const [calendarView, setCalendarView] = useState<View>(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "agenda" : "month"
   );
@@ -97,12 +101,21 @@ export default function Dashboard() {
     enqueueStatusUpdate,
     enqueueMeasurementsSave,
     enqueueNote,
+    enqueueVisitService,
     isOnline,
     pendingCount,
     failedCount,
     retryFailed,
     lastSyncSuccess,
   } = useSyncQueue({ technicianId: userId, technicianName: userName });
+
+  useEffect(() => {
+    if (!selectedTask?.id || !rawTasks?.length) return;
+    const fresh = rawTasks.find((t: { id: string }) => t.id === selectedTask.id);
+    if (fresh) {
+      setSelectedTask({ ...fresh, dueDate: new Date(fresh.dueDate) });
+    }
+  }, [rawTasks, selectedTask?.id]);
 
   const allTasks = useMemo(() => {
     if (!rawTasks || !Array.isArray(rawTasks)) return [];
@@ -124,6 +137,24 @@ export default function Dashboard() {
       .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
   }, [allTasks]);
 
+  const dayTasks = useMemo(
+    () => tasks.filter((t) => t.dueDate.toDateString() === calendarDate.toDateString()),
+    [tasks, calendarDate]
+  );
+
+  const dayOverdueCount = useMemo(
+    () => dayTasks.filter((t) => resolveTaskOverdue(t)).length,
+    [dayTasks]
+  );
+
+  const shiftCalendarDay = useCallback((delta: number) => {
+    setCalendarDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + delta);
+      return d;
+    });
+  }, []);
+
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
 
   const handleToggleLocationConsent = useCallback(() => {
@@ -133,7 +164,10 @@ export default function Dashboard() {
 
     if (!nextState) {
       const effectiveId = (session?.user as { id?: string })?.id || userId || "technician";
-      fetch(`/api/location?technicianId=${encodeURIComponent(effectiveId)}`, { method: "DELETE" }).catch(() => {});
+      fetch(`/api/location?technicianId=${encodeURIComponent(effectiveId)}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).catch(() => {});
       return;
     }
 
@@ -147,6 +181,7 @@ export default function Dashboard() {
         const effectiveId = (session?.user as { id?: string })?.id || userId || "technician";
         fetch("/api/location", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             technicianId: effectiveId,
@@ -219,6 +254,7 @@ export default function Dashboard() {
             const effectiveId = user?.id || userId || "technician";
             fetch("/api/location", {
               method: "POST",
+              credentials: "include",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 technicianId: effectiveId,
@@ -239,9 +275,8 @@ export default function Dashboard() {
       // Limpeza imediata quando o técnico fecha o browser ou a aba
       const handleUnload = () => {
         const effectiveId = user?.id || userId || "technician";
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon(`/api/location?technicianId=${encodeURIComponent(effectiveId)}`);
-        }
+        const purgeUrl = `/api/location?technicianId=${encodeURIComponent(effectiveId)}`;
+        void fetch(purgeUrl, { method: "DELETE", credentials: "include", keepalive: true });
       };
 
       window.addEventListener("beforeunload", handleUnload);
@@ -264,7 +299,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#f3f5fa] font-sans text-[#090d16]">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-background font-sans text-foreground">
       
       {/* Banner de Consentimento de Localização (RGPD) */}
       {showLocationConsent && (
@@ -290,6 +325,7 @@ export default function Dashboard() {
                   const effectiveName = (session?.user as any)?.name || userName || (typeof window !== "undefined" ? localStorage.getItem("userName") : "") || "Técnico";
                   fetch("/api/location", {
                     method: "POST",
+                    credentials: "include",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       technicianId: (session?.user as any)?.id || userId || "technician",
@@ -407,10 +443,8 @@ export default function Dashboard() {
         onToggleLocationConsent={handleToggleLocationConsent}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <SideNav view={view} setView={setView} setSelectedTask={setSelectedTask} />
-
-        <div className="relative flex-1 overflow-hidden bg-gradient-to-b from-[#f3f5fa] to-[#eef2f7]">
+      <div className="flex min-h-0 flex-1 overflow-hidden pb-[max(4.75rem,calc(env(safe-area-inset-bottom)+3.75rem))]">
+        <div className="relative flex-1 overflow-hidden bg-gradient-to-b from-[#f3f5fa] to-[#eef2f7] dark:from-background dark:to-muted/30">
         {pullDistance > 0 && view === "list" && (
           <div className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex justify-center py-2 text-xs font-black uppercase tracking-wider text-[#84cc16]">
             {pullDistance > 60 ? "Soltar para atualizar" : "Puxar para atualizar"}
@@ -428,103 +462,163 @@ export default function Dashboard() {
         {loading ? (
           view === "map" ? <MapSkeleton /> : <TaskListSkeleton />
         ) : view === "map" ? (
-          <div className="h-full flex flex-col relative">
-            {(() => {
-              const dayTasks = tasks.filter((t) => t.dueDate.toDateString() === calendarDate.toDateString());
-              const overdueCount = dayTasks.filter((t) => resolveTaskOverdue(t)).length;
-              return (
-            <>
-            {/* Seletor de Dia no topo do Mapa */}
-            <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
-              <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-slate-200/80 shadow-lg shadow-slate-900/5">
-                <button
-                  onClick={() => {
-                    const d = new Date(calendarDate);
-                    d.setDate(d.getDate() - 1);
-                    setCalendarDate(d);
-                  }}
-                  className="flex min-h-12 min-w-12 items-center justify-center rounded-xl text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                  aria-label="Dia anterior"
-                >
-                  ◀
-                </button>
+          <div className="flex h-full min-h-0 flex-col lg:flex-row">
+            <aside className="hidden min-h-0 w-64 shrink-0 flex-col border-r border-border bg-card/95 backdrop-blur-md lg:flex xl:w-72">
+              <div className="shrink-0 space-y-2 border-b border-border p-3">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(-1)}
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Dia anterior"
+                  >
+                    ◀
+                  </button>
+                  <div className="min-w-0 flex-1 text-center leading-tight">
+                    <p className="text-xs font-bold capitalize text-foreground">
+                      {calendarDate.toLocaleDateString("pt-PT", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {calendarDate.toDateString() === new Date().toDateString() ? "Hoje · " : ""}
+                      {dayTasks.length} visita{dayTasks.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(1)}
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Dia seguinte"
+                  >
+                    ▶
+                  </button>
+                </div>
+                {dayOverdueCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapAutoFitScope("overdue");
+                      setMapFitNonce((n) => n + 1);
+                    }}
+                    className="w-full rounded-lg border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
+                  >
+                    {dayOverdueCount} atrasada{dayOverdueCount > 1 ? "s" : ""} — focar no mapa
+                  </button>
+                )}
+                {calendarDate.toDateString() !== new Date().toDateString() && (
+                  <button
+                    type="button"
+                    onClick={() => setCalendarDate(new Date())}
+                    className="w-full min-h-11 rounded-xl border border-slate-800 bg-[#090d16] px-3 py-2 text-xs font-black uppercase tracking-wider text-[#84cc16] transition-colors hover:bg-slate-800"
+                  >
+                    Voltar a hoje
+                  </button>
+                )}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-4">
+                {dayTasks.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs font-bold text-slate-500">
+                    Sem visitas neste dia.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {[...dayTasks]
+                      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+                      .map((task) => (
+                        <TaskCard key={task.id} task={task} setSelectedTask={setSelectedTask} />
+                      ))}
+                  </div>
+                )}
+              </div>
+            </aside>
 
-                <div className="flex items-center gap-2 px-2">
-                  <CalendarIcon className="w-4 h-4 text-[#84cc16]" />
-                  <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                    {calendarDate.toDateString() === new Date().toDateString()
-                      ? "Hoje"
-                      : calendarDate.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short" })}
-                  </span>
-                  <span className="rounded-full bg-[#84cc16]/20 px-2 py-0.5 text-xs font-black text-[#84cc16]">
-                    {dayTasks.length} Visitas
-                  </span>
-                  {overdueCount > 0 && (
-                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-900">
-                      {overdueCount} Atrasada{overdueCount > 1 ? "s" : ""}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div className="pointer-events-none absolute top-2 left-2 right-2 z-10 flex items-center justify-between gap-2 lg:hidden">
+                <div className="pointer-events-auto flex min-h-10 flex-1 items-center gap-1 rounded-xl border border-border bg-card/95 px-1.5 py-1 shadow-md backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(-1)}
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted"
+                    aria-label="Dia anterior"
+                  >
+                    ◀
+                  </button>
+
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1 px-0.5 text-center">
+                    <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                    <span className="text-xs font-bold capitalize text-foreground">
+                      {calendarDate.toLocaleDateString("pt-PT", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
                     </span>
-                  )}
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      · {dayTasks.length}
+                    </span>
+                    {dayOverdueCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapAutoFitScope("overdue");
+                          setMapFitNonce((n) => n + 1);
+                        }}
+                        className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 hover:bg-amber-200"
+                      >
+                        {dayOverdueCount} atrasada{dayOverdueCount > 1 ? "s" : ""} — ver no mapa
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(1)}
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted"
+                    aria-label="Dia seguinte"
+                  >
+                    ▶
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => {
-                    const d = new Date(calendarDate);
-                    d.setDate(d.getDate() + 1);
-                    setCalendarDate(d);
-                  }}
-                  className="flex min-h-12 min-w-12 items-center justify-center rounded-xl text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                  aria-label="Dia seguinte"
-                >
-                  ▶
-                </button>
+                {calendarDate.toDateString() !== new Date().toDateString() && (
+                  <button
+                    type="button"
+                    onClick={() => setCalendarDate(new Date())}
+                    className="pointer-events-auto min-h-10 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-primary shadow-md"
+                  >
+                    Hoje
+                  </button>
+                )}
               </div>
 
-              {calendarDate.toDateString() !== new Date().toDateString() && (
-                <button
-                  onClick={() => setCalendarDate(new Date())}
-                  className="pointer-events-auto min-h-12 rounded-2xl border border-slate-800 bg-[#090d16] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#84cc16] shadow-lg transition-all hover:bg-slate-800"
-                >
-                  Voltar a Hoje
-                </button>
-              )}
-            </div>
+              <MapComponent
+                tasks={dayTasks}
+                onTaskSelect={setSelectedTask}
+                markerInteraction="popup"
+                autoFitKey={`${calendarDate.toDateString()}-${mapFitNonce}`}
+                autoFitScope={mapAutoFitScope}
+                userLocation={userLocation}
+                hqLocation={HQ_LOCATION}
+                isTechnicianView={true}
+                locationSharingEnabled={locationSharingEnabled}
+                onToggleLocationSharing={handleToggleLocationConsent}
+              />
 
-            <MapComponent 
-              tasks={dayTasks}
-              onTaskSelect={setSelectedTask} 
-              userLocation={userLocation}
-              hqLocation={HQ_LOCATION}
-              isTechnicianView={true}
-              locationSharingEnabled={locationSharingEnabled}
-              onToggleLocationSharing={handleToggleLocationConsent}
-            />
-
-            {dayTasks.length === 0 && (
-              <div className="pointer-events-none absolute inset-x-4 top-24 z-10 flex justify-center">
-                <div className="rounded-2xl border border-slate-200 bg-white/95 px-6 py-4 text-center shadow-lg">
-                  <p className="text-sm font-black uppercase tracking-tight text-slate-700">Sem visitas neste dia</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-600">Use as setas para ver outros dias.</p>
-                </div>
-              </div>
-            )}
-
-            {overdueCount > 0 && (
-              <div className="pointer-events-none absolute bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+5.5rem))] left-4 right-4 z-10 lg:bottom-6">
-                <div className="pointer-events-auto mx-auto max-w-sm bg-amber-50 border-2 border-amber-300 text-amber-900 px-4 py-3 rounded-2xl shadow-lg text-center">
-                  <p className="text-xs font-black uppercase tracking-wider">Visitas atrasadas no mapa</p>
-                  <p className="text-xs font-bold mt-1">
-                    Pinos laranja com borda vermelha = hora já passou. Toque para abrir.
+              {dayTasks.length === 0 && (
+                <div className="pointer-events-none absolute inset-x-4 top-20 z-10 flex justify-center lg:top-6">
+                  <p className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 text-center text-xs font-bold text-slate-600 shadow-lg">
+                    Sem visitas neste dia — use as setas para mudar o dia.
                   </p>
                 </div>
-              </div>
-            )}
-            </>
-              );
-            })()}
+              )}
+            </div>
           </div>
         ) : view === "calendar" ? (
-          <div className="h-full overflow-y-auto bg-[#f3f5fa] p-6 pb-40 custom-scrollbar lg:pb-6">
-            <div className="mx-auto h-[calc(100vh-250px)] max-w-5xl rounded-[2.5rem] border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f3f5fa] p-4 pb-8 custom-scrollbar md:p-6">
+            <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl md:rounded-[2.5rem] md:p-6">
               <BigCalendar
                 localizer={localizer}
                 events={tasks}
@@ -535,7 +629,7 @@ export default function Dashboard() {
                 timeslots={2}
                 min={new Date(0, 0, 0, 8, 0, 0)}
                 max={new Date(0, 0, 0, 19, 0, 0)}
-                style={{ height: '100%', color: '#090d16' }}
+                style={{ height: "100%", minHeight: 360, color: "#090d16", flex: 1 }}
                 onSelectEvent={setSelectedTask}
                 date={calendarDate}
                 view={calendarView}
@@ -569,8 +663,8 @@ export default function Dashboard() {
             </div>
           </div>
         ) : view === "history" ? (
-          <div className="h-full overflow-y-auto custom-scrollbar p-6 pb-40">
-            <div className="max-w-2xl mx-auto">
+          <div className="h-full overflow-y-auto custom-scrollbar p-4 pb-8 md:p-6 lg:px-8">
+            <div className="mx-auto w-full max-w-2xl md:max-w-4xl lg:max-w-6xl">
               <div className="flex flex-col mb-8">
                 <h2 className="text-3xl font-black text-[#090d16] tracking-tighter italic uppercase">Histórico</h2>
                 <p className="text-xs font-black text-slate-600 uppercase tracking-wider">Serviços Concluídos</p>
@@ -584,7 +678,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
                   {historyTasks.map((task) => {
                     const isTaskComp = isCompleted(task.status);
                     const isTaskCanc = isCancelled(task.status);
@@ -624,20 +718,25 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto custom-scrollbar p-6 pb-40">
-            <div className="max-w-2xl mx-auto">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+          <div className="h-full overflow-y-auto custom-scrollbar p-4 pb-8 md:p-6 lg:px-8">
+            <div className="mx-auto w-full max-w-2xl md:max-w-4xl lg:max-w-6xl">
+              <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-3xl font-black text-[#090d16] tracking-tighter italic uppercase">Minha Agenda</h2>
-                      {calendarDate.toDateString() === new Date().toDateString() && (
-                        <span className="rounded-lg bg-[#84cc16] px-2.5 py-1 text-xs font-black uppercase tracking-wider text-[#090d16]">Hoje</span>
-                      )}
-                    </div>
-                    <p className="text-xs font-black text-slate-600 uppercase tracking-wider">Planeamento das Visitas Diárias</p>
+                    <h2 className="text-lg font-black uppercase italic tracking-tight text-foreground md:text-xl">
+                      Agenda
+                    </h2>
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      {calendarDate.toLocaleDateString("pt-PT", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      })}
+                      {" · "}
+                      {dayTasks.length} visita{dayTasks.length === 1 ? "" : "s"}
+                    </p>
                  </div>
                  
-                 <div className="flex items-center gap-2 bg-white p-2 rounded-[1.5rem] border border-slate-200 w-full sm:w-auto justify-between shadow-sm">
+                 <div className="flex w-full items-center justify-between gap-2 rounded-2xl border border-border bg-card p-1.5 shadow-sm sm:w-auto">
                     <button 
                       onClick={() => setCalendarDate(new Date(calendarDate.setDate(calendarDate.getDate() - 1)))}
                       className="p-2 hover:bg-slate-50 rounded-xl transition-all text-slate-500 hover:text-[#84cc16] font-bold text-xs"
@@ -656,7 +755,7 @@ export default function Dashboard() {
                  </div>
               </div>
               
-              {tasks.filter(t => t.dueDate.toDateString() === calendarDate.toDateString()).length === 0 ? (
+              {dayTasks.length === 0 ? (
                 <div className="text-center py-20 bg-white/60 rounded-[3rem] border-2 border-dashed border-slate-200/80 shadow-sm">
                   <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-md border border-slate-100">
                     <CalendarIcon className="w-10 h-10 text-slate-400" />
@@ -670,9 +769,8 @@ export default function Dashboard() {
                   </button>
                 </div>
               ) : (
-                <div className="space-y-5">
-                  {tasks
-                    .filter(t => t.dueDate.toDateString() === calendarDate.toDateString())
+                <div className="space-y-5 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
+                  {dayTasks
                     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
                     .map((task) => (
                       <TaskCard 
@@ -700,6 +798,7 @@ export default function Dashboard() {
           enqueueStatusUpdate={enqueueStatusUpdate}
           enqueueMeasurementsSave={enqueueMeasurementsSave}
           enqueueNote={enqueueNote}
+          enqueueVisitService={enqueueVisitService}
         />
       )}
 

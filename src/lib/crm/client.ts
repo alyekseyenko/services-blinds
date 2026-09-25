@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { crmRetryDelayMs, parseRetryAfterMs } from '@/lib/server/crmRetryDelay';
 import { crmCircuitBreaker } from './circuitBreaker';
 
 const TWENTY_API_URL = env.TWENTY_API_URL;
@@ -78,7 +79,11 @@ async function executeCrmFetch<T>(
         // Retry on 5xx server errors or 429 Too Many Requests
         if ((response.status >= 500 || response.status === 429) && attempt <= maxRetries) {
           console.warn(`[CRM Fetch Retry] HTTP ${response.status} na tentativa ${attempt}/${maxRetries}. A tentar novamente...`);
-          await new Promise(r => setTimeout(r, 400 * attempt));
+          const retryAfter =
+            response.status === 429 ? parseRetryAfterMs(response.headers.get('Retry-After')) : null;
+          await new Promise((r) =>
+            setTimeout(r, retryAfter ?? crmRetryDelayMs(400, attempt))
+          );
           continue;
         }
         throw new CRMError(`HTTP Error: ${response.status} ${response.statusText}`, null, response.status);
@@ -103,7 +108,7 @@ async function executeCrmFetch<T>(
       // Retry network errors / timeouts
       if (isNetworkError && attempt <= maxRetries) {
         console.warn(`[CRM Network Retry] Falha de ligação (${isTimeout ? 'Timeout' : error.message}) na tentativa ${attempt}/${maxRetries}. A tentar novamente...`);
-        await new Promise(r => setTimeout(r, 500 * attempt));
+        await new Promise((r) => setTimeout(r, crmRetryDelayMs(500, attempt)));
         continue;
       }
 
@@ -173,7 +178,11 @@ async function executeCrmRestCreate<T>(
 
       if (!response.ok) {
         if ((response.status >= 500 || response.status === 429) && attempt <= maxRetries) {
-          await new Promise((r) => setTimeout(r, 400 * attempt));
+          const retryAfter =
+            response.status === 429 ? parseRetryAfterMs(response.headers.get('Retry-After')) : null;
+          await new Promise((r) =>
+            setTimeout(r, retryAfter ?? crmRetryDelayMs(400, attempt))
+          );
           continue;
         }
         const errorBody = await response.json().catch(() => null);
@@ -204,7 +213,7 @@ async function executeCrmRestCreate<T>(
           isTimeout);
 
       if (isNetworkError && attempt <= maxRetries) {
-        await new Promise((r) => setTimeout(r, 500 * attempt));
+        await new Promise((r) => setTimeout(r, crmRetryDelayMs(500, attempt)));
         continue;
       }
 

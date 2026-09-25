@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/Dialog";
 import { getPushOptInChoice, setPushOptInChoice } from "@/lib/clientPreferences";
 
-const VAPID_PUBLIC_KEY = "BB3RrWGNioyQIettQ0WwioDBdo84CX3XkdPj0nWSafBvc9Oq6uompwpGhOkzTx_-biso8_v30DPOEB0TvJ7fWjY";
+const VAPID_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || "";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -46,6 +47,10 @@ export default function PushOptInPrompt() {
   };
 
   const allow = async () => {
+    if (!VAPID_PUBLIC_KEY) {
+      setChoice("denied");
+      return;
+    }
     try {
       const registration = await navigator.serviceWorker.ready;
       const permission = await Notification.requestPermission();
@@ -66,6 +71,7 @@ export default function PushOptInPrompt() {
       if (user?.id && subscription) {
         await fetch("/api/push/subscribe", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             subscription,

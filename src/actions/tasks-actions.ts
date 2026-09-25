@@ -2,6 +2,7 @@
 
 import { ActionResponse } from "@/lib/types/action-response";
 import { TaskStatusEnum, TaskStatus } from "@/lib/schemas";
+import { assertCanMutateTask } from "@/lib/auth/taskAccess";
 import { updateTaskStatus } from "@/lib/crm/tasks";
 
 export async function completeTaskAction(
@@ -11,35 +12,58 @@ export async function completeTaskAction(
   photos: string[] = []
 ): Promise<ActionResponse<void>> {
   try {
-    // Normalizar o estado (remover acentos e colocar em maiúsculas, Ex: "Concluído" -> "CONCLUIDO")
+    const access = await assertCanMutateTask(taskId);
+    if (!access.ok) {
+      return { success: false, error: access.error };
+    }
+
     const normalizedStatus = status
       .toUpperCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
-    // 1. Validate status enum using Zod
     const validationResult = TaskStatusEnum.safeParse(normalizedStatus);
-    
+
     if (!validationResult.success) {
       return {
         success: false,
-        error: `Estado de tarefa inválido: "${status}" (normalizado: "${normalizedStatus}")`
+        error: `Estado de tarefa inválido: "${status}" (normalizado: "${normalizedStatus}")`,
       };
     }
 
     const validStatus: TaskStatus = validationResult.data;
 
-
-    // 2. Call infrastructure
     await updateTaskStatus(taskId, validStatus, notes, photos);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[completeTaskAction] Error:", error);
-    
+
+    const message = error instanceof Error ? error.message : "Erro ao atualizar a tarefa.";
     return {
       success: false,
-      error: error.message || "Não foi possível atualizar a tarefa no CRM."
+      error: message,
     };
+  }
+}
+
+/** Offline sync and direct technician updates (preserves display labels like "Concluído"). */
+export async function syncUpdateTaskStatusAction(
+  taskId: string,
+  status: string,
+  observations?: string,
+  photos: string[] = []
+): Promise<ActionResponse<void>> {
+  try {
+    const access = await assertCanMutateTask(taskId);
+    if (!access.ok) {
+      return { success: false, error: access.error };
+    }
+
+    await updateTaskStatus(taskId, status, observations, photos);
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro ao sincronizar o estado da visita.";
+    return { success: false, error: message };
   }
 }

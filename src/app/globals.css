@@ -1,23 +1,28 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter/wght.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Twenty CRM–style neutrals + brand lime primary */
 :root {
-  --background: #f3f5fa;
-  --foreground: #090d16;
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
   --primary: #84cc16;
-  --primary-foreground: #090d16;
-  --secondary: #121622;
-  --secondary-foreground: #f8fafc;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
+  --primary-foreground: #141414;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #171717;
+  --muted: #f4f4f5;
+  --muted-foreground: #737373;
   --accent: #84cc16;
-  --accent-foreground: #090d16;
+  --accent-foreground: #141414;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --success: #84cc16;
   --warning: #f59e0b;
   --info: #3b82f6;
-  --border: #e2e8f0;
+  --border: #e4e4e7;
   --input: #ffffff;
   --ring: #84cc16;
   --radius: 1.75rem;
@@ -27,11 +32,28 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  color-scheme: light;
+}
+
+.dark {
+  --background: #141414;
+  --foreground: #fafafa;
+  --card: #1f1f1f;
+  --card-foreground: #fafafa;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --border: #333333;
+  --input: #1f1f1f;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -66,12 +88,16 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border);
   border-radius: 20px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #a3e635;
+  background: var(--primary);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #404040;
 }
 
 /* Glassmorphism iDraft Utilities */
@@ -97,6 +123,12 @@ body {
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 15px 35px rgba(15, 23, 42, 0.04);
+}
+
+.dark .glass-panel-light {
+  background: rgba(31, 31, 31, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
 }
 
 /* Fix for PWA/Mobile input issues */
@@ -140,6 +172,83 @@ input, textarea, select {
   .animate-bounce,
   .animate-spin {
     animation: none !important;
+  }
+}
+
+/* Google Maps InfoWindow — alinhado ao design system */
+.gm-style .gm-style-iw-c {
+  padding: 0 !important;
+  border-radius: 1.25rem !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12) !important;
+  background: var(--card) !important;
+}
+
+.dark .gm-style .gm-style-iw-c {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: auto !important;
+  max-height: min(70dvh, 420px) !important;
+}
+
+.gm-style .gm-style-iw-chr {
+  display: none !important;
+}
+
+.map-info-window-content {
+  padding: 0;
+}
+
+/* Admin agenda — calendário mais compacto no desktop */
+@media (min-width: 1024px) {
+  .admin-calendar-shell .admin-calendar-rbc {
+    height: min(62dvh, 580px) !important;
+    max-height: 580px;
+  }
+
+  .admin-calendar-shell .rbc-toolbar {
+    margin-bottom: 0.35rem;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .admin-calendar-shell .rbc-toolbar button {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.45rem;
+  }
+
+  .admin-calendar-shell .rbc-toolbar-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .admin-calendar-shell .rbc-header {
+    padding: 0.3rem 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+
+  .admin-calendar-shell .rbc-time-slot,
+  .admin-calendar-shell .rbc-label {
+    font-size: 0.65rem;
+  }
+
+  .admin-calendar-shell .rbc-time-header-content {
+    min-height: unset;
+  }
+
+  .admin-calendar-shell .rbc-timeslot-group {
+    min-height: 2.25rem;
+  }
+
+  .admin-calendar-shell .rbc-month-row {
+    min-height: 3.25rem;
+  }
+
+  .admin-calendar-shell .rbc-event {
+    font-size: 0.65rem !important;
+    padding: 1px 4px !important;
   }
 }
 

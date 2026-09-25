@@ -41,11 +41,11 @@ export default function AdminCalendarView({
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
-      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white p-4">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white p-3 lg:px-4 lg:py-2">
         <select
           value={selectedTechnician}
           onChange={(e) => setSelectedTechnician(e.target.value)}
-          className="min-h-12 flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="min-h-12 flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 lg:min-h-10 lg:max-w-xs lg:text-sm"
         >
           <option value="all">Todos os Técnicos</option>
           {technicians.map((tech) => (
@@ -64,9 +64,11 @@ export default function AdminCalendarView({
         </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 p-4 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2 sm:p-3 lg:p-4">
+          <div className="admin-calendar-shell mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col xl:max-w-6xl">
           <Calendar
+            className="admin-calendar-rbc min-h-0 flex-1"
             localizer={localizer}
             events={calendarOpportunities}
             startAccessor="start"
@@ -76,7 +78,7 @@ export default function AdminCalendarView({
             }
             min={new Date(0, 0, 0, 8, 0, 0)}
             max={new Date(0, 0, 0, 19, 0, 0)}
-            style={{ height: "calc(100dvh - 280px)" }}
+            style={{ height: "calc(100dvh - 220px)", minHeight: 360 }}
             onSelectEvent={(opp: Opportunity) => onSelectOpportunity(opp)}
             date={calendarDate}
             view={calendarView}
@@ -119,6 +121,7 @@ export default function AdminCalendarView({
               };
             }}
           />
+          </div>
         </div>
         <CalendarSidebar
           calendarOpportunities={calendarOpportunities}

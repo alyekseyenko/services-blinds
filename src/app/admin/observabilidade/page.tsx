@@ -34,6 +34,8 @@ import {
   Layers
 } from "lucide-react";
 import type { QADiagnosticReport } from "@/lib/qaDiagnostics";
+import type { E2ESuiteReport } from "@/lib/observability/e2eTypes";
+import type { LuxuryWorkflowReport } from "@/lib/observability/luxury/luxuryTypes";
 import { APP_NAME } from "@/lib/branding";
 
 
@@ -127,6 +129,18 @@ export default function ObservabilityDashboard() {
   const [qaReport, setQaReport] = useState<QADiagnosticReport | null>(null);
   const [isQaRunning, setIsQaRunning] = useState(false);
 
+  // Complete E2E Observability Suite
+  const [isE2eModalOpen, setIsE2eModalOpen] = useState(false);
+  const [e2eReport, setE2eReport] = useState<E2ESuiteReport | null>(null);
+  const [isE2eRunning, setIsE2eRunning] = useState(false);
+  const [e2eDepth, setE2eDepth] = useState<"safe" | "full">("safe");
+
+  // Luxury full workflow E2E (live CRM + n8n)
+  const [isLuxuryModalOpen, setIsLuxuryModalOpen] = useState(false);
+  const [luxuryReport, setLuxuryReport] = useState<LuxuryWorkflowReport | null>(null);
+  const [isLuxuryRunning, setIsLuxuryRunning] = useState(false);
+  const [luxuryProgress, setLuxuryProgress] = useState<string | null>(null);
+
   // Executar Diagnóstico Holístico QA 360
   const triggerQA360Diagnostic = async () => {
     try {
@@ -136,6 +150,7 @@ export default function ObservabilityDashboard() {
 
       const res = await fetch("/api/qa", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "BENCHMARK_360" })
       });
@@ -160,6 +175,7 @@ export default function ObservabilityDashboard() {
       setActionLoading("CREATE_SAMPLE");
       const res = await fetch("/api/qa", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "CREATE_SAMPLE_OPPORTUNITY" })
       });
@@ -192,12 +208,143 @@ export default function ObservabilityDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const triggerE2ESuite = async (depth: "safe" | "full" = e2eDepth) => {
+    try {
+      setIsE2eRunning(true);
+      setIsE2eModalOpen(true);
+      setE2eDepth(depth);
+      setActionMessage(null);
+
+      const res = await fetch("/api/qa", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "E2E_FULL_SUITE", depth }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.report) {
+        setE2eReport(data.report);
+        fetchTelemetry();
+      } else {
+        setActionMessage({
+          type: "error",
+          text: data.error || "Failed to run Complete E2E Suite.",
+        });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setActionMessage({ type: "error", text: `E2E Suite error: ${message}` });
+    } finally {
+      setIsE2eRunning(false);
+    }
+  };
+
+  const downloadE2eReportJson = () => {
+    if (!e2eReport) return;
+    const blob = new Blob([JSON.stringify(e2eReport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `E2E_SUITE_REPORT_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const pollLuxuryJob = async (jobId: string): Promise<void> => {
+    const maxAttempts = 180;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const res = await fetch("/api/qa", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "LUXURY_WORKFLOW_E2E",
+          action: "status",
+          jobId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to poll Luxury Workflow status.");
+      }
+
+      const job = data.job;
+      if (job?.progress) {
+        setLuxuryProgress(job.progress);
+      }
+
+      if (job?.status === "completed" && data.report) {
+        setLuxuryReport(data.report);
+        fetchTelemetry();
+        return;
+      }
+
+      if (job?.status === "failed") {
+        throw new Error(job.error || "Luxury workflow failed.");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    throw new Error("Luxury workflow timed out while polling (6 minutes).");
+  };
+
+  const triggerLuxuryWorkflow = async () => {
+    try {
+      setIsLuxuryRunning(true);
+      setIsLuxuryModalOpen(true);
+      setLuxuryReport(null);
+      setLuxuryProgress("Starting…");
+      setActionMessage(null);
+
+      const res = await fetch("/api/qa", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "LUXURY_WORKFLOW_E2E",
+          action: "start",
+          scenarioId: "brazil-full-workflow",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.jobId) {
+        setActionMessage({
+          type: "error",
+          text: data.error || "Failed to start Luxury Workflow E2E.",
+        });
+        return;
+      }
+
+      await pollLuxuryJob(data.jobId);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setActionMessage({ type: "error", text: `Luxury Workflow error: ${message}` });
+    } finally {
+      setIsLuxuryRunning(false);
+    }
+  };
+
+  const downloadLuxuryReportJson = () => {
+    if (!luxuryReport) return;
+    const blob = new Blob([JSON.stringify(luxuryReport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `LUXURY_WORKFLOW_REPORT_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
 
   // Carregar dados de telemetria
   const fetchTelemetry = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/observability");
+      const res = await fetch("/api/observability", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setTelemetry(data);
@@ -355,7 +502,15 @@ export default function ObservabilityDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <button
+            onClick={triggerLuxuryWorkflow}
+            disabled={isLuxuryRunning}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-amber-900/30"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isLuxuryRunning ? "animate-spin" : ""}`} />
+            {isLuxuryRunning ? "Running Luxury E2E..." : "Luxury Workflow E2E"}
+          </button>
           <button
             onClick={fetchTelemetry}
             disabled={loading}
@@ -587,7 +742,15 @@ export default function ObservabilityDashboard() {
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-800/60">
+          <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2">
+            <button
+              onClick={() => triggerE2ESuite("safe")}
+              disabled={isE2eRunning}
+              className="w-full py-2 bg-gradient-to-r from-lime-600 to-emerald-600 hover:from-lime-500 hover:to-emerald-500 text-slate-950 text-xs font-black rounded-xl transition-all shadow-lg shadow-lime-900/30 flex items-center justify-center gap-2"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isE2eRunning ? "animate-spin" : ""}`} />
+              {isE2eRunning ? "Running E2E Suite..." : "Run Complete E2E Suite"}
+            </button>
             <button
               onClick={triggerQA360Diagnostic}
               disabled={isQaRunning}
@@ -670,6 +833,321 @@ export default function ObservabilityDashboard() {
           )}
         </div>
       </div>
+
+      {/* LUXURY FULL WORKFLOW E2E MODAL */}
+      {isLuxuryModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl shadow-amber-950/40 overflow-hidden">
+            <div className="p-6 border-b border-slate-800/80 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  Luxury Workflow E2E
+                  {luxuryReport && (
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      luxuryReport.overallStatus === "HEALTHY"
+                        ? "bg-lime-500/10 text-lime-400 border border-lime-500/30"
+                        : luxuryReport.overallStatus === "DEGRADED"
+                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                          : "bg-red-500/10 text-red-400 border border-red-500/30"
+                    }`}>
+                      {luxuryReport.overallStatus}
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Live CRM + n8n — one client, Brazil services, all workflow variants
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {luxuryReport && (
+                  <button
+                    onClick={downloadLuxuryReportJson}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4 text-amber-400" />
+                    Export JSON
+                  </button>
+                )}
+                <button onClick={() => setIsLuxuryModalOpen(false)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {isLuxuryRunning ? (
+                <div className="py-16 text-center space-y-4">
+                  <RefreshCw className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
+                  <p className="text-sm text-slate-300 font-bold">Running full business workflow in Twenty CRM...</p>
+                  <p className="text-xs text-slate-500 font-mono max-w-md mx-auto">
+                    {luxuryProgress || "This may take 1–3 minutes. Creates real test data prefixed [E2E Luxury]."}
+                  </p>
+                </div>
+              ) : luxuryReport ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+                      <p className="text-[10px] uppercase text-slate-500 font-bold">Score</p>
+                      <p className="text-2xl font-black text-lime-400">{luxuryReport.score.percentage}%</p>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+                      <p className="text-[10px] uppercase text-slate-500 font-bold">Duration</p>
+                      <p className="text-2xl font-black text-white font-mono">{luxuryReport.totalDurationMs} ms</p>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+                      <p className="text-[10px] uppercase text-slate-500 font-bold">Phases</p>
+                      <p className="text-2xl font-black text-emerald-400 font-mono">{luxuryReport.score.passed}/{luxuryReport.score.total}</p>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+                      <p className="text-[10px] uppercase text-slate-500 font-bold">n8n Events</p>
+                      <p className="text-2xl font-black text-amber-400 font-mono">{luxuryReport.n8nEventsTriggered.length}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase">Workflow Phases</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {luxuryReport.phases.map((phase) => (
+                        <div key={phase.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-bold text-white">{phase.name}</span>
+                            <span className={`font-black uppercase text-[10px] ${
+                              phase.status === "PASS" ? "text-lime-400" :
+                              phase.status === "WARN" ? "text-amber-400" : "text-red-400"
+                            }`}>{phase.status}</span>
+                          </div>
+                          <p className="text-slate-400 leading-relaxed">{phase.message}</p>
+                          <p className="text-[10px] text-slate-600 font-mono mt-1">{phase.category} • {phase.latencyMs} ms</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase">Artifacts (CRM IDs)</h4>
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-300 space-y-1">
+                      <p>Client: {luxuryReport.artifacts.clientEmail} ({luxuryReport.artifacts.personId})</p>
+                      <p>Technician: {luxuryReport.artifacts.technicianName}</p>
+                      {luxuryReport.artifacts.services.map((s) => (
+                        <p key={s.key}>{s.key} — {s.city} — opp {s.opportunityId}{s.taskId ? ` — task ${s.taskId}` : ""}</p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase">Execution Log</h4>
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-300 max-h-32 overflow-y-auto space-y-1">
+                      {luxuryReport.logs.map((line, idx) => (
+                        <div key={idx}>{line}</div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex justify-between items-center gap-3">
+              <p className="text-[10px] text-slate-500 font-mono">Requires LUXURY_E2E_ENABLED=true on server</p>
+              <button
+                onClick={triggerLuxuryWorkflow}
+                disabled={isLuxuryRunning}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 rounded-xl text-xs font-bold"
+              >
+                Re-run Luxury Workflow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETE E2E OBSERVABILITY SUITE MODAL */}
+      {isE2eModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl shadow-lime-950/40 overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="p-6 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-gradient-to-br from-lime-500 to-emerald-600 rounded-2xl text-slate-950 shadow-lg shadow-lime-500/20">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    Complete E2E Observability Suite
+                    {e2eReport && (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        e2eReport.overallStatus === "HEALTHY"
+                          ? "bg-lime-500/10 text-lime-400 border border-lime-500/30"
+                          : e2eReport.overallStatus === "DEGRADED"
+                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                            : "bg-red-500/10 text-red-400 border border-red-500/30"
+                      }`}>
+                        {e2eReport.overallStatus}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-sans">
+                    Real probes for CRM, n8n, outbox, portals, and app health
+                    {e2eReport ? ` • depth: ${e2eReport.depth}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {e2eReport && (
+                  <button
+                    onClick={downloadE2eReportJson}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
+                    title="Download JSON"
+                  >
+                    <Download className="w-4 h-4 text-lime-400" />
+                    <span className="hidden sm:inline">Export JSON</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsE2eModalOpen(false)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {isE2eRunning ? (
+                <div className="py-16 text-center space-y-4">
+                  <RefreshCw className="w-10 h-10 text-lime-400 animate-spin mx-auto" />
+                  <div>
+                    <h4 className="text-base font-bold text-white">Running E2E checks...</h4>
+                    <p className="text-xs text-slate-400 font-mono mt-1">
+                      Probing CRM, circuit breaker, outbox, n8n routing
+                      {e2eDepth === "full" ? ", live webhook, and form endpoint" : " (safe mode — live probes skipped)"}.
+                    </p>
+                  </div>
+                </div>
+              ) : e2eReport ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Health Score</span>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <span className="text-2xl font-black text-lime-400">{e2eReport.score.percentage}%</span>
+                        <span className="text-xs font-mono text-slate-400">
+                          ({e2eReport.score.passed}/{e2eReport.score.total - e2eReport.score.skipped} pass)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Duration</span>
+                      <span className="text-2xl font-black text-white mt-1 font-mono block">{e2eReport.totalDurationMs} ms</span>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Passed</span>
+                      <span className="text-2xl font-black text-emerald-400 mt-1 font-mono block">{e2eReport.score.passed}</span>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Warn / Fail</span>
+                      <span className="text-2xl font-black text-amber-400 mt-1 font-mono block">
+                        {e2eReport.score.warned + e2eReport.score.failed}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-lime-400" /> Check Results
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {e2eReport.checks.map((check) => (
+                        <div
+                          key={check.id}
+                          className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 space-y-2 hover:border-slate-700 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {check.status === "PASS" ? (
+                                <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
+                              ) : check.status === "WARN" ? (
+                                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                              ) : check.status === "SKIP" ? (
+                                <Layers className="w-4 h-4 text-slate-500 shrink-0" />
+                              ) : (
+                                <XOctagon className="w-4 h-4 text-red-400 shrink-0" />
+                              )}
+                              <span className="text-xs font-bold text-white">{check.name}</span>
+                            </div>
+                            <span className="text-[11px] font-mono font-bold text-lime-400">
+                              {check.latencyMs} ms
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">{check.message}</p>
+                          {check.remediation && check.status !== "PASS" && check.status !== "SKIP" && (
+                            <p className="text-[10px] text-amber-300/80 font-mono border-t border-slate-900 pt-2">
+                              Fix: {check.remediation}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+                            <span>{check.category} • {check.tier}</span>
+                            <span className={`px-1.5 py-0.5 rounded font-black ${
+                              check.status === "PASS" ? "bg-lime-950 text-lime-400" :
+                              check.status === "WARN" ? "bg-amber-950 text-amber-400" :
+                              check.status === "SKIP" ? "bg-slate-900 text-slate-500" :
+                              "bg-red-950 text-red-400"
+                            }`}>
+                              {check.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-lime-400" /> Execution Log
+                    </h4>
+                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 font-mono text-[11px] text-slate-300 max-h-40 overflow-y-auto space-y-1">
+                      {e2eReport.logs.map((line, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <span className="text-slate-600 select-none">&gt;</span>
+                          <span>{line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="p-4 bg-slate-950 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-[10px] text-slate-500 font-mono">
+                Add new checks in src/lib/observability/e2eRegistry.ts — see docs/E2E_OBSERVABILITY_SUITE.md
+              </p>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => triggerE2ESuite("safe")}
+                  disabled={isE2eRunning}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  Safe Mode
+                </button>
+                <button
+                  onClick={() => triggerE2ESuite("full")}
+                  disabled={isE2eRunning}
+                  className="px-4 py-2 bg-gradient-to-r from-lime-600 to-emerald-600 hover:from-lime-500 hover:to-emerald-500 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isE2eRunning ? "animate-spin" : ""}`} />
+                  Full (live n8n)
+                </button>
+                <button
+                  onClick={() => setIsE2eModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE DIAGNÓSTICO QA 360 (ENTERPRISE GRADE) */}
       {isQaModalOpen && (

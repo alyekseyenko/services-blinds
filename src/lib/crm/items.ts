@@ -1,6 +1,6 @@
-"use server";
-import { crmFetch } from './client';
-import { WAREHOUSE_STATUS } from './contract';
+import "server-only";
+import { crmFetch } from "./client";
+import { CRM_OBJECTS, WAREHOUSE_STATUS } from "./contract";
 
 export interface ServiceItem {
   opportunityId: string;
@@ -19,10 +19,10 @@ export interface ServiceItem {
   isPrepared: boolean;
 }
 
+const { serviceItem: SI } = CRM_OBJECTS;
+
 /**
- * Tentativa de criar itens de serviço estruturados no Twenty CRM.
- * Esta função é desenhada para falhar silenciosamente se o objeto ainda não existir,
- * garantindo que a App não bloqueia durante a transição.
+ * Cria/atualiza produtos estruturados no Twenty CRM (objeto Produto / query produtos).
  */
 export async function createServiceItems(items: ServiceItem[]): Promise<{ success: boolean; error?: string }> {
   if (items.length === 0) return { success: true };
@@ -32,7 +32,7 @@ export async function createServiceItems(items: ServiceItem[]): Promise<{ succes
   try {
     const findQuery = `
       query findItems($oppId: UUID!) {
-        itemdeservicos(filter: { servicoitemId: { eq: $oppId } }) {
+        ${SI.queryName}(filter: { servicoitemId: { eq: $oppId } }) {
           edges {
             node {
               id
@@ -44,13 +44,23 @@ export async function createServiceItems(items: ServiceItem[]): Promise<{ succes
       }
     `;
 
-    const existingData = await crmFetch<any>(findQuery, { oppId: opportunityId });
-    const existingNodes = existingData?.itemdeservicos?.edges?.map((e: any) => e.node) || [];
+    const existingData = await crmFetch<Record<string, { edges: Array<{ node: unknown }> }>>(
+      findQuery,
+      { oppId: opportunityId }
+    );
+    const existingNodes =
+      existingData?.[SI.queryName]?.edges?.map((e) => e.node as {
+        id: string;
+        preparado?: boolean;
+        estadoDoArmazem?: string[];
+      }) || [];
     const hasPreparedItems = existingNodes.some(
-      (node: { preparado?: boolean; estadoDoArmazem?: string[] }) =>
+      (node) =>
         node.preparado === true ||
         (Array.isArray(node.estadoDoArmazem) &&
-          node.estadoDoArmazem.some((s) => s === WAREHOUSE_STATUS.PREPARADO || s === WAREHOUSE_STATUS.PROBLEMAS))
+          node.estadoDoArmazem.some(
+            (s) => s === WAREHOUSE_STATUS.PREPARADO || s === WAREHOUSE_STATUS.PROBLEMAS
+          ))
     );
 
     if (hasPreparedItems) {
@@ -59,28 +69,30 @@ export async function createServiceItems(items: ServiceItem[]): Promise<{ succes
       );
     }
 
-    const existingIds = existingNodes.map((node: { id: string }) => node.id);
+    const existingIds = existingNodes.map((node) => node.id);
 
     if (existingIds.length > 0) {
-      console.log(`🗑️ Limpando ${existingIds.length} itens antigos em paralelo...`);
+      console.log(`🗑️ Limpando ${existingIds.length} produtos antigos em paralelo...`);
       await Promise.all(
         existingIds.map((id: string) =>
-          crmFetch(`mutation deleteItem($id: UUID!) { deleteItemdeservico(id: $id) { id } }`, { id })
+          crmFetch(
+            `mutation deleteItem($id: UUID!) { ${SI.mutationDelete}(id: $id) { id } }`,
+            { id }
+          )
         )
       );
     }
 
-    // 2. CRIAÇÃO: Mutação em lote para alta performance
     const batchMutation = `
-      mutation createItems($data: [ItemdeservicoCreateInput!]!) {
-        createItemdeservicos(data: $data) {
+      mutation createItems($data: [${SI.createInputType}!]!) {
+        ${SI.mutationCreateMany}(data: $data) {
           id
         }
       }
     `;
 
     const variables = {
-      data: items.map(item => ({
+      data: items.map((item) => ({
         servicoitemId: item.opportunityId,
         produto: item.product,
         largura: item.width,
@@ -89,42 +101,47 @@ export async function createServiceItems(items: ServiceItem[]): Promise<{ succes
         cor: item.color,
         localizacao: item.location,
         preparado: item.isPrepared,
-        name: `${item.product} - ${item.location?.split(' | ')[0] || 'Geral'}`
-      }))
+        name: `${item.product} - ${item.location?.split(" | ")[0] || "Geral"}`,
+      })),
     };
 
     await crmFetch(batchMutation, variables);
-    console.log(`✅ ${items.length} itens novos criados com sucesso.`);
+    console.log(`✅ ${items.length} produtos novos criados com sucesso.`);
     return { success: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro na sincronização de itens.";
-    console.error("Erro na sincronização de Itens de Serviço:", error);
+    const message = error instanceof Error ? error.message : "Erro na sincronização de produtos.";
+    console.error("Erro na sincronização de produtos:", error);
     throw new Error(message);
   }
 }
 
-export async function updateItemPreparationStatus(itemId: string, isPrepared: boolean, estadoDoArmazem?: string) {
+export async function updateItemPreparationStatus(
+  itemId: string,
+  isPrepared: boolean,
+  estadoDoArmazem?: string
+) {
   const mutation = `
-    mutation updateItem($id: UUID!, $preparado: Boolean!, $estadoDoArmazem: [ItemdeservicoEstadoDoArmazemEnum!]) {
-      updateItemdeservico(id: $id, data: { preparado: $preparado, estadoDoArmazem: $estadoDoArmazem }) {
+    mutation updateItem($id: UUID!, $preparado: Boolean!, $estadoDoArmazem: [${SI.warehouseStateEnum}!]) {
+      ${SI.mutationUpdate}(id: $id, data: { preparado: $preparado, estadoDoArmazem: $estadoDoArmazem }) {
         id
         preparado
         estadoDoArmazem
       }
     }
   `;
-  const enumVal = estadoDoArmazem || (isPrepared ? WAREHOUSE_STATUS.PREPARADO : WAREHOUSE_STATUS.EM_PREPARACAO);
-  return await crmFetch(mutation, { 
-    id: itemId, 
-    preparado: isPrepared, 
-    estadoDoArmazem: [enumVal] 
+  const enumVal =
+    estadoDoArmazem || (isPrepared ? WAREHOUSE_STATUS.PREPARADO : WAREHOUSE_STATUS.EM_PREPARACAO);
+  return await crmFetch(mutation, {
+    id: itemId,
+    preparado: isPrepared,
+    estadoDoArmazem: [enumVal],
   });
 }
 
 export async function fetchServiceItemsByOpportunity(opportunityId: string) {
   const query = `
     query findItems($oppId: UUID!) {
-      itemdeservicos(filter: { servicoitemId: { eq: $oppId } }) {
+      ${SI.queryName}(filter: { servicoitemId: { eq: $oppId } }) {
         edges {
           node {
             id
@@ -140,6 +157,8 @@ export async function fetchServiceItemsByOpportunity(opportunityId: string) {
       }
     }
   `;
-  const data = await crmFetch<any>(query, { oppId: opportunityId });
-  return data?.itemdeservicos?.edges?.map((e: any) => e.node) || [];
+  const data = await crmFetch<Record<string, { edges: Array<{ node: unknown }> }>>(query, {
+    oppId: opportunityId,
+  });
+  return data?.[SI.queryName]?.edges?.map((e) => e.node) || [];
 }

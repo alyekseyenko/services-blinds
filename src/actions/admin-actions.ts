@@ -1,16 +1,15 @@
 "use server";
 
-import { getAppSession, canAccessAdminPanel } from "@/lib/auth/session";
+import { canAccessAdminPanel } from "@/lib/auth/session";
+import { getAppSession } from "@/lib/auth/session.server";
 import { ActionResponse } from "@/lib/types/action-response";
-import {
-  cancelAppointment,
-  createTechnicalVisit,
-  getNextStageOnSchedule,
-  updateOpportunityCoordinates,
-  updateOpportunityStage,
-} from "@/lib/crm";
+import { fetchAdminOpportunities, updateOpportunityCoordinates } from "@/lib/crm/opportunities";
+import { cancelAppointment } from "@/lib/crm/tasks";
+import { findScheduleConflicts } from "@/lib/admin/routeScheduleSlots";
+import { scheduleVisitCore } from "@/lib/crm/scheduleVisit";
+import { getAdminSchedulingHoursError } from "@/lib/admin/schedulingHours";
+import { getReusableTaskId } from "@/lib/crm/contract";
 import { serverGeocodeAddress } from "@/lib/geocodeAction";
-import { createOpportunityNoteAction } from "@/actions/notes-actions";
 import type { RawAddress } from "@/types/admin";
 
 type AdminAuthContext = { userName: string; userId: string };
@@ -120,11 +119,16 @@ export interface ScheduleVisitInput {
   pointOfContactEmail?: string;
   taskId?: string;
   currentStage: string;
+  urgent?: boolean;
+}
+
+export interface ScheduleVisitActionData {
+  conflictWarning?: string;
 }
 
 export async function scheduleTechnicalVisitAction(
   input: ScheduleVisitInput
-): Promise<ActionResponse<void>> {
+): Promise<ActionResponse<ScheduleVisitActionData>> {
   try {
     const auth = await requireAdminPanel();
     if (!auth) return { success: false, error: "Unauthorized" };
@@ -136,38 +140,65 @@ export async function scheduleTechnicalVisitAction(
       };
     }
 
-    await createTechnicalVisit({
+    const dueAt = new Date(input.dueAtIso);
+    const hoursError = getAdminSchedulingHoursError(dueAt);
+    if (hoursError) {
+      return { success: false, error: hoursError };
+    }
+
+    const opportunities = await fetchAdminOpportunities();
+    const conflicts = findScheduleConflicts(
+      [{ title: input.title, dueAt, opportunityId: input.opportunityId }],
+      opportunities,
+      input.technicianName,
+      { excludeOpportunityIds: [input.opportunityId] }
+    );
+
+    let conflictWarning: string | undefined;
+    if (conflicts.length > 0) {
+      const first = conflicts[0];
+      const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      if (!input.urgent) {
+        return {
+          success: false,
+          error: `Conflito de agenda: «${first.conflictingTitle}» já está marcado às ${timeLabel} para este técnico.`,
+        };
+      }
+      conflictWarning = `Aviso: «${first.conflictingTitle}» está marcado às ${timeLabel} para o mesmo técnico.`;
+    }
+
+    const existingOpp = opportunities.find((opp) => opp.twentyId === input.opportunityId);
+    const reusableTaskId =
+      getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus) ||
+      getReusableTaskId(input.taskId, existingOpp?.taskStatus);
+
+    await scheduleVisitCore({
       title: input.title,
-      dueAt: new Date(input.dueAtIso),
-      body: input.notes,
+      dueAt,
+      notes: input.notes,
       assigneeId: input.technicianId,
+      technicianName: input.technicianName,
       morada: input.morada,
       opportunityId: input.opportunityId,
       personId: input.personId,
       pointOfContactEmail: input.pointOfContactEmail,
-      taskId: input.taskId,
+      taskId: reusableTaskId,
+      currentStage: input.currentStage,
       scheduledByName: auth.userName,
       scheduledByMemberId: auth.userId,
-      technicianName: input.technicianName,
+      noteTitle: "Scheduling Instructions",
+      urgent: input.urgent,
     });
 
-    if (input.notes?.trim()) {
-      await createOpportunityNoteAction(
-        input.opportunityId,
-        input.personId || null,
-        "Instruções do Agendamento",
-        input.notes
-      ).catch((err) => console.error("[scheduleTechnicalVisitAction] note error:", err));
-    }
-
-    const nextStage = getNextStageOnSchedule(input.currentStage);
-    if (nextStage !== input.currentStage) {
-      await updateOpportunityStage(input.opportunityId, nextStage);
-    }
-
-    return { success: true };
+    return {
+      success: true,
+      data: conflictWarning ? { conflictWarning } : undefined,
+    };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to schedule visit.";
+    const message = error instanceof Error ? error.message : "Não foi possível agendar a visita.";
     console.error("[scheduleTechnicalVisitAction]", error);
     return { success: false, error: message };
   }
@@ -181,15 +212,26 @@ export interface MassScheduleStop {
   rawAddress?: RawAddress;
   pointOfContactId?: string;
   pointOfContactEmail?: string;
+  clientName?: string;
   taskId?: string;
+  dueAtIso: string;
+  notes?: string;
 }
 
 export async function scheduleMassVisitsAction(
   stops: MassScheduleStop[],
   technicianId: string,
   technicianName: string,
-  dateIso: string
-): Promise<ActionResponse<{ scheduledCount: number }>> {
+  globalNotes?: string,
+  urgent?: boolean
+): Promise<
+  ActionResponse<{
+    scheduledCount: number;
+    skippedCount?: number;
+    skippedTitles?: string[];
+    conflictWarning?: string;
+  }>
+> {
   try {
     const auth = await requireAdminPanel();
     if (!auth) return { success: false, error: "Unauthorized" };
@@ -201,54 +243,105 @@ export async function scheduleMassVisitsAction(
       };
     }
 
-    const [year, month, day] = dateIso.split("-").map(Number);
-    let currentHour = 8;
-    let currentMinute = 30;
-    let scheduledCount = 0;
+    const visitStops = stops.filter((stop) => !stop.isReturn);
+    if (visitStops.length === 0) {
+      return { success: false, error: "No route stops selected for scheduling." };
+    }
 
-    for (let i = 0; i < stops.length; i++) {
-      const stop = stops[i];
-      if (stop.isReturn) continue;
-      if (currentHour >= 13 && currentHour < 14) {
-        currentHour = 14;
-        currentMinute = 0;
+    for (const stop of visitStops) {
+      const hoursError = getAdminSchedulingHoursError(new Date(stop.dueAtIso));
+      if (hoursError) {
+        return { success: false, error: `${hoursError} («${stop.title}»)` };
+      }
+    }
+
+    const opportunities = await fetchAdminOpportunities();
+    const batchOpportunityIds = visitStops.map((stop) => stop.twentyId);
+    const conflicts = findScheduleConflicts(
+      visitStops.map((stop) => ({
+        title: stop.title,
+        dueAt: new Date(stop.dueAtIso),
+        opportunityId: stop.twentyId,
+      })),
+      opportunities,
+      technicianName,
+      { excludeOpportunityIds: batchOpportunityIds }
+    );
+
+    let conflictWarning: string | undefined;
+    if (conflicts.length > 0) {
+      const first = conflicts[0];
+      const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      if (!urgent) {
+        return {
+          success: false,
+          error: `Conflito de agenda: «${first.stopTitle}» sobrepõe-se a «${first.conflictingTitle}» às ${timeLabel}.`,
+        };
+      }
+      conflictWarning = `Aviso: «${first.stopTitle}» sobrepõe-se a «${first.conflictingTitle}» às ${timeLabel}.`;
+    }
+
+    let scheduledCount = 0;
+    const skippedTitles: string[] = [];
+
+    for (let i = 0; i < visitStops.length; i++) {
+      const stop = visitStops[i];
+      const existingOpp = opportunities.find((opp) => opp.twentyId === stop.twentyId);
+
+      if (existingOpp?.hasScheduledTask) {
+        skippedTitles.push(stop.title);
+        continue;
       }
 
-      const dueAt = new Date(year, month - 1, day, currentHour, currentMinute);
+      const mergedNotes = [globalNotes?.trim(), stop.notes?.trim()].filter(Boolean).join("\n\n");
+      const routeStopLabel = `Route stop #${i + 1}`;
+      const taskId = getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus);
 
-      await createTechnicalVisit({
+      await scheduleVisitCore({
         title: stop.title,
-        dueAt,
-        body: `Roteiro Automático Paragem #${i + 1}`,
+        dueAt: new Date(stop.dueAtIso),
+        notes: mergedNotes || undefined,
         assigneeId: technicianId,
+        technicianName,
         morada: stop.rawAddress || {},
         opportunityId: stop.twentyId,
         personId: stop.pointOfContactId,
         pointOfContactEmail: stop.pointOfContactEmail,
-        taskId: stop.taskId,
+        clientName: stop.clientName,
+        taskId,
+        currentStage: stop.stage || existingOpp?.stage || "ENTRADA",
         scheduledByName: auth.userName,
         scheduledByMemberId: auth.userId,
-        technicianName,
+        noteTitle: urgent ? "Agendamento urgente" : "Route Scheduling Instructions",
+        routeStopLabel,
+        urgent,
       });
 
-      if (stop.stage) {
-        const nextStage = getNextStageOnSchedule(stop.stage);
-        if (nextStage !== stop.stage) {
-          await updateOpportunityStage(stop.twentyId, nextStage);
-        }
-      }
-
       scheduledCount += 1;
-      currentMinute += 105;
-      while (currentMinute >= 60) {
-        currentMinute -= 60;
-        currentHour += 1;
-      }
     }
 
-    return { success: true, data: { scheduledCount } };
+    if (scheduledCount === 0) {
+      const detail =
+        skippedTitles.length > 0
+          ? `All selected stops are already confirmed: ${skippedTitles.join(", ")}.`
+          : "No stops were eligible for scheduling.";
+      return { success: false, error: detail };
+    }
+
+    return {
+      success: true,
+      data: {
+        scheduledCount,
+        skippedCount: skippedTitles.length,
+        skippedTitles,
+        conflictWarning,
+      },
+    };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to schedule route.";
+    const message = error instanceof Error ? error.message : "Não foi possível agendar a rota.";
     console.error("[scheduleMassVisitsAction]", error);
     return { success: false, error: message };
   }

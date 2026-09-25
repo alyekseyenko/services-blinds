@@ -1,8 +1,10 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Send, X, MessageSquare, Sparkles, Loader2 } from 'lucide-react';
-import { askExpertAgent } from '@/lib/expertAgentAction';
+import { askExpertAgent, type ExpertAgentOpportunity } from '@/lib/expertAgentAction';
 import { COMPANY_LABEL } from '@/lib/branding';
+import type { ZoneInsight } from '@/types/admin';
+import type { OptimizedRouteStop } from '@/lib/admin/routeOptimization';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -13,9 +15,9 @@ interface Message {
 }
 
 interface AILogisticsExpertProps {
-  opportunities: any[];
-  zoneInsights: any;
-  currentRoute: any;
+  opportunities: ExpertAgentOpportunity[];
+  zoneInsights: ZoneInsight[];
+  currentRoute: OptimizedRouteStop[] | null;
 }
 
 export default function AILogisticsExpert({ opportunities, zoneInsights, currentRoute }: AILogisticsExpertProps) {
@@ -23,8 +25,8 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: `Olá! Sou o seu Expert em Logística ${COMPANY_LABEL}. Como posso ajudar com os pedidos e agendamentos hoje?`,
-      timestamp: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+      content: `Hello! I am your ${COMPANY_LABEL} logistics expert. Ask about routes, zones, costs, or priorities.`,
+      timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [input, setInput] = useState('');
@@ -46,7 +48,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
     setMessages(prev => [...prev, {
       role: 'user',
       content: userMsg,
-      timestamp: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     }]);
 
     setIsLoading(true);
@@ -54,7 +56,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
       const response = await askExpertAgent(userMsg, {
         opportunities,
         zoneInsights,
-        currentRoute
+        currentRoute: currentRoute ?? [],
       });
 
       if (response.error) {
@@ -64,15 +66,15 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: response.message || '',
-        timestamp: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         thought: response.agentThought || undefined,
         isLearning: response.isLearning || undefined
       }]);
-    } catch (err: any) {
+    } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Lamento, tive um erro ao analisar os dados. Pode tentar novamente?',
-        timestamp: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+        content: 'Sorry, I could not analyze the data. Please try again.',
+        timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
       }]);
     } finally {
       setIsLoading(false);
@@ -94,7 +96,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
                 <h3 className="text-sm font-black uppercase tracking-tighter leading-none">AI Logistics Expert</h3>
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Ligado ao CRM MCP</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Live CRM data</span>
                 </div>
               </div>
             </div>
@@ -110,7 +112,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
                 <div className={`max-w-[85%] flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                      {msg.role === 'user' ? 'Administrador' : 'Logistics AI'}
+                      {msg.role === 'user' ? 'Admin' : 'Logistics AI'}
                     </span>
                     <span className="text-[9px] text-slate-300">{msg.timestamp}</span>
                   </div>
@@ -126,7 +128,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
                   {(msg.thought || msg.isLearning) && (
                     <div className={`mt-1 flex items-center gap-1 text-[8px] font-bold uppercase italic ${msg.isLearning ? 'text-purple-600' : 'text-purple-400'}`}>
                       <Sparkles className="w-2.5 h-2.5" /> 
-                      {msg.isLearning ? 'Cérebro Atualizado: Conhecimento Persistido' : `Pensamento: ${msg.thought}`}
+                      {msg.isLearning ? 'Memory updated' : `Reasoning: ${msg.thought}`}
                     </div>
                   )}
                 </div>
@@ -136,7 +138,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
               <div className="flex justify-start">
                 <div className="bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                  <span className="text-xs font-bold text-slate-400 uppercase animate-pulse">A analisar base de dados...</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase animate-pulse">Analyzing live data...</span>
                 </div>
               </div>
             )}
@@ -146,7 +148,7 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
           <form onSubmit={handleSend} className="p-4 bg-white border-t border-slate-100 flex gap-2">
             <input
               type="text"
-              placeholder="Perguntar sobre rotas, clientes ou custos..."
+              placeholder="Ask about routes, zones, or costs..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 bg-slate-100 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-purple-500 transition-all outline-none text-slate-700 font-medium"
@@ -173,8 +175,8 @@ export default function AILogisticsExpert({ opportunities, zoneInsights, current
         {isOpen ? <X className="w-7 h-7" /> : <Brain className="w-7 h-7" />}
         {!isOpen && (
           <div className="absolute left-20 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
-             <p className="text-[10px] font-black text-slate-800 uppercase leading-none">Falar com Especialista IA</p>
-             <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Ligado ao Twenty CRM</p>
+             <p className="text-[10px] font-black text-slate-800 uppercase leading-none">Talk to Logistics AI</p>
+             <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Synced with Twenty CRM</p>
           </div>
         )}
       </button>

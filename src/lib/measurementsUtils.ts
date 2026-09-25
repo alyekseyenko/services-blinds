@@ -57,6 +57,7 @@ export function formatMeasurementsReport(data: MeasurementsPayload): string {
   return `<!-- [JSON_MEASUREMENTS]${JSON.stringify(data)} -->`;
 }
 
-export function getMeasurementsDraftKey(taskId: string): string {
+export function getMeasurementsDraftKey(taskId: string, opportunityId?: string): string {
+  if (opportunityId) return `measurements_draft_${taskId}_${opportunityId}`;
   return `measurements_draft_${taskId}`;
 }

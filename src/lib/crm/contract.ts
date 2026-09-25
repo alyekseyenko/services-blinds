@@ -28,12 +28,14 @@ export const CRM_OBJECTS = {
     mutationCreate: 'createTaskTarget',
   },
   serviceItem: {
-    name: 'Itemdeservico',
-    queryName: 'itemdeservicos',
-    mutationCreate: 'createItemdeservico',
-    mutationCreateMany: 'createItemdeservicos',
-    mutationUpdate: 'updateItemdeservico',
-    mutationDelete: 'deleteItemdeservico',
+    name: 'Produto',
+    queryName: 'produtos',
+    mutationCreate: 'createProduto',
+    mutationCreateMany: 'createProdutos',
+    mutationUpdate: 'updateProduto',
+    mutationDelete: 'deleteProduto',
+    warehouseStateEnum: 'ProdutoEstadoDoArmazemEnum',
+    createInputType: 'ProdutoCreateInput',
   },
   note: {
     name: 'Note',
@@ -60,6 +62,7 @@ export const CRM_FIELDS = {
     nsi: 'nsi',
     serviceAddress: 'moradaDeServico',
     importantNotes: 'notasImportantes',
+    clientAvailability: 'disponibilidadeDoCliente',
     clientRating: 'avaliacaoDoCliente',
     clientFeedback: 'feedbackDoCliente',
     serviceItemsRelation: 'servicoitem',
@@ -68,7 +71,18 @@ export const CRM_FIELDS = {
     repairAddress: 'moradaDaReparacao',
     technicianName: 'technicianName',
     scheduledBy: 'scheduledBy',
+    clientAvailability: 'disponibilidadeDoCliente',
     body: 'bodyV2',
+  },
+  address: {
+    street1: 'addressStreet1',
+    street2: 'addressStreet2',
+    city: 'addressCity',
+    state: 'addressState',
+    postcode: 'addressPostcode',
+    country: 'addressCountry',
+    lat: 'addressLat',
+    lng: 'addressLng',
   },
   serviceItem: {
     opportunityRelationId: 'servicoitemId',
@@ -89,6 +103,18 @@ export const CRM_FIELDS = {
     name: 'name',
   },
 } as const;
+
+/** GraphQL sub-selection for Twenty `Address` composite fields. */
+export const CRM_ADDRESS_GRAPHQL_FIELDS = `
+  addressStreet1
+  addressStreet2
+  addressCity
+  addressState
+  addressPostcode
+  addressCountry
+  addressLat
+  addressLng
+`;
 
 // ==========================================
 // 3. PIPELINE STAGES
@@ -123,7 +149,14 @@ export type OpportunityWorkflow =
 // ==========================================
 // 4. TASK STATUS
 // ==========================================
+export const CRM_TASK_CLIENT_AVAILABILITY = {
+  AWAITING_RESPONSE: 'CLIENTE_NAO_RESPONDEU',
+  CLIENT_CAN: 'CLIENTE_PODE',
+  CLIENT_CANNOT: 'CLIENTE_NAO_PODE',
+} as const;
+
 export const CRM_TASK_STATUS = {
+  POR_AGENDAR: 'POR_AGENDAR',
   AGENDADO: 'AGENDADO',
   EM_CURSO: 'EM_CURSO',
   CONCLUIDO: 'CONCLUIDO',
@@ -209,9 +242,63 @@ export function toTwentyTaskStatus(status: string): string {
   return normalizeTaskStatus(status);
 }
 
+export function clientAvailabilityForStatus(
+  status: string
+): (typeof CRM_TASK_CLIENT_AVAILABILITY)[keyof typeof CRM_TASK_CLIENT_AVAILABILITY] | undefined {
+  const normalized = normalizeTaskStatus(status);
+  if (normalized === CRM_TASK_STATUS.POR_AGENDAR) {
+    return CRM_TASK_CLIENT_AVAILABILITY.AWAITING_RESPONSE;
+  }
+  if (normalized === CRM_TASK_STATUS.AGENDADO) {
+    return CRM_TASK_CLIENT_AVAILABILITY.CLIENT_CAN;
+  }
+  return undefined;
+}
+
 export function isTaskActive(status?: string | null): boolean {
   const s = normalizeTaskStatus(status);
   return s === CRM_TASK_STATUS.AGENDADO || s === CRM_TASK_STATUS.EM_CURSO;
+}
+
+/** Proposal sent to client; awaiting confirmation before the visit is firm. */
+export function isTaskPendingConfirmation(status?: string | null): boolean {
+  return normalizeTaskStatus(status) === CRM_TASK_STATUS.POR_AGENDAR;
+}
+
+/** Visits the client may cancel through the public portal. */
+export function canClientCancelTask(status?: string | null): boolean {
+  const s = normalizeTaskStatus(status);
+  return (
+    s === CRM_TASK_STATUS.POR_AGENDAR ||
+    s === CRM_TASK_STATUS.AGENDADO ||
+    s === CRM_TASK_STATUS.EM_CURSO
+  );
+}
+
+/** Blocks technician calendar slots (proposed or confirmed visits). */
+export function isTaskBlockingSchedule(status?: string | null): boolean {
+  const s = normalizeTaskStatus(status);
+  return (
+    s === CRM_TASK_STATUS.POR_AGENDAR ||
+    s === CRM_TASK_STATUS.AGENDADO ||
+    s === CRM_TASK_STATUS.EM_CURSO
+  );
+}
+
+/** Reuse an existing CRM task when re-proposing after cancel or updating a pending proposal. */
+export function getReusableTaskId(
+  taskId?: string | null,
+  taskStatus?: string | null
+): string | undefined {
+  if (!taskId) return undefined;
+  const status = normalizeTaskStatus(taskStatus);
+  if (
+    status === CRM_TASK_STATUS.CANCELADO ||
+    status === CRM_TASK_STATUS.POR_AGENDAR
+  ) {
+    return taskId;
+  }
+  return undefined;
 }
 
 export function isTaskInProgress(status?: string | null): boolean {
@@ -317,6 +404,11 @@ export function classifyOpportunityWorkflow(
 
 /** Marker / badge key used by map colors and technician UI. */
 export function deriveWorkflowMarkerKey(stage?: string | null, title?: string | null): string {
+  const normStage = normalizeString(stage);
+  const normTitle = normalizeString(title);
+  if (normStage.includes("REAGEND") || normTitle.includes("REAGEND")) {
+    return "REAGENDAR";
+  }
   const workflow = classifyOpportunityWorkflow(stage, title);
   if (workflow === 'installation') return CRM_STAGES.INSTALACAO;
   if (workflow === 'maintenance') return CRM_STAGES.MANUTENCAO;
@@ -405,6 +497,38 @@ export function mapLegacyServiceTypeToStage(
     ];
     if (installPrepStages.includes(stageNorm)) {
       return CRM_STAGES.MARCAR_INSTALACAO;
+    }
+  }
+
+  return null;
+}
+
+/** Twenty SELECT/TEXT rating fields expect enum strings like `RATING_5`. */
+export function formatCrmClientRating(rating: number): string {
+  const stars = Math.round(rating);
+  if (stars < 1 || stars > 5) {
+    throw new Error(`Client rating must be between 1 and 5, got ${rating}`);
+  }
+  return `RATING_${stars}`;
+}
+
+/** Twenty RATING fields return enum strings like `RATING_5`; NUMBER fields return integers. */
+export function parseCrmClientRating(value: unknown): number | null {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    const rounded = Math.round(value);
+    return rounded >= 1 && rounded <= 5 ? rounded : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const enumMatch = trimmed.match(/^RATING_(\d+)$/i);
+    if (enumMatch) {
+      const stars = parseInt(enumMatch[1], 10);
+      return stars >= 1 && stars <= 5 ? stars : null;
+    }
+    const parsed = parseInt(trimmed, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+      return parsed;
     }
   }
 

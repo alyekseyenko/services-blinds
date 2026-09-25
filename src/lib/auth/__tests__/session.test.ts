@@ -4,7 +4,7 @@ import {
   canAccessCeoPanel,
   isAdminRole,
   isStrictAdminRole,
-} from "../session";
+} from "../rbac";
 
 describe("session role helpers", () => {
   it("canAccessAdminPanel inclui admin, member e ceo", () => {

@@ -1,5 +1,6 @@
-"use server";
+import "server-only";
 import { crmFetch, crmRestCreate } from './client';
+import { CRM_ADDRESS_GRAPHQL_FIELDS } from './contract';
 import { CRMTaskSchema, AppTask } from './schemas';
 import { z } from 'zod';
 import { isTaskOverdue } from "@/lib/taskUtils";
@@ -14,6 +15,7 @@ import {
   isTaskCancelled,
   isTaskActive,
   classifyOpportunityWorkflow,
+  clientAvailabilityForStatus,
   deriveWorkflowMarkerKey,
   getCompletionStageForWorkflow,
   getFallbackStageOnIncompleteWorkflow,
@@ -23,6 +25,12 @@ import {
 } from './contract';
 import { invalidateAdminCrmCache } from '@/lib/crmCache';
 import { extractPhonesFromTwenty, getPrimaryPhone } from './phones';
+import {
+  buildVisitServicesFromTaskNode,
+  parseVisitServicesMarker,
+  resolvePrimaryOpportunityId,
+} from './visitServicesMarker';
+import { mergeTaskBodyWithObservations } from './visitServices';
 
 const PHONES_FIELDS = `
   primaryPhoneNumber
@@ -46,10 +54,7 @@ const TASK_NODE_FIELDS = `
   technicianName
   bodyV2 { markdown }
   moradaDaReparacao {
-    addressStreet1
-    addressCity
-    addressLat
-    addressLng
+    ${CRM_ADDRESS_GRAPHQL_FIELDS}
   }
   taskTargets {
     edges {
@@ -65,6 +70,7 @@ const TASK_NODE_FIELDS = `
         }
         targetOpportunity {
           id
+          name
           nsi
           stage
           notasImportantes { markdown }
@@ -74,10 +80,7 @@ const TASK_NODE_FIELDS = `
             }
           }
           moradaDeServico {
-            addressStreet1
-            addressCity
-            addressLat
-            addressLng
+            ${CRM_ADDRESS_GRAPHQL_FIELDS}
           }
         }
       }
@@ -112,7 +115,11 @@ async function fetchTasksByAssigneeId(assigneeId: string) {
 
 function mapTaskNode(node: any): AppTask {
   const edges = node.taskTargets?.edges || [];
-  const oppTarget = edges.find((e: any) => e.node?.targetOpportunity)?.node?.targetOpportunity;
+  const services = buildVisitServicesFromTaskNode(node);
+  const primaryOppId = resolvePrimaryOpportunityId(services);
+  const oppTarget =
+    edges.find((e: any) => e.node?.targetOpportunity?.id === primaryOppId)?.node?.targetOpportunity ||
+    edges.find((e: any) => e.node?.targetOpportunity)?.node?.targetOpportunity;
   const personTarget = edges.find((e: any) => e.node?.targetPerson)?.node?.targetPerson;
   const personPhones = extractPhonesFromTwenty(personTarget?.phones);
   const clientPhones =
@@ -127,18 +134,29 @@ function mapTaskNode(node: any): AppTask {
     title: node.title,
     status: node.status,
     dueDate: new Date(node.dueAt),
-    address: [
-      oppTarget?.moradaDeServico?.addressStreet1 || node.moradaDaReparacao?.addressStreet1,
-      oppTarget?.moradaDeServico?.addressCity || node.moradaDaReparacao?.addressCity,
-    ]
-      .filter(Boolean)
-      .join(', ') || 'Endereço não especificado',
-    coordinates:
-      oppTarget?.moradaDeServico?.addressLat && oppTarget?.moradaDeServico?.addressLng
-        ? [oppTarget.moradaDeServico.addressLat, oppTarget.moradaDeServico.addressLng]
-        : node.moradaDaReparacao?.addressLat
-          ? [node.moradaDaReparacao.addressLat, node.moradaDaReparacao.addressLng]
-          : null,
+    address: (() => {
+      const oppMorada = oppTarget?.moradaDeServico;
+      const taskMorada = node.moradaDaReparacao;
+      const street =
+        oppMorada?.addressStreet1?.trim() || taskMorada?.addressStreet1?.trim() || "";
+      const city =
+        oppMorada?.addressCity?.trim() || taskMorada?.addressCity?.trim() || "";
+      const postcode =
+        oppMorada?.addressPostcode?.trim() || taskMorada?.addressPostcode?.trim() || "";
+      const line = [street, city, postcode].filter(Boolean).join(", ");
+      return line || "Endereço não especificado";
+    })(),
+    coordinates: (() => {
+      const oppMorada = oppTarget?.moradaDeServico;
+      const taskMorada = node.moradaDaReparacao;
+      if (oppMorada?.addressLat != null && oppMorada?.addressLng != null) {
+        return [oppMorada.addressLat, oppMorada.addressLng] as [number, number];
+      }
+      if (taskMorada?.addressLat != null && taskMorada?.addressLng != null) {
+        return [taskMorada.addressLat, taskMorada.addressLng] as [number, number];
+      }
+      return null;
+    })(),
     client: personTarget
       ? `${personTarget.name?.firstName || ''} ${personTarget.name?.lastName || ''}`.trim() || 'Cliente'
       : 'Cliente',
@@ -153,6 +171,8 @@ function mapTaskNode(node: any): AppTask {
     clientPhone,
     clientPhones,
     isOverdue: isTaskOverdue(node.status, node.dueAt),
+    services,
+    personId: personTarget?.id,
   };
 }
 
@@ -242,6 +262,7 @@ export async function updateTaskStatus(taskId: string, status: string, observati
         id
         title
         status
+        technicianName
         taskTargets {
           edges {
             node {
@@ -251,6 +272,7 @@ export async function updateTaskStatus(taskId: string, status: string, observati
                 name
                 stage
                 pointOfContact {
+                  id
                   emails {
                     primaryEmail
                   }
@@ -263,19 +285,32 @@ export async function updateTaskStatus(taskId: string, status: string, observati
     }
   `;
 
+  const mergedBody = await mergeTaskBodyWithObservations(taskId, observations);
+
   const result = await crmFetch<any>(mutation, {
     id: taskId,
     data: {
       status: twentyStatus,
-      bodyV2: observations ? { markdown: observations } : undefined
+      bodyV2: mergedBody ? { markdown: mergedBody } : undefined
     }
   });
 
   const updatedTask = result.updateTask;
   if (!updatedTask) return { id: taskId, success: false };
 
-  const target = updatedTask.taskTargets?.edges[0]?.node;
-  const oppId = target?.targetOpportunityId;
+  const visitMarker = parseVisitServicesMarker(mergedBody || "");
+  const laterOppIds = new Set(
+    visitMarker.filter((r) => r.mode === "later").map((r) => r.opportunityId)
+  );
+
+  const oppTargets =
+    updatedTask.taskTargets?.edges
+      ?.map((e: any) => e.node)
+      .filter((n: any) => n?.targetOpportunityId && n?.opportunity) || [];
+
+  const primaryTarget =
+    oppTargets.find((n: any) => !laterOppIds.has(n.targetOpportunityId)) || oppTargets[0];
+  const oppId = primaryTarget?.targetOpportunityId;
 
   // 1.1 Se temos o ID da oportunidade, obter dados atualizados da oportunidade no Twenty CRM
   let oppData: any = null;
@@ -315,7 +350,12 @@ export async function updateTaskStatus(taskId: string, status: string, observati
   // 2. Orchestrate Notifications and Reports (Side Effects)
   const { triggerNotification } = await import('./notifications');
 
-  if (status === "Cancelado" || status === "Incompleto") {
+  const isCancelled = apiStatus === CRM_TASK_STATUS.CANCELADO;
+  const isIncomplete = apiStatus === CRM_TASK_STATUS.INCOMPLETO;
+  const isCompleted =
+    apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE;
+
+  if (isCancelled || isIncomplete) {
     await triggerNotification('technician_report', {
       taskId,
       status: apiStatus,
@@ -325,8 +365,8 @@ export async function updateTaskStatus(taskId: string, status: string, observati
     });
   }
 
-  if (status === "Concluído" || status === "Incompleto") {
-    if (status === "Concluído") {
+  if (isCompleted || isIncomplete) {
+    if (isCompleted) {
       await triggerNotification('service_completed', {
         taskId,
         opportunityId: oppId,
@@ -355,9 +395,9 @@ export async function updateTaskStatus(taskId: string, status: string, observati
   }
 
   // 3. Criar uma nota nativa no CRM se houver observações/relatório do técnico para manter o histórico centralizado
+  const { createOpportunityNote } = await import('./notes');
   if (oppId && observations && observations.trim()) {
     try {
-      const { createOpportunityNote } = await import('./notes');
       const noteTitle = `Relatório Técnico (${status})`;
       await createOpportunityNote(
         oppId,
@@ -370,22 +410,75 @@ export async function updateTaskStatus(taskId: string, status: string, observati
     }
   }
 
-  // 4. Transições de Etapa Resilientes da Oportunidade
-  // EM CURSO: apenas regista chegada — NÃO move pipeline, NÃO dispara relatório final.
-  if (oppId && apiStatus !== CRM_TASK_STATUS.EM_CURSO) {
+  const isVisitClosedOnSite =
+    apiStatus === CRM_TASK_STATUS.CONCLUIDO ||
+    apiStatus === CRM_TASK_STATUS.DONE ||
+    apiStatus === CRM_TASK_STATUS.INCOMPLETO ||
+    apiStatus === CRM_TASK_STATUS.CANCELADO;
+
+  if (isVisitClosedOnSite && oppTargets.length > 0) {
+    const techName = updatedTask.technicianName?.trim() || "Technician";
+    const statusLabel =
+      apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE
+        ? "Completed"
+        : apiStatus === CRM_TASK_STATUS.INCOMPLETO
+          ? "Incomplete"
+          : "Cancelled";
+
+    for (const target of oppTargets) {
+      const linkedOppId = target.targetOpportunityId as string;
+      const contactId =
+        target.opportunity?.pointOfContact?.id ?? personId ?? null;
+      try {
+        await createOpportunityNote(
+          linkedOppId,
+          contactId,
+          "Technician left site",
+          `${techName} left the client site. Visit closed as: ${statusLabel}.`
+        );
+      } catch (noteErr) {
+        console.warn(
+          `[updateTaskStatus] Failed to create left-site note for ${linkedOppId}:`,
+          noteErr
+        );
+      }
+    }
+  }
+
+  // 4. Stage transitions for each linked opportunity (skip "schedule later" on complete)
+  if (apiStatus !== CRM_TASK_STATUS.EM_CURSO) {
     try {
       const { updateOpportunityStage } = await import('./opportunities');
-      const workflow = classifyOpportunityWorkflow(opp?.stage, updatedTask.title);
-      const completionStage = getCompletionStageForWorkflow(workflow);
+      for (const target of oppTargets) {
+        const linkedOppId = target.targetOpportunityId;
+        const linkedOpp = target.opportunity;
+        if (!linkedOppId || !linkedOpp) continue;
 
-      if (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE) {
-        if (completionStage) {
-          console.log(`[CRM Transition] Oportunidade ${oppId} avançada para ${completionStage} (${workflow})`);
-          await updateOpportunityStage(oppId, completionStage);
+        if (
+          laterOppIds.has(linkedOppId) &&
+          (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE)
+        ) {
+          continue;
         }
-      } else if (apiStatus === CRM_TASK_STATUS.INCOMPLETO || apiStatus === CRM_TASK_STATUS.CANCELADO) {
-        const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
-        await updateOpportunityStage(oppId, fallbackStage);
+
+        const workflow = classifyOpportunityWorkflow(linkedOpp.stage, linkedOpp.name || "");
+        const completionStage = getCompletionStageForWorkflow(workflow);
+
+        if (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE) {
+          if (completionStage) {
+            console.log(
+              `[CRM Transition] Opportunity ${linkedOppId} -> ${completionStage} (${workflow})`
+            );
+            await updateOpportunityStage(linkedOppId, completionStage);
+          }
+        } else if (
+          apiStatus === CRM_TASK_STATUS.INCOMPLETO ||
+          apiStatus === CRM_TASK_STATUS.CANCELADO
+        ) {
+          if (laterOppIds.has(linkedOppId)) continue;
+          const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
+          await updateOpportunityStage(linkedOppId, fallbackStage);
+        }
       }
     } catch (stageErr) {
       console.warn('Failed to auto-update opportunity stage on task status change:', stageErr);
@@ -436,6 +529,7 @@ export interface CreateTechnicalVisitInput {
   scheduledByName?: string;
   scheduledByMemberId?: string;
   technicianName?: string;
+  status?: string;
 }
 
 function buildMoradaPayload(
@@ -455,13 +549,59 @@ function buildMoradaPayload(
   };
 }
 
+async function updateTechnicalVisitProposal(
+  taskId: string,
+  taskData: CreateTechnicalVisitInput
+): Promise<{ id: string }> {
+  const {
+    title,
+    dueAt,
+    body,
+    assigneeId,
+    morada,
+    technicianName = "",
+    scheduledByName = "Admin",
+    status = CRM_TASK_STATUS.POR_AGENDAR,
+  } = taskData;
+
+  const dueAtIso = dueAt instanceof Date ? dueAt.toISOString() : new Date(dueAt).toISOString();
+  const moradaDaReparacao = buildMoradaPayload(morada);
+  const mutation = `
+    mutation updateProposedVisit($id: UUID!, $data: TaskUpdateInput!) {
+      updateTask(id: $id, data: $data) {
+        id
+      }
+    }
+  `;
+
+  const clientAvailability = clientAvailabilityForStatus(status);
+  const result = await crmFetch<{ updateTask: { id: string } }>(mutation, {
+    id: taskId,
+    data: {
+      title,
+      dueAt: dueAtIso,
+      bodyV2: { markdown: body ?? "" },
+      status: toTwentyTaskStatus(status),
+      assigneeId,
+      technicianName,
+      scheduledBy: scheduledByName,
+      moradaDaReparacao,
+      ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
+    },
+  });
+
+  return result.updateTask;
+}
+
 export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) {
   const { 
     title, dueAt, body, assigneeId, morada, opportunityId, 
     personId, 
+    taskId,
     scheduledByName = "Admin",
     scheduledByMemberId,
-    technicianName = "" 
+    technicianName = "",
+    status = CRM_TASK_STATUS.POR_AGENDAR,
   } = taskData;
 
   if (!assigneeId) {
@@ -470,18 +610,24 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
 
   const dueAtIso = dueAt instanceof Date ? dueAt.toISOString() : new Date(dueAt).toISOString();
   const moradaDaReparacao = buildMoradaPayload(morada);
+  const taskStatus = toTwentyTaskStatus(status);
+  const isExistingTask = Boolean(taskId);
 
   let task: { id: string } | null = null;
 
-  if (scheduledByMemberId && scheduledByName) {
+  if (taskId) {
+    task = await updateTechnicalVisitProposal(taskId, taskData);
+  } else if (scheduledByMemberId && scheduledByName) {
+    const clientAvailability = clientAvailabilityForStatus(status);
     task = await crmRestCreate<{ id: string }>('tasks', {
       title,
       dueAt: dueAtIso,
       bodyV2: { markdown: body ?? '' },
-      status: 'AGENDADO',
+      status: taskStatus,
       assigneeId,
       technicianName,
       scheduledBy: scheduledByName,
+      ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
       ...(moradaDaReparacao ? { moradaDaReparacao } : {}),
       createdBy: {
         source: 'MANUAL',
@@ -501,22 +647,24 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
       }
     `;
 
+    const clientAvailability = clientAvailabilityForStatus(status);
     const result = await crmFetch<{ createTask: { id: string } }>(mutation, {
       data: {
         title,
         dueAt: dueAtIso,
         bodyV2: { markdown: body },
-        status: 'AGENDADO',
+        status: taskStatus,
         assigneeId,
         technicianName,
         scheduledBy: scheduledByName,
         moradaDaReparacao,
+        ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
       },
     });
     task = result.createTask;
   }
 
-  if (task && task.id) {
+  if (task && task.id && !isExistingTask) {
     const targetMutation = `
       mutation createTT($data: TaskTargetCreateInput!) {
         createTaskTarget(data: $data) {
@@ -525,12 +673,26 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
       }
     `;
 
+    const isDuplicateTargetError = (error: unknown): boolean => {
+      const message = error instanceof Error ? error.message : String(error);
+      return /duplicate entry|unique constraint/i.test(message);
+    };
+
     const linkTarget = async (data: Record<string, string>) => {
       try {
         await crmFetch(targetMutation, { data });
       } catch (firstError) {
-        console.warn("[createTechnicalVisit] createTaskTarget falhou, a tentar novamente...", firstError);
-        await crmFetch(targetMutation, { data });
+        if (isDuplicateTargetError(firstError)) {
+          return;
+        }
+        console.warn("[createTechnicalVisit] createTaskTarget failed, retrying once...", firstError);
+        try {
+          await crmFetch(targetMutation, { data });
+        } catch (retryError) {
+          if (!isDuplicateTargetError(retryError)) {
+            throw retryError;
+          }
+        }
       }
     };
 
@@ -552,6 +714,13 @@ export async function cancelAppointment(taskId: string, opportunityId?: string) 
       updateTask(id: $id, data: { status: CANCELADO }) { 
         id 
         title
+        dueAt
+        technicianName
+        scheduledBy
+        createdBy {
+          workspaceMemberId
+          name
+        }
         taskTargets {
           edges {
             node {
@@ -559,6 +728,15 @@ export async function cancelAppointment(taskId: string, opportunityId?: string) 
               opportunity {
                 stage
                 name
+                pointOfContact {
+                  name {
+                    firstName
+                    lastName
+                  }
+                  emails {
+                    primaryEmail
+                  }
+                }
               }
             }
           }
@@ -582,6 +760,30 @@ export async function cancelAppointment(taskId: string, opportunityId?: string) 
     await invalidateAdminCrmCache();
   }
 
+  const contact = opp?.pointOfContact;
+  const clientName = contact
+    ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim()
+    : undefined;
+  const clientEmail = contact?.emails?.primaryEmail;
+  const scheduledByMemberId = taskData?.createdBy?.workspaceMemberId;
+
+  const { triggerNotification } = await import("./notifications");
+  await triggerNotification("appointment_cancelled_by_admin", {
+    taskId,
+    opportunityId: oppId,
+    title: taskData?.title,
+    dueAt: taskData?.dueAt,
+    technicianName: taskData?.technicianName,
+    clientName: clientName || "Cliente",
+    pointOfContactEmail: clientEmail,
+    clientEmail,
+    reason: "Cancelamento pelo painel administrativo",
+    cancelledBy: "admin",
+    scheduledBy: taskData?.scheduledBy || taskData?.createdBy?.name,
+    scheduledByMemberId,
+    serviceName: opp?.name,
+  }).catch((err) => console.error("[cancelAppointment] notification error:", err));
+
   return true;
 }
 
@@ -591,13 +793,31 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
       updateTask(id: $id, data: { status: CANCELADO, bodyV2: $body }) { 
         id 
         title
+        dueAt
+        technicianName
+        scheduledBy
+        createdBy {
+          workspaceMemberId
+          name
+        }
         taskTargets {
           edges {
             node {
               targetOpportunityId
               opportunity {
-                stage
+                id
                 name
+                nsi
+                stage
+                pointOfContact {
+                  name {
+                    firstName
+                    lastName
+                  }
+                  emails {
+                    primaryEmail
+                  }
+                }
               }
             }
           }
@@ -613,8 +833,14 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
 
   const taskData = result.updateTask;
   const target = taskData?.taskTargets?.edges?.[0]?.node;
-  const oppId = target?.targetOpportunityId;
+  const oppId = target?.targetOpportunityId || target?.opportunity?.id;
   const opp = target?.opportunity;
+  const contact = opp?.pointOfContact;
+  const clientName = contact
+    ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim()
+    : "Client";
+  const clientEmail = contact?.emails?.primaryEmail;
+  const scheduledByMemberId = taskData?.createdBy?.workspaceMemberId;
 
   if (oppId) {
     const { updateOpportunityStage } = await import('./opportunities');
@@ -624,6 +850,25 @@ export async function cancelAppointmentByClient(id: string, reason: string) {
   } else {
     await invalidateAdminCrmCache();
   }
+
+  const { triggerNotification } = await import('./notifications');
+  await triggerNotification("appointment_cancelled_by_client", {
+    taskId: id,
+    opportunityId: oppId,
+    title: taskData?.title,
+    dueAt: taskData?.dueAt,
+    technicianName: taskData?.technicianName,
+    clientName,
+    pointOfContactEmail: clientEmail,
+    reason,
+    cancelledBy: "client",
+    scheduledBy: taskData?.scheduledBy || taskData?.createdBy?.name,
+    scheduledByMemberId,
+    nsi: opp?.nsi,
+    serviceName: opp?.name,
+  }).catch((err) =>
+    console.error("[cancelAppointmentByClient] notification error:", err)
+  );
 
   return true;
 }

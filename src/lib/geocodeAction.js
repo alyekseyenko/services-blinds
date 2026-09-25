@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 import { geocodeAddress as sharedGeocodeAddress } from './geocoder';
 
 export async function serverGeocodeAddress(address) {

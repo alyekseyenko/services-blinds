@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
 import { Calendar, RefreshCw, ShieldCheck, LogOut } from "lucide-react";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { APP_LOGO_PATH } from "@/lib/branding";
@@ -27,9 +28,9 @@ export default function CeoHeader({
   metricsLoaded,
 }: CeoHeaderProps) {
   return (
-    <header className="glass-panel-light rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(15,23,42,0.05)] border border-white mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+    <header className="safe-top glass-panel-light mb-6 flex flex-col gap-4 rounded-[2rem] border border-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.05)] sm:mb-8 sm:gap-6 sm:rounded-[2.5rem] sm:p-6 md:p-8 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 flex items-center justify-center relative shrink-0">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center sm:h-16 sm:w-16">
           <Image
             src={APP_LOGO_PATH}
             alt="Company logo"
@@ -94,7 +95,10 @@ export default function CeoHeader({
 
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => {
+            clearSessionStoragePreservingPreferences();
+            signOut({ callbackUrl: "/" });
+          }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-50 text-red-600 border border-red-100 text-xs font-black uppercase tracking-wider hover:bg-red-100 transition-all"
         >
           <LogOut className="w-3.5 h-3.5" />

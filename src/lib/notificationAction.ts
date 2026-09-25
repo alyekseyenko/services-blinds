@@ -1,6 +1,7 @@
-"use server";
+import "server-only";
 
 import { outboxQueue } from './outboxQueue';
+import { resolveN8nWebhookUrl } from './n8nWebhooks';
 import { buildCancellationUrl, buildEvaluationUrl } from '@/lib/publicTokens';
 
 export interface NotificationResponse {
@@ -13,7 +14,7 @@ export interface NotificationResponse {
  * Server Action to trigger notifications with Outbox Guarantee and Idempotency
  */
 export async function serverTriggerNotification(event: string, data: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/blinds-notifications';
+  const n8nWebhookUrl = resolveN8nWebhookUrl(event);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   try {
@@ -24,7 +25,7 @@ export async function serverTriggerNotification(event: string, data: Record<stri
     const cancelUrl = taskId ? buildCancellationUrl(taskId, baseUrl) : undefined;
     const evaluationUrl = opportunityId ? buildEvaluationUrl(opportunityId, baseUrl) : undefined;
     const id = opportunityId || taskId;
-    const idempotencyKey = `idemp_notif_${event}_${id || 'global'}_${Date.now()}`;
+    const idempotencyKey = `idemp_notif_${event}_${id || 'global'}`;
 
     const payload = {
       event,
@@ -46,9 +47,9 @@ export async function serverTriggerNotification(event: string, data: Record<stri
  * Server Action to trigger measurements report generation (PDF/Excel)
  */
 export async function serverTriggerMeasurementsReport(payload: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/blinds-measurements';
+  const n8nWebhookUrl = resolveN8nWebhookUrl("MEASUREMENTS_REPORT_GENERATION");
   const id = payload.opportunityId || payload.taskId || 'measurements';
-  const idempotencyKey = `idemp_meas_report_${id}_${Date.now()}`;
+  const idempotencyKey = `idemp_meas_report_${id}`;
   
   try {
     console.log('[Server:Outbox] Enqueueing Measurements Report Automation');
@@ -68,9 +69,9 @@ export async function serverTriggerMeasurementsReport(payload: Record<string, an
  * Server Action to trigger a full service report with photos and organized storage
  */
 export async function serverTriggerServiceReport(payload: Record<string, any>): Promise<NotificationResponse> {
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_REPORTS || 'http://localhost:5678/webhook-test/blinds-service-reports';
+  const n8nWebhookUrl = resolveN8nWebhookUrl("SERVICE_REPORT_SUBMITTED");
   const id = payload.opportunityId || payload.taskId || 'report';
-  const idempotencyKey = `idemp_svc_report_${id}_${Date.now()}`;
+  const idempotencyKey = `idemp_svc_report_${id}`;
   
   try {
     console.log('[Server:Outbox] Enqueueing Full Service Report Automation with Photos');

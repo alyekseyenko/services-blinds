@@ -63,7 +63,7 @@ describe('Transactional Outbox Pattern & Idempotency', () => {
       {
         id: 'outbox_stale_local',
         eventType: 'technician_login',
-        destinationUrl: 'http://localhost:5678/webhook-test/habitarmos-notifications',
+        destinationUrl: 'http://localhost:5678/webhook-test/example-notifications',
         payload: {},
         idempotencyKey: 'idemp_stale',
         status: 'PENDING' as const,
@@ -74,7 +74,7 @@ describe('Transactional Outbox Pattern & Idempotency', () => {
       {
         id: 'outbox_recent_local',
         eventType: 'technician_login',
-        destinationUrl: 'http://localhost:5678/webhook-test/habitarmos-notifications',
+        destinationUrl: 'http://localhost:5678/webhook-test/example-notifications',
         payload: {},
         idempotencyKey: 'idemp_recent',
         status: 'PENDING' as const,

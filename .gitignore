@@ -66,6 +66,7 @@ foto_gostosa.jpg
 # Ops / deploy / diagnostic scripts (local + server only — never published)
 /scripts/
 /src/scripts/
+.cursor-deploy-ssh.py
 
 # local migration / dedupe logs
 dedupe-live.log

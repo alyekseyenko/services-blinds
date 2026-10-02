@@ -1,0 +1,101 @@
+name: app-tecnicos
+
+services:
+  app-tecnicos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TWENTY_API_URL: ${TWENTY_API_URL}
+        TWENTY_API_KEY: ${TWENTY_API_KEY}
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+        TWENTY_METADATA_URL: ${TWENTY_METADATA_URL:-}
+        TWENTY_AUTH_ORIGIN: ${TWENTY_AUTH_ORIGIN:-}
+        NEXTAUTH_URL: ${NEXTAUTH_URL:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+        NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-local-build}
+    container_name: technician-app
+    restart: always
+    mem_limit: 768m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:3005:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=512
+      - TWENTY_API_URL=http://twenty-server-1:3000
+      - REDIS_URL=redis://technician-cache:6379
+      - APP_DATA_DIR=/app/data
+    volumes:
+      - technician-app-data:/app/data
+    networks:
+      - app-network
+    depends_on:
+      technician-cache:
+        condition: service_healthy
+
+  # Unique service name — do NOT use "redis" on twenty_default (collides with Twenty CRM).
+  technician-cache:
+    image: redis:alpine
+    container_name: technician-redis
+    hostname: technician-cache
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command:
+      - redis-server
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --appendonly
+      - yes
+    expose:
+      - "6379"
+    volumes:
+      - technician-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+
+  # Optional — production VPS uses host nginx (HTTPS). Avoid binding :80 here (conflicts + crash-loop).
+  nginx:
+    profiles:
+      - with-docker-nginx
+    image: nginx:alpine
+    container_name: technician-nginx
+    restart: always
+    ports:
+      - "127.0.0.1:8088:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+    depends_on:
+      - app-tecnicos
+
+networks:
+  app-network:
+    external: true # Twenty CRM runs on this Docker network
+    name: twenty_default
+
+volumes:
+  technician-app-data:
+  technician-redis-data:

@@ -131,7 +131,15 @@ export function Sheet({
         {showHeader ? (
           <div className="flex shrink-0 items-start justify-between border-b-2 border-border-strong px-4 pb-4 pt-1">
             <div className="min-w-0 pr-3">
-              <h2 id="sheet-title" className="ds-title text-base tracking-tight text-foreground">
+              <h2
+                id="sheet-title"
+                className={cn(
+                  "text-foreground",
+                  fullScreen
+                    ? "text-lg font-bold leading-snug"
+                    : "ds-title text-base tracking-tight"
+                )}
+              >
                 {title}
               </h2>
               {description && (

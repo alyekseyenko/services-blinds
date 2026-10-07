@@ -67,6 +67,14 @@ import { toUserMessage } from "@/lib/userMessages";
 import { scrollFocusedFieldIntoView } from "@/lib/scrollFocusedField";
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
 
+/** Tipografia consistente — aba Detalhes & Visita (campo / mobile). */
+const TECH_DRAWER_SECTION_TITLE = "text-sm font-bold text-foreground";
+const TECH_DRAWER_KICKER = "text-xs font-bold text-muted-foreground";
+const TECH_DRAWER_BODY = "text-sm font-semibold leading-snug text-foreground";
+const TECH_DRAWER_NOTE_BODY = "text-sm font-medium leading-snug text-foreground whitespace-pre-line";
+const TECH_DRAWER_TEXTAREA =
+  "w-full min-h-12 rounded-xl border-2 border-border-strong bg-input px-3 py-2.5 text-sm font-semibold leading-snug text-foreground placeholder:text-sm placeholder:font-normal placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none resize-none";
+
 interface TaskDetailsDrawerProps {
   selectedTask: any;
   setSelectedTask: (t: any) => void;
@@ -914,12 +922,12 @@ export default function TaskDetailsDrawer({
                   <CardContent className="space-y-4 p-0">
                     <div className="space-y-3">
                       <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
-                        <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
-                        <span className="text-foreground">{selectedTask.address}</span>
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />
+                        <span className={TECH_DRAWER_BODY}>{selectedTask.address}</span>
                       </p>
                       <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-                        <Clock className="h-5 w-5 shrink-0 text-primary-ink" />
-                        <span className="text-foreground">
+                        <Clock className="h-4 w-4 shrink-0 text-primary-ink" />
+                        <span className={TECH_DRAWER_BODY}>
                           {selectedTask.dueDate.toLocaleTimeString("pt-PT", {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -934,7 +942,7 @@ export default function TaskDetailsDrawer({
                     </div>
                     {clientPhones.length > 0 ? (
                       <div className="border-t border-border pt-4">
-                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                        <p className={`mb-3 ${TECH_DRAWER_KICKER}`}>
                           Telefones do cliente
                         </p>
                         <ContactPhoneList phones={clientPhones} emptyLabel="Indisponível" />
@@ -1020,7 +1028,7 @@ export default function TaskDetailsDrawer({
 
               <div className="space-y-3" data-tour="tech-drawer-services">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase tracking-tight text-foreground">
+                  <h3 className={TECH_DRAWER_SECTION_TITLE}>
                     Serviços nesta visita
                   </h3>
                   {isTaskActive(selectedTask.status) && (
@@ -1084,7 +1092,7 @@ export default function TaskDetailsDrawer({
                     : null}
 
                   {visitServices.some((s) => s.createdOnSite) && (
-                    <p className="pt-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                    <p className={`pt-2 ${TECH_DRAWER_KICKER}`}>
                       Serviços extra no local (CRM)
                     </p>
                   )}
@@ -1150,15 +1158,15 @@ export default function TaskDetailsDrawer({
               {/* Secção de Notas e Instruções do CRM */}
               <div className="h-px bg-secondary w-full my-2"></div>
               <div className="space-y-4" data-tour="tech-drawer-notes">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-primary-ink" />
-                    <h3 className="ds-title text-base tracking-tight text-foreground">
-                      Notas Técnicas do CRM
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MessageSquare className="h-4 w-4 shrink-0 text-primary-ink" />
+                    <h3 className={TECH_DRAWER_SECTION_TITLE}>
+                      Notas técnicas (CRM)
                     </h3>
                   </div>
-                  <span className="rounded-full border-2 border-border-strong bg-card px-3 py-1 text-xs font-black uppercase tracking-wider text-muted-foreground shadow-sm">
-                    {notes.length} Notas
+                  <span className="shrink-0 rounded-full border border-border-strong bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">
+                    {notes.length}
                   </span>
                 </div>
 
@@ -1168,12 +1176,12 @@ export default function TaskDetailsDrawer({
                     <Loader2 className="w-4 h-4 animate-spin text-primary-ink" /> A carregar do Twenty...
                   </div>
                 ) : !isOnline ? (
-                  <p className="text-xs text-muted-foreground font-semibold bg-card border border-border rounded-2xl p-6 text-center shadow-sm">
+                  <p className="rounded-xl border border-border-strong bg-card p-4 text-center text-sm font-medium leading-snug text-muted-foreground">
                     Notas indisponíveis offline. Ligação necessária para ver o histórico do CRM.
                   </p>
                 ) : notes.length === 0 ? (
-                  <p className="rounded-xl border-2 border-border-strong bg-card p-6 text-center text-xs text-muted-foreground">
-                    Nenhuma instrução especial no histórico de notas do CRM.
+                  <p className="rounded-xl border border-border-strong bg-muted/40 p-4 text-center text-sm font-medium text-muted-foreground">
+                    Sem notas no CRM.
                   </p>
                 ) : (
                   <div className="space-y-3.5 max-h-60 overflow-y-auto pr-1.5 custom-scrollbar">
@@ -1182,25 +1190,25 @@ export default function TaskDetailsDrawer({
                       return (
                       <div
                         key={note.id}
-                        className={`flex flex-col gap-2 rounded-2xl p-4 shadow-sm ${
+                        className={`flex flex-col gap-1.5 rounded-xl border-2 p-3 ${
                           urgentNote
-                            ? "border-2 border-danger-solid bg-danger-surface/70"
-                            : "border-2 border-border-strong bg-card"
+                            ? "border-danger-solid bg-danger-surface/70"
+                            : "border-border-strong bg-card"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                            <User className={`w-3.5 h-3.5 ${urgentNote ? "text-danger-solid" : "text-primary-ink"}`} />
+                          <span className={`${TECH_DRAWER_KICKER} flex min-w-0 items-center gap-1.5`}>
+                            <User className={`h-3.5 w-3.5 shrink-0 ${urgentNote ? "text-danger-solid" : "text-primary-ink"}`} />
                             {note.title?.trim()
                               ? formatNoteTitleForDisplay(note.title)
                               : "Técnico"}
                             {urgentNote && (
-                              <span className="rounded-md border border-danger-border bg-danger-surface px-1.5 py-0.5 text-xs font-black text-danger-fg">
+                              <span className="rounded-md border border-danger-border bg-danger-surface px-1.5 py-0.5 text-xs font-bold text-danger-fg">
                                 Urgente
                               </span>
                             )}
                           </span>
-                          <span className="text-xs font-black text-muted-foreground uppercase bg-muted border border-border px-2 py-0.5 rounded-md">
+                          <span className="ds-num shrink-0 text-xs font-semibold text-muted-foreground">
                             {new Date(note.createdAt).toLocaleDateString("pt-PT", {
                               day: "2-digit",
                               month: "short",
@@ -1210,7 +1218,7 @@ export default function TaskDetailsDrawer({
                           </span>
                         </div>
                         <p
-                          className={`text-sm font-semibold whitespace-pre-line leading-relaxed ${
+                          className={`${TECH_DRAWER_NOTE_BODY} ${
                             urgentNote ? "text-danger-fg" : "text-foreground"
                           }`}
                         >
@@ -1223,18 +1231,19 @@ export default function TaskDetailsDrawer({
                 )}
 
                 {/* Nova Nota */}
-                <div className="mt-4 flex gap-2.5 items-end">
+                <div className="mt-3 flex items-end gap-2">
                   <textarea
                     value={newNoteText}
                     onChange={(e) => setNewNoteText(e.target.value)}
-                    placeholder="Escrever observação técnica ao CRM..."
-                    className="flex-1 border-2 border-border-strong bg-card rounded-2xl px-4 py-3 text-xs text-foreground focus:ring-4 focus:ring-primary/25 focus:border-primary outline-none transition-all placeholder:text-muted-foreground h-12 resize-none font-bold shadow-sm"
+                    placeholder="Nota para o CRM…"
+                    rows={2}
+                    className={`${TECH_DRAWER_TEXTAREA} min-h-12 flex-1`}
                   />
                   <Button
                     variant="inverse"
                     onClick={handleAddNote}
                     disabled={isCreatingNote || !newNoteText.trim()}
-                    className="h-12 rounded-2xl p-4"
+                    className="h-12 min-w-12 shrink-0 rounded-xl px-3"
                     aria-label="Adicionar nota ao CRM"
                   >
                     {isCreatingNote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -1253,7 +1262,7 @@ export default function TaskDetailsDrawer({
                   >
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-primary-ink" />
-                      <h3 className="ds-title text-base tracking-tight text-foreground">Finalizar Visita Técnica</h3>
+                      <h3 className={TECH_DRAWER_SECTION_TITLE}>Finalizar visita</h3>
                     </div>
 
                     <div className="flex bg-muted p-1.5 rounded-2xl border border-border shadow-inner">
@@ -1310,7 +1319,7 @@ export default function TaskDetailsDrawer({
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {statusAction === "Incompleto" && (
                           <div className="space-y-2">
-                            <label className="block px-1 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                            <label className={`block px-1 ${TECH_DRAWER_KICKER}`}>
                               Motivo (obrigatório)
                             </label>
                             <div className="grid grid-cols-1 gap-2">
@@ -1334,8 +1343,8 @@ export default function TaskDetailsDrawer({
                                 value={reason}
                                 disabled={isUploading}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder={reasonPreset === "outro" ? "Descreva o motivo..." : "Detalhes adicionais (opcional)"}
-                                className="h-24 w-full rounded-xl border-2 border-border-strong bg-card px-5 py-4 font-bold text-foreground transition-all focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/25 disabled:opacity-60"
+                                placeholder={reasonPreset === "outro" ? "Descreva o motivo…" : "Detalhes (opcional)"}
+                                className={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem]`}
                               />
                             )}
                           </div>
@@ -1343,14 +1352,15 @@ export default function TaskDetailsDrawer({
 
                         {statusAction === "Cancelado" && (
                           <div className="space-y-2">
-                            <label className="block px-1 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                            <label className={`block px-1 ${TECH_DRAWER_KICKER}`}>
                               Motivo do cancelamento (obrigatório)
                             </label>
                             <textarea
                               value={reason}
                               onChange={(e) => setReason(e.target.value)}
-                              placeholder="Descreva o motivo do cancelamento..."
-                              className="h-24 w-full rounded-xl border-2 border-border-strong bg-card px-5 py-4 font-bold text-foreground transition-all focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/25"
+                              placeholder="Motivo do cancelamento…"
+                              className={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem]`}
+                              disabled={isUploading}
                             />
                           </div>
                         )}

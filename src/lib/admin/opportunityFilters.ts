@@ -14,6 +14,7 @@ import {
   matchesTechnicianFilter,
 } from "@/lib/admin/mapFilterConfig";
 import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
+import { isOpportunityPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 
@@ -25,6 +26,8 @@ export interface MapFilterOptions {
   technicianFilter?: string | null;
   historyOutcomes?: readonly MapHistoryOutcome[];
   historyItems?: Opportunity[];
+  /** When true, only visits active in CRM with due date before today (pending technician closure). */
+  pendingClosureOnly?: boolean;
 }
 
 function dedupeOpportunities(items: Opportunity[]): Opportunity[] {
@@ -76,6 +79,7 @@ export function filterMapOpportunities(
     technicianFilter = null,
     historyOutcomes = [],
     historyItems = [],
+    pendingClosureOnly = false,
   } = options;
 
   let filtered = opportunities.map((opp) => {
@@ -125,7 +129,8 @@ export function filterMapOpportunities(
     (opp) =>
       matchesServiceTypeFilters(opp, serviceTypeFilters) &&
       matchesStallFilter(opp, stallFilter) &&
-      matchesTechnicianFilter(opp, technicianFilter)
+      matchesTechnicianFilter(opp, technicianFilter) &&
+      (!pendingClosureOnly || isOpportunityPendingTechnicianClosure(opp))
   );
 
   const historyPins = filterHistoryPins(historyItems, {

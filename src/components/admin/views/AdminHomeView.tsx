@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
-  Calendar,
-  History,
-  Map as MapIcon,
   Ruler,
   Search,
   MapPin,
@@ -17,6 +14,7 @@ import {
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import type { AdminHomeDashboardStats } from "@/lib/admin/homeDashboardStats";
+import type { AdminHomeMapFilterAction } from "@/lib/admin/adminHomeMapFilter";
 import type { AdminViewId } from "@/components/admin/AdminPrimaryNav";
 import type { ZoneInsight } from "@/types/admin";
 import type { AdminMeasurementsDashboardStats } from "@/lib/schemas/adminDashboard";
@@ -44,6 +42,8 @@ type Props = {
   stats: AdminHomeDashboardStats;
   zoneInsights: ZoneInsight[];
   onNavigate: (view: AdminViewId) => void;
+  onOpenPendingClosure?: () => void;
+  onOpenMapFilter?: (action: AdminHomeMapFilterAction) => void;
   onOpenSearch: () => void;
   onOpenMedicoes: () => void;
   onOpenCreateService?: () => void;
@@ -53,6 +53,8 @@ export default function AdminHomeView({
   stats,
   zoneInsights,
   onNavigate,
+  onOpenPendingClosure,
+  onOpenMapFilter,
   onOpenSearch,
   onOpenMedicoes,
   onOpenCreateService,
@@ -82,11 +84,60 @@ export default function AdminHomeView({
 
   const m = measStats;
 
-  const secondaryKpis = [
-    { label: "Agendados", value: stats.scheduledActive, onClick: () => onNavigate("map") },
-    { label: "Por confirmar", value: stats.pendingConfirmation, onClick: () => onNavigate("calendar") },
-    { label: "Sem GPS", value: stats.withoutGps, tone: "danger" as const, onClick: () => onNavigate("map") },
-    { label: "Concluídos", value: stats.completed, onClick: () => onNavigate("history") },
+  const attentionItems = [
+    {
+      id: "pendingClosure",
+      label: "Por fechar (campo)",
+      hint: "Dias anteriores sem registo",
+      value: stats.pendingTechnicianClosure,
+      tone: "danger" as const,
+      onClick: () =>
+        stats.pendingTechnicianClosure > 0 && onOpenPendingClosure
+          ? onOpenPendingClosure()
+          : onNavigate("map"),
+    },
+    {
+      id: "overdueToday",
+      label: "Atrasadas hoje",
+      hint: "Hora já passou",
+      value: stats.overdueToday,
+      tone: "warning" as const,
+      onClick: () =>
+        onOpenMapFilter ? onOpenMapFilter("overdueToday") : onNavigate("map"),
+    },
+    {
+      id: "withoutGps",
+      label: "Sem GPS",
+      hint: "Por agendar no mapa",
+      value: stats.withoutGps,
+      tone: "danger" as const,
+      onClick: () =>
+        onOpenMapFilter ? onOpenMapFilter("withoutGps") : onNavigate("map"),
+    },
+    {
+      id: "incomplete",
+      label: "Incompletos",
+      hint: "Ver histórico",
+      value: stats.incomplete,
+      tone: "danger" as const,
+      onClick: () => onNavigate("history"),
+    },
+    {
+      id: "idle14",
+      label: "Parados +14 dias",
+      hint: "Por agendar",
+      value: stats.idle14Plus,
+      tone: "warning" as const,
+      onClick: () => (onOpenMapFilter ? onOpenMapFilter("idle14") : onNavigate("map")),
+    },
+    {
+      id: "idle30",
+      label: "Parados +30 dias",
+      hint: "Prioridade alta",
+      value: stats.idle30Plus,
+      tone: "danger" as const,
+      onClick: () => (onOpenMapFilter ? onOpenMapFilter("idle30") : onNavigate("map")),
+    },
   ];
 
   return (
@@ -95,7 +146,22 @@ export default function AdminHomeView({
       data-tour="admin-home-dashboard"
     >
       <div className={cn(adminFullBleedShell.content, "min-h-0 flex-1 overflow-y-auto space-y-8")}>
+        <section aria-label="Atenção operacional" data-tour="admin-home-attention">
+          <SectionHeading
+            title="Atenção"
+            detail="Toque para abrir o mapa ou histórico com o filtro certo"
+          />
+          <Panel variant="outline" className="overflow-hidden rounded-2xl border-2 border-border-strong p-0 shadow-none">
+            <div className="grid grid-cols-1 divide-y-2 divide-border-strong sm:grid-cols-2 sm:divide-x-2 sm:divide-y-0 lg:grid-cols-3">
+              {attentionItems.map((item) => (
+                <AttentionCell key={item.id} {...item} />
+              ))}
+            </div>
+          </Panel>
+        </section>
+
         <section aria-label="Resumo do pipeline">
+          <SectionHeading title="Pipeline" detail="Estado geral no CRM" />
           <Panel variant="ink" className="overflow-hidden rounded-2xl border-2 border-border-strong p-0 shadow-none">
             <div className="grid grid-cols-2 divide-x-2 divide-y-2 divide-border-strong sm:grid-cols-4 sm:divide-y-0">
               <HeroMetric
@@ -116,10 +182,9 @@ export default function AdminHomeView({
                 onClick={() => onNavigate("map")}
               />
               <HeroMetric
-                label="Incompletos"
-                value={stats.incomplete}
-                accent="danger"
-                onClick={() => onNavigate("history")}
+                label="Agendados"
+                value={stats.scheduledActive}
+                onClick={() => onNavigate("map")}
               />
             </div>
           </Panel>
@@ -128,40 +193,12 @@ export default function AdminHomeView({
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-6">
           <div className="space-y-6 xl:col-span-8">
             <section aria-label="Análise visual">
-              <SectionHeading
-                title="Pipeline"
-                detail="Estado e tipos de serviço no CRM"
-              />
+              <SectionHeading title="Tipos de serviço" detail="Distribuição no mapa" />
               <AdminDashboardCharts pipeline={stats} measurements={insightsLoading ? null : m} />
             </section>
           </div>
 
           <aside className="space-y-6 xl:col-span-4">
-            <Panel variant="outline" className="space-y-3 p-4 shadow-none">
-              <h3 className="ds-kicker">Mais indicadores</h3>
-              <ul className="divide-y-2 divide-border">
-                {secondaryKpis.map((kpi) => (
-                  <li key={kpi.label}>
-                    <button
-                      type="button"
-                      onClick={kpi.onClick}
-                      className="flex w-full min-h-12 items-center justify-between gap-2 py-3 text-left"
-                    >
-                      <span className="text-xs font-bold text-muted-foreground">{kpi.label}</span>
-                      <span
-                        className={cn(
-                          "ds-num text-xl font-black",
-                          kpi.tone === "danger" ? "text-danger-fg" : "text-foreground"
-                        )}
-                      >
-                        {kpi.value}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-
             {topZones.length > 0 ? (
               <Panel variant="outline" className="space-y-3 p-4 shadow-none">
                 <h3 className="ds-kicker">Zonas — por agendar</h3>
@@ -171,7 +208,7 @@ export default function AdminHomeView({
                       <button
                         type="button"
                         onClick={() => onNavigate("map")}
-                        className="flex w-full min-h-11 items-center justify-between gap-2 rounded-xl border-2 border-border bg-card px-3 py-2 text-left transition-colors hover:border-border-strong active:scale-[0.99]"
+                        className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl border-2 border-border bg-card px-3 py-2 text-left transition-colors hover:border-border-strong active:scale-[0.99]"
                       >
                         <span className="flex min-w-0 items-center gap-2 text-xs font-bold text-foreground">
                           <MapPin className="h-4 w-4 shrink-0 text-primary-ink" aria-hidden />
@@ -193,7 +230,7 @@ export default function AdminHomeView({
                 <button
                   type="button"
                   onClick={onOpenMedicoes}
-                  className="text-xs font-black uppercase tracking-wider text-primary-ink"
+                  className="min-h-12 text-xs font-black uppercase tracking-wider text-primary-ink"
                 >
                   Lista
                 </button>
@@ -215,81 +252,60 @@ export default function AdminHomeView({
                 </Panel>
               )}
             </section>
+
+            <section aria-label="Atalhos">
+              <h3 className="ds-kicker mb-3">Atalhos</h3>
+              <ul className="space-y-2">
+                {onOpenCreateService ? (
+                  <NavRow
+                    icon={ClipboardPlus}
+                    label="Novo serviço"
+                    detail="Cliente no Twenty"
+                    onClick={onOpenCreateService}
+                    dataTour="admin-home-novo-servico"
+                  />
+                ) : null}
+                <NavRow icon={Ruler} label="Medições" detail="Fichas e exportações" onClick={onOpenMedicoes} />
+                <NavRow icon={Search} label="Pesquisar" detail="Cliente e morada" onClick={onOpenSearch} />
+              </ul>
+            </section>
           </aside>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {!insightsLoading && recentSheets.length > 0 ? (
-            <Panel variant="outline" className="space-y-3 p-4 shadow-none">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="ds-kicker">Medições recentes</h3>
-                <button
-                  type="button"
-                  onClick={onOpenMedicoes}
-                  className="text-xs font-bold text-primary-ink"
-                >
-                  Ver todas
-                </button>
-              </div>
-              <ul className="space-y-2">
-                {recentSheets.map((item) => (
-                  <li key={item.sheetId}>
-                    <Link
-                      href={appendMeasurementSheetDeParam(`/medicoes/${item.sheetId}`, "painel")}
-                      className="flex min-h-12 items-center justify-between gap-2 border-2 border-border bg-card px-3 py-2 transition-colors hover:border-border-strong"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold text-foreground">
-                          {item.clientName}
-                        </span>
-                        <span className="block text-xs font-medium text-muted-foreground">
-                          {item.nsi ? `NSI ${item.nsi}` : "Sem NSI"} · v{item.version}
-                        </span>
+        {!insightsLoading && recentSheets.length > 0 ? (
+          <Panel variant="outline" className="space-y-3 p-4 shadow-none">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="ds-kicker">Medições recentes</h3>
+              <button
+                type="button"
+                onClick={onOpenMedicoes}
+                className="min-h-12 text-xs font-bold text-primary-ink"
+              >
+                Ver todas
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {recentSheets.map((item) => (
+                <li key={item.sheetId}>
+                  <Link
+                    href={appendMeasurementSheetDeParam(`/medicoes/${item.sheetId}`, "painel")}
+                    className="flex min-h-12 items-center justify-between gap-2 border-2 border-border bg-card px-3 py-2 transition-colors hover:border-border-strong"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-foreground">
+                        {item.clientName}
                       </span>
-                      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-          ) : null}
-
-          <section aria-label="Explorar">
-            <h3 className="ds-kicker mb-3">Explorar</h3>
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <NavRow icon={MapIcon} label="Mapa" detail="Agendar e rotas" onClick={() => onNavigate("map")} />
-              <NavRow
-                icon={Calendar}
-                label="Agenda"
-                detail="Por técnico"
-                onClick={() => onNavigate("calendar")}
-              />
-              <NavRow
-                icon={History}
-                label="Histórico"
-                detail="Concluídos"
-                onClick={() => onNavigate("history")}
-              />
-              <NavRow icon={Ruler} label="Medições" detail="Fichas" onClick={onOpenMedicoes} />
-              {onOpenCreateService ? (
-                <NavRow
-                  icon={ClipboardPlus}
-                  label="Novo serviço"
-                  detail="Cliente no Twenty"
-                  onClick={onOpenCreateService}
-                  dataTour="admin-home-novo-servico"
-                />
-              ) : null}
-              <NavRow
-                icon={Search}
-                label="Pesquisar"
-                detail="Cliente e morada"
-                onClick={onOpenSearch}
-                className={onOpenCreateService ? undefined : "sm:col-span-2"}
-              />
+                      <span className="block text-xs font-semibold text-muted-foreground">
+                        {item.nsi ? `NSI ${item.nsi}` : "Sem NSI"} · v{item.version}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  </Link>
+                </li>
+              ))}
             </ul>
-          </section>
-        </div>
+          </Panel>
+        ) : null}
       </div>
     </main>
   );
@@ -308,7 +324,7 @@ function SectionHeading({
     return (
       <div>
         <h3 className="ds-kicker">{title}</h3>
-        <p className="text-xs font-medium text-muted-foreground">{detail}</p>
+        <p className="text-xs font-semibold text-muted-foreground">{detail}</p>
       </div>
     );
   }
@@ -317,6 +333,40 @@ function SectionHeading({
       <h2 className="ds-kicker">{title}</h2>
       <p className="mt-1 text-xs font-semibold text-muted-foreground">{detail}</p>
     </div>
+  );
+}
+
+function AttentionCell({
+  label,
+  hint,
+  value,
+  tone,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  tone: "warning" | "danger";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[5.5rem] flex-col justify-center px-4 py-4 text-left transition-opacity hover:bg-muted/40 active:scale-[0.99]"
+    >
+      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "ds-num mt-1 text-3xl font-black leading-none",
+          tone === "danger" ? "text-danger-fg" : "text-warning-fg",
+          value === 0 && "text-muted-foreground"
+        )}
+      >
+        {value}
+      </span>
+      <span className="mt-1 text-xs font-semibold text-muted-foreground">{hint}</span>
+    </button>
   );
 }
 
@@ -368,7 +418,7 @@ function MiniMetric({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border-2 border-border bg-card p-3 text-left shadow-none hover:border-border-strong"
+      className="min-h-12 rounded-xl border-2 border-border bg-card p-3 text-left shadow-none hover:border-border-strong"
     >
       <p className="text-xs font-bold text-muted-foreground">{label}</p>
       <p className="ds-num mt-1 text-xl font-black text-foreground">{value}</p>
@@ -381,18 +431,16 @@ function NavRow({
   label,
   detail,
   onClick,
-  className,
   dataTour,
 }: {
-  icon: typeof MapIcon;
+  icon: typeof Ruler;
   label: string;
   detail: string;
   onClick: () => void;
-  className?: string;
   dataTour?: string;
 }) {
   return (
-    <li className={className}>
+    <li>
       <button
         type="button"
         onClick={onClick}
@@ -404,7 +452,7 @@ function NavRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-foreground">{label}</span>
-          <span className="block text-xs font-medium text-muted-foreground">{detail}</span>
+          <span className="block text-xs font-semibold text-muted-foreground">{detail}</span>
         </span>
         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
       </button>

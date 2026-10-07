@@ -15,7 +15,7 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="admin-home-dashboard-header"]',
         title: "Início do painel",
         description:
-          "Ecrã completo como as medições: resumo, indicadores e explorar. Mapa e restantes vistas no menu ☰.",
+          "Resumo e fila de atenção. Sincronizar CRM no topo (ao lado do sininho). Mapa e restantes vistas no menu ☰.",
         side: "bottom",
         fallbackModalIfMissing: true,
         prepareOnHighlight: ["closeAdminMobileMenu", "closeAdminDesktopMenu"],
@@ -24,7 +24,7 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="admin-mobile-menu-trigger"]',
         title: "Menu ☰",
         description:
-          "Todas as vistas, medições, pesquisa, sincronizar CRM, guia e conta — exceto o sininho de avisos.",
+          "Vistas, medições, pesquisa e conta. Sincronizar CRM está no topo do ecrã (botão junto ao sininho).",
         side: "bottom",
         fallbackModalIfMissing: true,
       },

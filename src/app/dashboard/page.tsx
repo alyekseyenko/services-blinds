@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { Calendar as CalendarIcon, History, Loader2, MapPin, RefreshCw, X } from "lucide-react";
 import { resolveTaskOverdue } from "@/lib/taskUtils";
 import {
+  isVisitPendingTechnicianClosure,
+  sortByScheduledAtAsc,
+} from "@/lib/visitPendingClosure";
+import {
+  PendingClosureEntryBanner,
+  PendingClosureListScreen,
+} from "@/components/dashboard/PendingClosureVisitsPanel";
+import {
   isTaskActive,
   isTaskCancelled,
   isTaskCompleted,
@@ -174,8 +182,14 @@ export default function Dashboard() {
   const [showLocationConsent, setShowLocationConsent] = useState(false);
   const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
   const [showRgpdModal, setShowRgpdModal] = useState(false);
+  const [listPendingClosureOpen, setListPendingClosureOpen] = useState(false);
 
   useBackToClose(showRgpdModal, () => setShowRgpdModal(false), "tech-rgpd-modal");
+  useBackToClose(
+    listPendingClosureOpen && view === "list",
+    () => setListPendingClosureOpen(false),
+    "tech-pending-closure-list"
+  );
 
   useEffect(() => {
     writeMainViewToUrl(view, true);
@@ -337,6 +351,28 @@ export default function Dashboard() {
   const tasks = useMemo(() => {
     return allTasks.filter((t) => isTaskActive(t.status));
   }, [allTasks]);
+
+  const pendingClosureTasks = useMemo(() => {
+    const now = new Date();
+    return tasks
+      .filter((t) =>
+        isVisitPendingTechnicianClosure({ status: t.status, dueAt: t.dueDate }, now)
+      )
+      .sort((a, b) => sortByScheduledAtAsc({ dueDate: a.dueDate }, { dueDate: b.dueDate }));
+  }, [tasks]);
+
+  const listShowsToday = useMemo(
+    () => calendarDate.toDateString() === new Date().toDateString(),
+    [calendarDate]
+  );
+
+  useEffect(() => {
+    if (view !== "list") setListPendingClosureOpen(false);
+  }, [view]);
+
+  useEffect(() => {
+    if (!listShowsToday) setListPendingClosureOpen(false);
+  }, [listShowsToday]);
 
   const historyTasks = useMemo(() => {
     return allTasks
@@ -1115,6 +1151,14 @@ export default function Dashboard() {
               aria-hidden={view !== "list"}
             >
             <div className="mx-auto w-full max-w-2xl md:max-w-4xl lg:max-w-6xl">
+              {listPendingClosureOpen ? (
+                <PendingClosureListScreen
+                  tasks={pendingClosureTasks}
+                  setSelectedTask={setSelectedTask}
+                  onBack={() => setListPendingClosureOpen(false)}
+                />
+              ) : (
+                <>
               <div className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                  <div>
                     <DisplayHeading as="h2" lines={["Agenda"]} className="text-lg md:text-xl" />
@@ -1156,6 +1200,13 @@ export default function Dashboard() {
                     </button>
                  </div>
               </div>
+
+              {listShowsToday && (
+                <PendingClosureEntryBanner
+                  count={pendingClosureTasks.length}
+                  onOpen={() => setListPendingClosureOpen(true)}
+                />
+              )}
               
               {dayTasksForDisplay.length === 0 ? (
                 <div className="overflow-hidden rounded-2xl border-2 border-border-strong bg-card py-12 text-center">
@@ -1186,6 +1237,8 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
+                </>
+              )}
             </div>
             </div>
           </div>
@@ -1215,6 +1268,7 @@ export default function Dashboard() {
         view={view}
         setView={(next) => changeMainView(next)}
         setSelectedTask={setSelectedTask}
+        pendingClosureCount={pendingClosureTasks.length}
       />
     </div>
   );

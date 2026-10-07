@@ -35,11 +35,14 @@ interface InAppNotificationBellProps {
   dataTour?: string;
   onOpenTaskOnMap?: (notification: InAppNotification) => void;
   onInvestigate?: (notification: InAppNotification) => void;
+  /** Alinha com outros IconButton do cabeçalho (ex. admin toolbar). */
+  iconButtonSize?: "sm" | "md" | "lg";
+  iconButtonClassName?: string;
 }
 
 const FILTER_CHIPS: { id: AgendaNotificationFilter; label: string }[] = [
   { id: "all", label: "Todos" },
-  { id: "active", label: "Activas" },
+  { id: "active", label: "Ativas" },
   { id: "done", label: "Concluídas" },
   { id: "problems", label: "Com problemas" },
 ];
@@ -49,6 +52,8 @@ export default function InAppNotificationBell({
   dataTour,
   onOpenTaskOnMap,
   onInvestigate,
+  iconButtonSize = "md",
+  iconButtonClassName,
 }: InAppNotificationBellProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -220,6 +225,8 @@ export default function InAppNotificationBell({
   return (
     <div className="relative" data-tour={dataTour}>
       <IconButton
+        size={iconButtonSize}
+        className={cn("relative shrink-0", iconButtonClassName)}
         aria-label={unreadCount > 0 ? `${unreadCount} avisos por ler` : "Avisos da agenda"}
         onClick={() => {
           setOpen((wasOpen) => {
@@ -231,9 +238,8 @@ export default function InAppNotificationBell({
             return true;
           });
         }}
-        className="relative"
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
         {unreadCount > 0 && (
           <span
             className="ds-badge-count absolute -right-1 -top-1 z-10"

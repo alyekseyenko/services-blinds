@@ -7,9 +7,15 @@ interface BottomNavProps {
   view: string;
   setView: (v: string) => void;
   setSelectedTask: (t: any) => void;
+  pendingClosureCount?: number;
 }
 
-function BottomNav({ view, setView, setSelectedTask }: BottomNavProps) {
+function BottomNav({
+  view,
+  setView,
+  setSelectedTask,
+  pendingClosureCount = 0,
+}: BottomNavProps) {
   const navItems = [
     { id: "map", label: "Mapa", icon: MapIcon },
     { id: "list", label: "Lista", icon: List },
@@ -38,13 +44,21 @@ function BottomNav({ view, setView, setSelectedTask }: BottomNavProps) {
               }}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex min-h-12 min-w-[4.2rem] flex-col items-center justify-center gap-1 rounded-full border-2 border-transparent px-2 py-1.5 transition-all active:scale-95",
+                "relative flex min-h-12 min-w-[4.2rem] flex-col items-center justify-center gap-1 rounded-full border-2 border-transparent px-2 py-1.5 transition-all active:scale-95",
                 isActive
                   ? "border-border-strong bg-neon font-black text-neon-foreground"
                   : "text-ink-foreground/70 hover:text-ink-foreground"
               )}
             >
               <Icon className={cn("h-6 w-6", isActive ? "text-neon-foreground" : "currentColor")} strokeWidth={2} />
+              {item.id === "list" && pendingClosureCount > 0 ? (
+                <span
+                  className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-solid px-1 text-[10px] font-black text-ink-foreground"
+                  aria-label={`${pendingClosureCount} por fechar`}
+                >
+                  {pendingClosureCount > 9 ? "9+" : pendingClosureCount}
+                </span>
+              ) : null}
               <span className={cn("text-xs font-black uppercase tracking-wider", isActive ? "text-neon-foreground" : "currentColor")}>
                 {item.label}
               </span>

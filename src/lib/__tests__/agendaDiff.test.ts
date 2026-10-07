@@ -83,13 +83,14 @@ describe("diffAgendaSnapshots", () => {
   });
 
   it("concluída não reutiliza nota de chegada do CRM", () => {
-    const prev = [
-      { id: "1", dueAt: "2026-01-01T10:00:00Z", status: "EM_CURSO", label: "A" },
-    ];
+    const todayDue = new Date();
+    todayDue.setHours(10, 0, 0, 0);
+    const dueIso = todayDue.toISOString();
+    const prev = [{ id: "1", dueAt: dueIso, status: "EM_CURSO", label: "A" }];
     const next = [
       {
         id: "1",
-        dueAt: "2026-01-01T10:00:00Z",
+        dueAt: dueIso,
         status: "CONCLUIDO",
         label: "A",
         technicianName: "João Silva",
@@ -172,11 +173,14 @@ describe("diffAgendaSnapshots", () => {
   });
 
   it("inclui motivo em incompleta quando há statusNote", () => {
-    const prev = [{ id: "1", dueAt: "2026-01-01T10:00:00Z", status: "EM_CURSO", label: "A" }];
+    const todayDue = new Date();
+    todayDue.setHours(10, 0, 0, 0);
+    const dueIso = todayDue.toISOString();
+    const prev = [{ id: "1", dueAt: dueIso, status: "EM_CURSO", label: "A" }];
     const next = [
       {
         id: "1",
-        dueAt: "2026-01-01T10:00:00Z",
+        dueAt: dueIso,
         status: "INCOMPLETO",
         label: "A",
         statusNote: "Cliente ausente",

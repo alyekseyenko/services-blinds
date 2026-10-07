@@ -41,6 +41,9 @@ export interface AdminMapViewProps {
   onClearHistoryOutcomes: () => void;
   stallFilter: MapStallFilter;
   setStallFilter: (filter: MapStallFilter) => void;
+  pendingClosureOnly: boolean;
+  setPendingClosureOnly: (only: boolean) => void;
+  pendingClosureCount: number;
   techniciansLocations: TechnicianLocation[];
   routeSelectionMode: boolean;
   setRouteSelectionMode: (enabled: boolean) => void;
@@ -103,6 +106,9 @@ export default function AdminMapView({
   onClearHistoryOutcomes,
   stallFilter,
   setStallFilter,
+  pendingClosureOnly,
+  setPendingClosureOnly,
+  pendingClosureCount,
   techniciansLocations,
   routeSelectionMode,
   setRouteSelectionMode,
@@ -167,6 +173,9 @@ export default function AdminMapView({
     onClearHistoryOutcomes,
     stallFilter,
     setStallFilter,
+    pendingClosureOnly,
+    setPendingClosureOnly,
+    pendingClosureCount,
     cityFilter,
     setCityFilter,
     visibleCount: mapOpportunities.length,

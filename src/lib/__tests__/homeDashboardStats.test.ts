@@ -28,6 +28,29 @@ describe("computeAdminHomeDashboardStats", () => {
     expect(stats.statusChart.some((b) => b.id === "incomplete")).toBe(true);
   });
 
+  it("conta visitas por fechar no terreno", () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const stats = computeAdminHomeDashboardStats([
+      opp({
+        twentyId: "1",
+        hasScheduledTask: true,
+        taskStatus: "AGENDADO",
+        status: "AGENDADO",
+        scheduledAt: yesterday,
+      }),
+      opp({
+        twentyId: "2",
+        hasScheduledTask: true,
+        taskStatus: "AGENDADO",
+        status: "AGENDADO",
+        scheduledAt: new Date(),
+      }),
+    ]);
+    expect(stats.pendingTechnicianClosure).toBe(1);
+    expect(stats.statusChart.find((b) => b.id === "pendingClosure")?.count).toBe(1);
+  });
+
   it("agrupa tipos de serviço em aberto", () => {
     const stats = computeAdminHomeDashboardStats([
       opp({

@@ -25,6 +25,10 @@ import {
 import { stripLegacyAgendaProgressFromDescription } from "@/lib/agendaNotificationBellCopy";
 import { visitServiceTypeLabel } from "@/lib/agendaNotificationPayload";
 import { resolveTimelineEntryDetail } from "@/lib/agendaTimelineCopy";
+import {
+  isVisitDueBeforeToday,
+  PENDING_CLOSURE_BELL_NOTE_PT,
+} from "@/lib/visitPendingClosure";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { DS_ACCENT_CLASS, visitPhaseToTone } from "@/lib/design/tones";
 
@@ -110,6 +114,10 @@ export function AgendaVisitNotificationCard({
   const techName = visit?.technicianName?.trim();
   const legacyDesc = stripLegacyAgendaProgressFromDescription(n.description);
   const serviceTypeLabel = visitServiceTypeLabel(visit);
+  const dueIso = visit?.dueAtIso ?? n.dueAtIso;
+  const priorDayPendingClosure =
+    isVisitDueBeforeToday(dueIso) &&
+    (phase === "cancelada" || phase === "incompleta" || phase === "concluida");
 
   const visibleTimeline = expanded ? timeline : timeline.slice(-3);
   const hiddenCount = timeline.length - visibleTimeline.length;
@@ -135,7 +143,7 @@ export function AgendaVisitNotificationCard({
               <StatusChip label={serviceTypeLabel} tone="neutral" className="max-w-[10rem] truncate" />
             ) : null}
           </div>
-          <span className="text-[11px] font-semibold text-muted-foreground">
+          <span className="text-xs font-semibold text-muted-foreground">
             {formatRelativeTime(n.createdAt)}
           </span>
         </div>
@@ -179,12 +187,16 @@ export function AgendaVisitNotificationCard({
         </p>
       )}
 
+      {priorDayPendingClosure && (
+        <p className="text-xs font-semibold text-warning-fg">{PENDING_CLOSURE_BELL_NOTE_PT}</p>
+      )}
+
       {(techName || scheduled) && (
         <div className="flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           {techName && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
               <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground"
                 aria-hidden
               >
                 {technicianInitials(techName)}
@@ -209,12 +221,12 @@ export function AgendaVisitNotificationCard({
               return (
               <li key={`${entry.kind}-${entry.at}-${index}`} className="space-y-1">
                 {entry.cycleBreak && (
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     Novo agendamento
                   </p>
                 )}
                 <div className="flex gap-2 text-xs">
-                <span className="ds-num w-10 shrink-0 text-[10px] text-muted-foreground">
+                <span className="ds-num w-10 shrink-0 text-xs text-muted-foreground">
                   {formatTimelineTime(entry.at)}
                 </span>
                 <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-border" aria-hidden />
@@ -234,7 +246,7 @@ export function AgendaVisitNotificationCard({
           {hiddenCount > 0 && !expanded && (
             <button
               type="button"
-              className="mt-2 text-[10px] font-bold uppercase tracking-wider text-info-solid dark:text-info-fg"
+              className="mt-2 text-xs font-bold uppercase tracking-wide text-info-solid dark:text-info-fg"
               onClick={(e) => {
                 e.stopPropagation();
                 setExpanded(true);

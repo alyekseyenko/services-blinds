@@ -22,6 +22,7 @@ import {
 import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
 import { cn } from "@/lib/cn";
 import {
+  MAP_FIELD_CLOSURE_FILTER,
   MAP_HISTORY_OUTCOME_OPTIONS,
   MAP_SERVICE_TYPE_OPTIONS,
   MAP_STALL_FILTERS,
@@ -47,6 +48,9 @@ export interface AdminMapFiltersBarProps {
   onClearHistoryOutcomes: () => void;
   stallFilter: MapStallFilter;
   setStallFilter: (filter: MapStallFilter) => void;
+  pendingClosureOnly: boolean;
+  setPendingClosureOnly: (only: boolean) => void;
+  pendingClosureCount: number;
   cityFilter: string | null;
   setCityFilter: (city: string | null) => void;
   visibleCount: number;
@@ -72,6 +76,7 @@ function countActiveFilters(
   mapTab: string,
   serviceTypeFilters: MapCategoryFilter[],
   stallFilter: MapStallFilter,
+  pendingClosureOnly: boolean,
   cityFilter: string | null,
   mapTechnicianFilter: string | null,
   historyOutcomes: MapHistoryOutcome[]
@@ -80,6 +85,7 @@ function countActiveFilters(
   if (mapTab !== "unscheduled") n += 1;
   if (serviceTypeFilters.length > 0) n += 1;
   if (stallFilter !== "all") n += 1;
+  if (pendingClosureOnly) n += 1;
   if (cityFilter) n += 1;
   if (mapTechnicianFilter) n += 1;
   if (historyOutcomes.length > 0) n += 1;
@@ -174,6 +180,9 @@ export default function AdminMapFiltersBar({
   onClearHistoryOutcomes,
   stallFilter,
   setStallFilter,
+  pendingClosureOnly,
+  setPendingClosureOnly,
+  pendingClosureCount,
   cityFilter,
   setCityFilter,
   visibleCount,
@@ -201,6 +210,7 @@ export default function AdminMapFiltersBar({
     mapTab,
     serviceTypeFilters,
     stallFilter,
+    pendingClosureOnly,
     cityFilter,
     mapTechnicianFilter,
     historyOutcomes
@@ -276,6 +286,7 @@ export default function AdminMapFiltersBar({
     setMapTab("unscheduled");
     onClearServiceTypeFilters();
     setStallFilter("all");
+    setPendingClosureOnly(false);
     setCityFilter(null);
     setMapTechnicianFilter(null);
     onClearHistoryOutcomes();
@@ -452,13 +463,21 @@ export default function AdminMapFiltersBar({
                     key={tab.value}
                     type="button"
                     onClick={() => setMapTab(tab.value)}
-                    className={`min-h-11 rounded-xl px-1 py-2 text-xs font-black uppercase tracking-wide transition-all ${
+                    className={`relative min-h-11 rounded-xl px-1 py-2 text-xs font-black uppercase tracking-wide transition-all ${
                       mapTab === tab.value
                         ? "bg-ink text-ink-foreground shadow-md"
                         : "bg-muted text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     {tab.label}
+                    {tab.value === "scheduled" && pendingClosureCount > 0 ? (
+                      <span
+                        className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-solid px-1 text-xs font-black leading-none text-ink-foreground"
+                        aria-label={`${pendingClosureCount} por fechar no terreno`}
+                      >
+                        {pendingClosureCount > 9 ? "9+" : pendingClosureCount}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -605,6 +624,31 @@ export default function AdminMapFiltersBar({
                   );
                 })}
               </div>
+            </section>
+
+            <section>
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                Fecho no terreno
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingClosureOnly(!pendingClosureOnly);
+                  if (!pendingClosureOnly) setMapTab("scheduled");
+                }}
+                className={`mb-4 w-full min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-black transition-all ${
+                  pendingClosureOnly
+                    ? "border-danger-border bg-danger-surface text-danger-fg"
+                    : "border-border bg-muted text-muted-foreground hover:border-border"
+                }`}
+                aria-pressed={pendingClosureOnly}
+              >
+                <span className="block">{MAP_FIELD_CLOSURE_FILTER.label}</span>
+                <span className="mt-0.5 block text-xs font-semibold normal-case tracking-normal opacity-90">
+                  {MAP_FIELD_CLOSURE_FILTER.hint}
+                  {pendingClosureCount > 0 ? ` · ${pendingClosureCount} agora` : ""}
+                </span>
+              </button>
             </section>
 
             <section>

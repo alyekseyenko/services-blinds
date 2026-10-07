@@ -8,6 +8,8 @@ import {
 } from "@/lib/crm/contract";
 import { opportunityServiceTypeKey } from "@/lib/admin/mapFilterConfig";
 import { countUnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
+import { countHomeAttentionSignals } from "@/lib/admin/homeAttentionStats";
+import { countOpportunitiesPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import { getServiceTypeColor } from "@/lib/techniciansConfig";
 import type { Opportunity } from "@/types/admin";
 
@@ -36,6 +38,11 @@ export type AdminHomeDashboardStats = {
   incomplete: number;
   completed: number;
   withoutGps: number;
+  /** Agendadas activas com data anterior a hoje — técnico ainda não fechou na app. */
+  pendingTechnicianClosure: number;
+  overdueToday: number;
+  idle14Plus: number;
+  idle30Plus: number;
   statusChart: AdminHomeStatusBucket[];
   serviceTypeChart: AdminHomeServiceTypeBucket[];
 };
@@ -93,10 +100,18 @@ export function computeAdminHomeDashboardStats(
   }
 
   const withoutGps = countUnscheduledWithoutGps(opportunities);
+  const pendingTechnicianClosure = countOpportunitiesPendingTechnicianClosure(opportunities);
+  const attention = countHomeAttentionSignals(opportunities);
 
   const statusChart = (
     [
       { id: "toSchedule", label: "Por agendar", count: toSchedule, tone: "warning" as const },
+      {
+        id: "pendingClosure",
+        label: "Por fechar (campo)",
+        count: pendingTechnicianClosure,
+        tone: "danger" as const,
+      },
       { id: "scheduled", label: "Agendados", count: scheduledActive, tone: "primary" as const },
       { id: "inProgress", label: "Em curso", count: inProgress, tone: "info" as const },
       { id: "incomplete", label: "Incompletos", count: incomplete, tone: "danger" as const },
@@ -116,6 +131,10 @@ export function computeAdminHomeDashboardStats(
     incomplete,
     completed,
     withoutGps,
+    pendingTechnicianClosure,
+    overdueToday: attention.overdueToday,
+    idle14Plus: attention.idle14Plus,
+    idle30Plus: attention.idle30Plus,
     statusChart,
     serviceTypeChart: buildServiceTypeChart(opportunities),
   };

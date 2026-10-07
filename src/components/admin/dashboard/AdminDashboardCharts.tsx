@@ -19,7 +19,6 @@ import {
   ADMIN_CHART_STROKE,
   ADMIN_CHART_TOOLTIP_BG,
   ADMIN_CHART_TOOLTIP_BORDER,
-  PIPELINE_CHART_COLORS,
 } from "@/lib/admin/chartTheme";
 import { AdminBrutalBarList, AdminChartPanel } from "@/components/admin/dashboard/AdminChartPanel";
 
@@ -65,13 +64,6 @@ type Props = {
 };
 
 export default function AdminDashboardCharts({ pipeline, measurements }: Props) {
-  const pipelineBars = pipeline.statusChart.map((b) => ({
-    id: b.id,
-    label: b.label,
-    value: b.count,
-    fill: PIPELINE_CHART_COLORS[b.id] ?? ADMIN_CHART_COLORS[0],
-  }));
-
   const serviceBars = pipeline.serviceTypeChart.map((b) => ({
     id: b.id,
     label: b.label,
@@ -96,17 +88,10 @@ export default function AdminDashboardCharts({ pipeline, measurements }: Props) 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <AdminChartPanel
-        title="Estado no CRM"
-        subtitle={`${pipeline.activePipeline} serviços em aberto`}
-        data-tour="admin-home-chart"
-      >
-        <AdminBrutalBarList items={pipelineBars} />
-      </AdminChartPanel>
-
-      <AdminChartPanel
         title="Tipos de serviço"
-        subtitle="Medidas, instalações, reparações…"
+        subtitle={`${pipeline.activePipeline} em aberto no mapa`}
         data-tour="admin-home-service-types"
+        className="lg:col-span-2"
       >
         <AdminBrutalBarList items={serviceBars} />
       </AdminChartPanel>

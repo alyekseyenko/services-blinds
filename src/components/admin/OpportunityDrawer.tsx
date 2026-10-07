@@ -37,6 +37,10 @@ import ContactPhoneList from "@/components/ui/ContactPhoneList";
 import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
 import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
 import AdminOpportunityMeasurements from "@/components/admin/AdminOpportunityMeasurements";
+import {
+  countSchedulingNotes,
+  formatScheduleStatsLabel,
+} from "@/lib/opportunityScheduleStats";
 
 interface OpportunityDrawerProps {
   selectedOpportunity: Opportunity | null;
@@ -188,6 +192,12 @@ export default function OpportunityDrawer({
     }
     return [];
   }, [selectedOpportunity]);
+
+  const scheduleNoteStats = useMemo(() => countSchedulingNotes(notes), [notes]);
+  const scheduleNoteLabel = useMemo(
+    () => formatScheduleStatsLabel(scheduleNoteStats),
+    [scheduleNoteStats]
+  );
 
   if (!selectedOpportunity) return null;
 
@@ -354,6 +364,18 @@ export default function OpportunityDrawer({
             ) : (
               <p className="text-xs font-medium text-muted-foreground">Sem visita agendada.</p>
             )}
+            {scheduleNoteLabel ? (
+              <div className="space-y-0.5 text-xs font-semibold text-muted-foreground">
+                <p>
+                  Histórico: <span className="text-foreground">{scheduleNoteLabel}</span>
+                </p>
+                {scheduleNoteStats.schedulingNotes >= 2 ? (
+                  <p className="font-medium">
+                    Cada nota corresponde a um agendamento ou reagendamento pela operação.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <Button
               type="button"
               variant="primary"

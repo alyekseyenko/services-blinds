@@ -17,6 +17,7 @@ export const ADMIN_CHART_TOOLTIP_BORDER = "var(--border-strong)";
 
 export const PIPELINE_CHART_COLORS: Record<string, string> = {
   toSchedule: "var(--tone-warning-solid)",
+  pendingClosure: "var(--tone-danger-solid)",
   scheduled: "var(--primary)",
   inProgress: "var(--tone-info-solid)",
   incomplete: "var(--tone-danger-solid)",

@@ -41,6 +41,7 @@ import {
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
+import { DisplayHeading } from "@/components/ui/DisplayHeading";
 
 interface AdminHeaderProps {
   opportunitiesCount: number;
@@ -62,6 +63,11 @@ interface AdminHeaderProps {
 
 const ADMIN_MENU_ITEM_CLASS =
   "mb-2 flex min-h-12 w-full items-center gap-3 rounded-xl border-2 border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-muted active:scale-[0.99]";
+
+/** Ícones do topo: mesmo alvo de toque e glyph (h-5) em todas as vistas. */
+const ADMIN_TOOLBAR_ICON_SIZE = "sm" as const;
+const ADMIN_TOOLBAR_ICON_CLASS = "shrink-0";
+const ADMIN_TOOLBAR_GLYPH = "h-5 w-5 shrink-0";
 
 function AdminPanelMenuItem({
   icon: Icon,
@@ -140,7 +146,7 @@ function SyncChip({
       disabled={loading || isSyncing}
       data-tour={dataTour}
       className={cn(
-        "flex min-h-10 max-w-[11rem] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all disabled:opacity-60 md:min-h-11 md:px-3",
+        "flex min-h-12 max-w-[12rem] items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition-all disabled:opacity-60 md:min-h-10 md:px-3",
         isSyncing
           ? "border-warning-border bg-warning-surface text-warning-fg"
           : syncDataStale
@@ -152,7 +158,8 @@ function SyncChip({
       aria-label="Sincronizar CRM"
     >
       <RefreshCw
-        className={cn("h-4 w-4 shrink-0", isSyncing ? "animate-spin text-warning-solid" : "")}
+        className={cn(ADMIN_TOOLBAR_GLYPH, isSyncing ? "animate-spin text-warning-solid" : "")}
+        strokeWidth={2}
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight">
@@ -254,16 +261,11 @@ export default function AdminHeader({
   }, [navMenuOpen]);
 
   const syncLabel =
-    mounted && lastSync
-      ? syncDataStale
+    !mounted || !lastSync
+      ? "Sincronizar"
+      : syncDataStale
         ? `Desatualizado · ${formatSyncAgeLabel(lastSync.getTime())}`
-        : lastSync.toLocaleString("pt-PT", {
-            day: "2-digit",
-            month: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-      : "A aguardar sync";
+        : `Sincronizar · ${formatSyncAgeLabel(lastSync.getTime())}`;
 
   const accountMenuItems = (
     <>
@@ -402,10 +404,11 @@ export default function AdminHeader({
       <IconButton
         aria-label="Pesquisar serviços"
         data-tour="admin-search admin-search-header"
-        className="min-h-11 min-w-11"
+        size={ADMIN_TOOLBAR_ICON_SIZE}
+        className={ADMIN_TOOLBAR_ICON_CLASS}
         onClick={onOpenSearch}
       >
-        <Search className="h-5 w-5" />
+        <Search className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
       </IconButton>
     ) : null;
 
@@ -415,10 +418,17 @@ export default function AdminHeader({
         <InAppNotificationBell
           scope={notificationScope}
           onInvestigate={onInvestigateAgendaNotification}
+          iconButtonSize={ADMIN_TOOLBAR_ICON_SIZE}
+          iconButtonClassName={ADMIN_TOOLBAR_ICON_CLASS}
         />
       ) : (
-        <IconButton aria-label="Avisos da agenda" className="relative" disabled>
-          <Bell className="h-5 w-5 opacity-40" />
+        <IconButton
+          aria-label="Avisos da agenda"
+          size={ADMIN_TOOLBAR_ICON_SIZE}
+          className={ADMIN_TOOLBAR_ICON_CLASS}
+          disabled
+        >
+          <Bell className={cn(ADMIN_TOOLBAR_GLYPH, "opacity-40")} strokeWidth={2} aria-hidden />
         </IconButton>
       )}
     </div>
@@ -429,51 +439,56 @@ export default function AdminHeader({
       aria-label="Menu do painel"
       aria-expanded={navMenuOpen}
       data-tour="admin-mobile-menu-trigger admin-desktop-more-menu"
-      className="min-h-11 min-w-11"
+      size={ADMIN_TOOLBAR_ICON_SIZE}
+      className={ADMIN_TOOLBAR_ICON_CLASS}
       onClick={() => setNavMenuOpen(true)}
     >
-      <Menu className="h-5 w-5" />
+      <Menu className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
     </IconButton>
+  );
+
+  const syncChipHeader = (
+    <SyncChip
+      isSyncing={isSyncing}
+      syncDataStale={syncDataStale}
+      syncLabel={syncLabel}
+      onRefresh={onRefresh}
+      loading={loading}
+      dataTour="admin-refresh"
+      className="shrink-0"
+    />
   );
 
   if (layout === "dashboard") {
     return (
       <>
         <header
-          className="safe-top relative z-30 shrink-0 border-b border-border bg-card text-card-foreground"
+          className="safe-top relative z-30 shrink-0 border-b-2 border-border-strong bg-card text-card-foreground"
           data-tour="admin-home-dashboard-header"
         >
           <div className={adminFullBleedShell.headerInner}>
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-border bg-muted">
-                  <LayoutDashboard className="h-6 w-6 text-primary-ink" aria-hidden />
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-border-strong bg-muted">
+                  <LayoutDashboard className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
                 </span>
                 <div className="min-w-0">
-                  <h1 className="text-xl font-black text-foreground">Painel operacional</h1>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <DisplayHeading as="h1" lines={["Painel operacional"]} className="text-lg md:text-xl" />
+                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
                     Medidas, instalações, reparações e restantes serviços — pipeline e atalhos.
                   </p>
-                  <p className="mt-1 text-xs font-bold text-muted-foreground">
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
                     {userName || "Operador"} · {opportunitiesCount} serviços no mapa
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {syncChipHeader}
                 {searchTrigger}
                 {notificationBell}
                 {menuTrigger}
               </div>
             </div>
-            <SyncChip
-              isSyncing={isSyncing}
-              syncDataStale={syncDataStale}
-              syncLabel={syncLabel}
-              onRefresh={onRefresh}
-              loading={loading}
-              dataTour="admin-refresh"
-              className="w-full max-w-none justify-start"
-            />
           </div>
         </header>
         {navMenuPortal}
@@ -503,7 +518,10 @@ export default function AdminHeader({
               />
             </div>
             <div className="min-w-0">
-              <h1 className="max-w-[4.5rem] truncate text-xs font-bold leading-tight text-foreground min-[420px]:max-w-[7rem] sm:max-w-[10rem] sm:text-sm md:max-w-none">
+              <h1
+                className="max-w-[4.5rem] truncate text-xs font-bold leading-tight text-foreground min-[420px]:max-w-[7rem] sm:max-w-[10rem] sm:text-sm md:max-w-none"
+                title={userName || undefined}
+              >
                 {userName || "Painel"}
               </h1>
               <p className="hidden truncate text-xs font-medium text-muted-foreground min-[420px]:block sm:block">
@@ -512,7 +530,8 @@ export default function AdminHeader({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {syncChipHeader}
             {searchTrigger}
             {notificationBell}
             {menuTrigger}

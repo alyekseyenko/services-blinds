@@ -1,5 +1,9 @@
 import type { AgendaDiffKind } from "@/lib/agendaDiff";
 import type { AgendaTimelineEntry } from "@/lib/agendaVisitLifecycle";
+import {
+  isVisitDueBeforeToday,
+  PENDING_CLOSURE_BELL_NOTE_PT,
+} from "@/lib/visitPendingClosure";
 
 const UNASSIGNED_TECH = "Não Atribuído";
 
@@ -49,19 +53,36 @@ export function resolveTimelineEntryDetail(
   }
 }
 
+function withPriorDayClosureNote(
+  kind: AgendaDiffKind,
+  dueAt?: string,
+  detail?: string
+): string | undefined {
+  const needsPrior =
+    (kind === "cancelada" || kind === "incompleta" || kind === "concluida") &&
+    isVisitDueBeforeToday(dueAt);
+  if (!needsPrior) return detail;
+  if (detail?.trim()) return `${PENDING_CLOSURE_BELL_NOTE_PT} ${detail.trim()}`;
+  return PENDING_CLOSURE_BELL_NOTE_PT;
+}
+
 export function timelineDetailForDiffEvent(
   kind: AgendaDiffKind,
-  item: { technicianName?: string; statusNote?: string }
+  item: { technicianName?: string; statusNote?: string; dueAt?: string }
 ): string | undefined {
   switch (kind) {
     case "em_curso":
       return emCursoTimelineDetail(item.technicianName);
     case "concluida":
-      return concluidaTimelineDetail(item.technicianName, item.statusNote);
+      return withPriorDayClosureNote(
+        kind,
+        item.dueAt,
+        concluidaTimelineDetail(item.technicianName, item.statusNote)
+      );
     case "incompleta":
     case "cancelada": {
       const note = item.statusNote?.trim();
-      return note || undefined;
+      return withPriorDayClosureNote(kind, item.dueAt, note || undefined);
     }
     default:
       return undefined;

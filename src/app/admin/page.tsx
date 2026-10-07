@@ -88,6 +88,8 @@ import {
 import AdminHomeView from "@/components/admin/views/AdminHomeView";
 import AdminMapView from "@/components/admin/views/AdminMapView";
 import { computeAdminHomeDashboardStats } from "@/lib/admin/homeDashboardStats";
+import type { AdminHomeMapFilterAction } from "@/lib/admin/adminHomeMapFilter";
+import { countOpportunitiesPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { AdminViewId } from "@/components/admin/AdminPrimaryNav";
 const AdminCalendarView = dynamic(
   () => import("@/components/admin/views/AdminCalendarView"),
@@ -218,6 +220,7 @@ export default function Admin() {
   const [mapTechnicianFilter, setMapTechnicianFilter] = useState<string | null>(null);
   const [historyOutcomes, setHistoryOutcomes] = useState<MapHistoryOutcome[]>([]);
   const [stallFilter, setStallFilter] = useState<MapStallFilter>("all");
+  const [pendingClosureOnly, setPendingClosureOnly] = useState(false);
   const [mapTextSearch, setMapTextSearch] = useState<string | null>(null);
   const [mapFocusOpportunityId, setMapFocusOpportunityId] = useState<string | null>(null);
 
@@ -398,6 +401,7 @@ export default function Admin() {
       technicianFilter: mapTechnicianFilter,
       historyOutcomes,
       historyItems: mapHistoryItems,
+      pendingClosureOnly,
     });
   }, [
     opportunitiesForMap,
@@ -409,7 +413,48 @@ export default function Admin() {
     historyOutcomes,
     mapHistoryItems,
     mapTextSearch,
+    pendingClosureOnly,
   ]);
+
+  const pendingClosureCount = useMemo(
+    () => countOpportunitiesPendingTechnicianClosure(opportunitiesForMap),
+    [opportunitiesForMap]
+  );
+
+  const openPendingClosureOnMap = useCallback(() => {
+    changeAdminView("map");
+    setMapTab("scheduled");
+    setPendingClosureOnly(true);
+    setStallFilter("all");
+  }, [changeAdminView]);
+
+  const openMapWithHomeFilter = useCallback(
+    (action: AdminHomeMapFilterAction) => {
+      changeAdminView("map");
+      setPendingClosureOnly(false);
+      switch (action) {
+        case "overdueToday":
+          setMapTab("scheduled");
+          setStallFilter("all");
+          break;
+        case "withoutGps":
+          setMapTab("unscheduled");
+          setStallFilter("all");
+          break;
+        case "idle14":
+          setMapTab("unscheduled");
+          setStallFilter("idle14");
+          break;
+        case "idle30":
+          setMapTab("unscheduled");
+          setStallFilter("idle30");
+          break;
+        default:
+          setStallFilter("all");
+      }
+    },
+    [changeAdminView]
+  );
 
   useOnboardingAdminTour({
     demoActive: onboardingAdminDemoActive,
@@ -1278,6 +1323,8 @@ export default function Admin() {
                 stats={homeDashboardStats}
                 zoneInsights={zoneInsights}
                 onNavigate={(v: AdminViewId) => changeAdminView(v)}
+                onOpenPendingClosure={openPendingClosureOnMap}
+                onOpenMapFilter={openMapWithHomeFilter}
                 onOpenSearch={() => setCommandPaletteOpen(true)}
                 onOpenMedicoes={() => router.push("/admin/medicoes")}
                 onOpenCreateService={() => setShowCreateServiceSheet(true)}
@@ -1307,6 +1354,9 @@ export default function Admin() {
             onClearHistoryOutcomes={() => setHistoryOutcomes([])}
             stallFilter={stallFilter}
             setStallFilter={setStallFilter}
+            pendingClosureOnly={pendingClosureOnly}
+            setPendingClosureOnly={setPendingClosureOnly}
+            pendingClosureCount={pendingClosureCount}
             techniciansLocations={techniciansLocations}
             routeSelectionMode={routeSelectionMode}
             setRouteSelectionMode={setRouteSelectionMode}

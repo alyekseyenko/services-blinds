@@ -27,6 +27,12 @@ export const MAP_STALL_FILTERS: { value: MapStallFilter; label: string; hint: st
   { value: "idle30", label: "+30 dias parado", hint: "Alerta vermelho" },
 ];
 
+/** Fecho em falta no terreno (não confundir com atraso do mesmo dia nem tempo parado). */
+export const MAP_FIELD_CLOSURE_FILTER = {
+  label: "Por fechar no terreno",
+  hint: "Agendadas de dias anteriores sem registo do técnico",
+} as const;
+
 /** Types shown in map filters (markers/legend may still include others). */
 const FILTER_EXCLUDED_SERVICE_KEYS = new Set(["GERAL", "REAGENDAR"]);
 

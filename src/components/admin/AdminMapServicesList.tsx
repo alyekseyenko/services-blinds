@@ -7,6 +7,7 @@ import { canAdminScheduleOpportunity } from "@/lib/admin/mapScheduleEligibility"
 import { sortMapServicesForList } from "@/lib/admin/mapServicesListSort";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import { isTaskInProgress } from "@/lib/crm/contract";
+import { isOpportunityPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { Opportunity } from "@/types/admin";
 
 type Props = {
@@ -67,6 +68,7 @@ export default function AdminMapServicesList({
             minute: "2-digit",
           });
         const hasGps = Boolean(opp.coordinates?.length === 2);
+        const pendingClosure = isOpportunityPendingTechnicianClosure(opp);
 
         return (
           <li key={opp.twentyId || opp.id}>
@@ -97,6 +99,11 @@ export default function AdminMapServicesList({
                 {isTaskInProgress(opp.taskStatus) && (
                   <span className="rounded-md border border-warning-border bg-warning-surface px-2 py-0.5 text-xs font-black uppercase text-warning-fg">
                     Em curso
+                  </span>
+                )}
+                {pendingClosure && (
+                  <span className="rounded-md border border-danger-border bg-danger-surface px-2 py-0.5 text-xs font-black uppercase text-danger-fg">
+                    Por fechar
                   </span>
                 )}
                 {!hasGps && (

@@ -1,20 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { SessionProvider } from "next-auth/react";
 import { ToastProvider } from "@/components/ui/ToastContext";
 import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import type { AppColorTheme } from "@/lib/theme/colorTheme";
-
-const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour"), {
-  ssr: false,
-});
-
-const TourChapterPickerHost = dynamic(
-  () => import("@/components/onboarding/TourChapterPickerHost"),
-  { ssr: false }
-);
+import HapticGestureBridge from "@/components/HapticGestureBridge";
 
 type ProvidersProps = {
   children: React.ReactNode;
@@ -27,9 +18,8 @@ export default function Providers({ children, initialTheme = "light" }: Provider
       <SessionProvider refetchOnWindowFocus refetchInterval={5 * 60}>
         <ToastProvider>
           <ConfirmProvider>
+            <HapticGestureBridge />
             {children}
-            <OnboardingTour />
-            <TourChapterPickerHost />
           </ConfirmProvider>
         </ToastProvider>
       </SessionProvider>

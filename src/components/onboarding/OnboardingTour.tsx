@@ -105,6 +105,12 @@ function syncTourHighlightPopoverMode(
   } else {
     document.documentElement.removeAttribute("data-onboarding-modal-popover");
   }
+
+  if (def?.drawerStep) {
+    document.documentElement.setAttribute("data-onboarding-drawer-step", "1");
+  } else {
+    document.documentElement.removeAttribute("data-onboarding-drawer-step");
+  }
 }
 
 function buildDriveSteps(
@@ -181,6 +187,7 @@ export default function OnboardingTour() {
     document.querySelector('[data-tour="app-tour-fallback-anchor"]')?.remove();
     document.documentElement.removeAttribute("data-onboarding-tour");
     document.documentElement.removeAttribute("data-onboarding-modal-popover");
+    document.documentElement.removeAttribute("data-onboarding-drawer-step");
     resetTourUi(activeTour);
     dispatchOnboardingDemoPinInactive();
     driverRef.current?.destroy();
@@ -541,6 +548,7 @@ export default function OnboardingTour() {
         onDestroyed: () => {
           document.documentElement.removeAttribute("data-onboarding-tour");
           document.documentElement.removeAttribute("data-onboarding-modal-popover");
+          document.documentElement.removeAttribute("data-onboarding-drawer-step");
           resetTourUi(activeTourId);
           dispatchOnboardingDemoPinInactive();
           driverRef.current = null;

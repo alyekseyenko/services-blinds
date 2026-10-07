@@ -1,7 +1,16 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { LogOut, MapPin, MapPinOff, Menu, RefreshCw, WifiOff, X } from "lucide-react";
+import {
+  ChevronRight,
+  LogOut,
+  MapPin,
+  MapPinOff,
+  Menu,
+  RefreshCw,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { signOutToAppLogin } from "@/lib/clientSignOut";
 import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +18,7 @@ import SyncQueueSheet from "@/components/dashboard/SyncQueueSheet";
 import { APP_LOGO_PATH, APP_SHORT_NAME } from "@/lib/branding";
 import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import TourHelpButton from "@/components/onboarding/TourHelpButton";
+import { FieldContrastToggle } from "@/components/ui/FieldContrastToggle";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastContext";
@@ -311,7 +320,7 @@ function Header({
                 onOpenTaskOnMap={onOpenAgendaNotificationOnMap}
               />
 
-              <TourHelpButton />
+              <FieldContrastToggle />
 
               <ThemeToggle />
 
@@ -332,7 +341,6 @@ function Header({
                 dataTour="tech-header-notifications"
                 onOpenTaskOnMap={onOpenAgendaNotificationOnMap}
               />
-              <TourHelpButton />
             </div>
 
             <button
@@ -350,76 +358,143 @@ function Header({
 
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col justify-end bg-scrim md:hidden"
-          role="presentation"
-          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-[80] flex flex-col bg-card safe-top safe-bottom md:hidden"
+          role="dialog"
+          aria-label="Menu do técnico"
+          data-tour="tech-mobile-menu-sheet"
         >
-          <div
-            className="safe-bottom rounded-t-2xl border-2 border-border-strong bg-card p-4"
-            role="dialog"
-            aria-label="Ações rápidas"
-            data-tour="tech-mobile-menu-sheet"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-black uppercase tracking-tight text-foreground">Ações</p>
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground"
-                aria-label="Fechar"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">Menu</p>
+              <p className="text-xs font-semibold text-muted-foreground">Sincronização, GPS e sessão</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {onToggleLocationConsent && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground"
+              aria-label="Fechar menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+            <p className="mb-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Sincronização
+            </p>
+            <ul className="mb-6 space-y-2">
+              <li>
                 <button
                   type="button"
-                  data-tour="tech-gps"
+                  data-tour="tech-header-sync"
                   onClick={() => {
-                    onToggleLocationConsent();
+                    mutateTasks();
                     setMobileMenuOpen(false);
                   }}
-                  className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-muted/50 px-2 text-xs font-bold text-foreground"
+                  disabled={loading || isSyncing}
+                  className="flex w-full min-h-14 items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left disabled:opacity-50"
                 >
-                  {locationSharingEnabled ? (
-                    <MapPin className="h-5 w-5 text-primary-ink" />
-                  ) : (
-                    <MapPinOff className="h-5 w-5" />
-                  )}
-                  GPS
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                    <RefreshCw className={`h-5 w-5 ${isSyncing ? "animate-spin" : ""}`} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-foreground">Atualizar agenda</span>
+                    <span className="text-xs font-medium text-muted-foreground">Buscar alterações do CRM</span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQueueOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex w-full min-h-14 items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning-surface text-warning-fg">
+                    <WifiOff className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-foreground">Fila offline</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {pendingSyncTotal > 0
+                        ? `${pendingSyncTotal} pendente(s)`
+                        : "Alterações guardadas no telemóvel"}
+                    </span>
+                  </span>
+                  {pendingSyncTotal > 0 ? (
+                    <span className="rounded-full bg-warning-solid px-2 py-0.5 text-xs font-bold text-primary-foreground">
+                      {pendingSyncTotal > 9 ? "9+" : pendingSyncTotal}
+                    </span>
+                  ) : (
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
+                </button>
+              </li>
+            </ul>
+
+            <p className="mb-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Preferências
+            </p>
+            <ul className="mb-6 space-y-2">
+              {onToggleLocationConsent && (
+                <li>
+                  <button
+                    type="button"
+                    data-tour="tech-gps"
+                    onClick={() => {
+                      onToggleLocationConsent();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex w-full min-h-14 items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                  >
+                    <span
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                        locationSharingEnabled ? "bg-primary/15 text-primary-ink" : "bg-muted"
+                      }`}
+                    >
+                      {locationSharingEnabled ? (
+                        <MapPin className="h-5 w-5" />
+                      ) : (
+                        <MapPinOff className="h-5 w-5" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold text-foreground">Partilha de GPS</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {locationSharingEnabled ? "Ativo — visível no mapa admin" : "Pausado"}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  </button>
+                </li>
               )}
-              <button
-                type="button"
-                data-tour="tech-header-sync"
-                onClick={() => {
-                  mutateTasks();
-                  setMobileMenuOpen(false);
-                }}
-                disabled={loading || isSyncing}
-                className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-muted/50 px-2 text-xs font-bold text-foreground disabled:opacity-50"
-              >
-                <RefreshCw className={`h-5 w-5 ${isSyncing ? "animate-spin" : ""}`} />
-                Sincronizar
-              </button>
-              <div className="flex min-h-12 items-center justify-center rounded-xl border border-border bg-muted/50">
-                <ThemeToggle showLabel className="border-0 bg-transparent shadow-none" />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  void handleLogout();
-                }}
-                disabled={loggingOut}
-                className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border border-danger-border bg-danger-surface px-2 text-xs font-bold text-danger-fg disabled:opacity-50 dark:border-danger-border dark:bg-ink/40 dark:text-danger-fg"
-              >
-                <LogOut className="h-5 w-5" />
-                Sair
-              </button>
-            </div>
+              <li className="flex min-h-14 items-center rounded-2xl border border-border bg-card px-4 py-2">
+                <FieldContrastToggle showLabel className="w-full border-0 bg-transparent shadow-none" />
+              </li>
+              <li className="flex min-h-14 items-center rounded-2xl border border-border bg-card px-4 py-2">
+                <ThemeToggle showLabel className="w-full border-0 bg-transparent shadow-none" />
+              </li>
+            </ul>
+
+          </div>
+
+          <div className="shrink-0 border-t border-border px-4 py-4">
+            <button
+              type="button"
+              data-tour="tech-logout"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                void handleLogout();
+              }}
+              disabled={loggingOut}
+              className="flex w-full min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-danger-border bg-danger-surface text-sm font-bold text-danger-fg disabled:opacity-50"
+            >
+              <LogOut className="h-5 w-5" />
+              Terminar sessão
+            </button>
           </div>
         </div>
       )}

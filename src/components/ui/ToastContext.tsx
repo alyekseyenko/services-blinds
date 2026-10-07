@@ -11,7 +11,7 @@ import React, {
   useRef,
 } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
-import { hapticError, hapticLight, hapticSuccess } from "@/lib/haptics";
+import { hapticConfirmAfterAsync, hapticError, hapticLight, hapticTap } from "@/lib/haptics";
 import { cn } from "@/lib/cn";
 import { DS_TOAST_CLASS, toastTypeToTone } from "@/lib/design/tones";
 
@@ -29,18 +29,104 @@ export interface ToastMessage {
   description?: string;
   duration?: number;
   action?: ToastAction;
+  /** Toque no corpo do toast (ex.: aviso da agenda). */
+  onClick?: () => void;
 }
 
 interface ToastContextValue {
   toast: {
-    success: (title: string, description?: string, action?: ToastAction) => void;
-    error: (title: string, description?: string, action?: ToastAction) => void;
-    info: (title: string, description?: string, action?: ToastAction) => void;
-    warning: (title: string, description?: string, action?: ToastAction) => void;
+    success: (
+      title: string,
+      description?: string,
+      action?: ToastAction,
+      onClick?: () => void
+    ) => void;
+    error: (
+      title: string,
+      description?: string,
+      action?: ToastAction,
+      onClick?: () => void
+    ) => void;
+    info: (
+      title: string,
+      description?: string,
+      action?: ToastAction,
+      onClick?: () => void
+    ) => void;
+    warning: (
+      title: string,
+      description?: string,
+      action?: ToastAction,
+      onClick?: () => void
+    ) => void;
   };
 }
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
+
+function ToastBodyIcon({ type }: { type: ToastType }) {
+  return (
+    <div className="mt-0.5 shrink-0">
+      {type === "success" && (
+        <div className="rounded-lg bg-neon p-1 text-neon-foreground">
+          <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+        </div>
+      )}
+      {type === "error" && (
+        <div className="rounded-lg bg-danger-surface p-1 text-danger-solid">
+          <AlertCircle className="h-5 w-5" aria-hidden="true" />
+        </div>
+      )}
+      {type === "warning" && (
+        <div className="rounded-lg bg-warning-surface p-1 text-warning-solid">
+          <AlertCircle className="h-5 w-5" aria-hidden="true" />
+        </div>
+      )}
+      {type === "info" && (
+        <div className="rounded-lg bg-info-surface p-1 text-info-solid">
+          <Info className="h-5 w-5" aria-hidden="true" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToastBodyText({
+  toast: t,
+  onAction,
+}: {
+  toast: ToastMessage;
+  onAction?: () => void;
+}) {
+  return (
+    <div className="min-w-0 flex-1 pr-1">
+      <h4 className="text-sm font-black uppercase tracking-wider text-inherit">{t.title}</h4>
+      {t.description && (
+        <p
+          className={cn(
+            "mt-1 text-xs font-semibold leading-relaxed opacity-80",
+            t.type === "error" || t.type === "warning" ? "line-clamp-4" : "line-clamp-2"
+          )}
+        >
+          {t.description}
+        </p>
+      )}
+      {t.action && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            t.action?.onClick();
+            onAction?.();
+          }}
+          className="mt-2 text-xs font-black uppercase tracking-wider text-neon hover:underline"
+        >
+          {t.action.label}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -81,13 +167,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback(
-    (type: ToastType, title: string, description?: string, duration = 4000, action?: ToastAction) => {
-      if (type === "success") hapticSuccess();
-      else if (type === "error") hapticError();
-      else if (type === "info" || type === "warning") hapticLight();
+    (
+      type: ToastType,
+      title: string,
+      description?: string,
+      duration = 4000,
+      action?: ToastAction,
+      onClick?: () => void
+    ) => {
+      if (type === "success") hapticConfirmAfterAsync("success");
+      else if (type === "error") hapticConfirmAfterAsync("error");
+      else if (type === "info" || type === "warning") hapticTap(12);
 
       const id = `${Date.now()}-${Math.random()}`;
-      const newToast: ToastMessage = { id, type, title, description, duration, action };
+      const newToast: ToastMessage = { id, type, title, description, duration, action, onClick };
 
       setToasts((prev) => [...prev.slice(-3), newToast]);
       scheduleDismiss(id, duration);
@@ -97,14 +190,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const toast = useMemo(
     () => ({
-      success: (title: string, description?: string, action?: ToastAction) =>
-        addToast("success", title, description, 4000, action),
-      error: (title: string, description?: string, action?: ToastAction) =>
-        addToast("error", title, description, 5000, action),
-      info: (title: string, description?: string, action?: ToastAction) =>
-        addToast("info", title, description, 4000, action),
-      warning: (title: string, description?: string, action?: ToastAction) =>
-        addToast("warning", title, description, 4500, action),
+      success: (
+        title: string,
+        description?: string,
+        action?: ToastAction,
+        onClick?: () => void
+      ) => addToast("success", title, description, 4000, action, onClick),
+      error: (
+        title: string,
+        description?: string,
+        action?: ToastAction,
+        onClick?: () => void
+      ) => addToast("error", title, description, 5000, action, onClick),
+      info: (
+        title: string,
+        description?: string,
+        action?: ToastAction,
+        onClick?: () => void
+      ) => addToast("info", title, description, 4000, action, onClick),
+      warning: (
+        title: string,
+        description?: string,
+        action?: ToastAction,
+        onClick?: () => void
+      ) => addToast("warning", title, description, 4500, action, onClick),
     }),
     [addToast]
   );
@@ -146,58 +255,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               }
             }}
             className={cn(
-              "pointer-events-auto transition-all",
+              "pointer-events-auto flex transition-all",
               DS_TOAST_CLASS[toastTypeToTone(t.type)]
             )}
           >
-            <div className="mt-0.5 shrink-0">
-              {t.type === "success" && (
-                <div className="rounded-lg bg-neon p-1 text-neon-foreground">
-                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-                </div>
-              )}
-              {t.type === "error" && (
-                <div className="rounded-lg bg-danger-surface p-1 text-danger-solid">
-                  <AlertCircle className="h-5 w-5" aria-hidden="true" />
-                </div>
-              )}
-              {t.type === "warning" && (
-                <div className="rounded-lg bg-warning-surface p-1 text-warning-solid">
-                  <AlertCircle className="h-5 w-5" aria-hidden="true" />
-                </div>
-              )}
-              {t.type === "info" && (
-                <div className="rounded-lg bg-info-surface p-1 text-info-solid">
-                  <Info className="h-5 w-5" aria-hidden="true" />
-                </div>
-              )}
-            </div>
-
-            <div className="min-w-0 flex-1 pr-1">
-              <h4 className="text-sm font-black uppercase tracking-wider text-inherit">{t.title}</h4>
-              {t.description && (
-                <p
-                  className={cn(
-                    "mt-1 text-xs font-semibold leading-relaxed opacity-80",
-                    t.type === "error" || t.type === "warning" ? "line-clamp-4" : "line-clamp-2"
-                  )}
-                >
-                  {t.description}
-                </p>
-              )}
-              {t.action && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    t.action?.onClick();
-                    removeToast(t.id);
-                  }}
-                  className="mt-2 text-xs font-black uppercase tracking-wider text-neon hover:underline"
-                >
-                  {t.action.label}
-                </button>
-              )}
-            </div>
+            {t.onClick ? (
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                aria-label="Abrir aviso"
+                onClick={() => {
+                  hapticTap(10);
+                  t.onClick?.();
+                  removeToast(t.id);
+                }}
+              >
+                <ToastBodyIcon type={t.type} />
+                <ToastBodyText toast={t} />
+              </button>
+            ) : (
+              <>
+                <ToastBodyIcon type={t.type} />
+                <ToastBodyText toast={t} onAction={() => removeToast(t.id)} />
+              </>
+            )}
 
             <button
               type="button"

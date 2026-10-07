@@ -85,7 +85,10 @@ import {
   readMainViewFromUrl,
   writeMainViewToUrl,
 } from "@/lib/urlMainView";
+import AdminHomeView from "@/components/admin/views/AdminHomeView";
 import AdminMapView from "@/components/admin/views/AdminMapView";
+import { computeAdminHomeDashboardStats } from "@/lib/admin/homeDashboardStats";
+import type { AdminViewId } from "@/components/admin/AdminPrimaryNav";
 const AdminCalendarView = dynamic(
   () => import("@/components/admin/views/AdminCalendarView"),
   { ssr: false, loading: () => <MapSkeleton /> }
@@ -113,6 +116,10 @@ import type { ScheduleForm } from "@/components/admin/ScheduleModal";
 const ScheduleModal = dynamic(() => import("@/components/admin/ScheduleModal"), {
   ssr: false,
 });
+const CreateCommercialServiceSheet = dynamic(
+  () => import("@/components/admin/CreateCommercialServiceSheet"),
+  { ssr: false }
+);
 const MassScheduleModal = dynamic(() => import("@/components/admin/MassScheduleModal"), {
   ssr: false,
 });
@@ -128,7 +135,7 @@ export default function Admin() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [showRouteSheet, setShowRouteSheet] = useState(false);
   const [view, setView] = useState(() =>
-    typeof window !== "undefined" ? readMainViewFromUrl(ADMIN_VIEW_IDS, "map") : "map"
+    typeof window !== "undefined" ? readMainViewFromUrl(ADMIN_VIEW_IDS, "home") : "home"
   );
 
   const changeAdminView = useCallback((next: string) => {
@@ -155,6 +162,7 @@ export default function Admin() {
   const [selectedTechnician, setSelectedTechnician] = useState("all");
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showCreateServiceSheet, setShowCreateServiceSheet] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [userName, setUserName] = useState("");
@@ -332,6 +340,11 @@ export default function Admin() {
     [opportunities]
   );
 
+  const homeDashboardStats = useMemo(
+    () => computeAdminHomeDashboardStats(opportunities),
+    [opportunities]
+  );
+
   useEffect(() => {
     setZoneInsights(
       computeZoneInsights(opportunities, HQ_LOCATION.coordinates, {
@@ -375,9 +388,7 @@ export default function Admin() {
     const q = mapTextSearch?.trim();
     const base = opportunitiesForMap;
     if (q) {
-      return searchOpportunities(base, q, 50).filter(
-        (opp) => opp.coordinates && Array.isArray(opp.coordinates)
-      );
+      return searchOpportunities(base, q, 50);
     }
     return filterMapOpportunities(base, {
       mapTab,
@@ -1078,6 +1089,17 @@ export default function Admin() {
     [toast, changeAdminView]
   );
 
+  const handleCommercialServiceCreated = useCallback(
+    async (opp: Opportunity, options?: { openSchedule?: boolean }) => {
+      await mutateOpps();
+      handleAdminPickOpportunity(opp, { view: "map" });
+      if (options?.openSchedule) {
+        openScheduleModal(opp);
+      }
+    },
+    [mutateOpps, handleAdminPickOpportunity]
+  );
+
   const findOpportunityForAgendaNotification = useCallback(
     (notification: InAppNotification) => {
       const pools = [opportunities, mapHistoryItems];
@@ -1154,8 +1176,8 @@ export default function Admin() {
       toast.info(
         `${hits.length} serviços encontrados`,
         withGps.length > 0
-          ? `${withGps.length} com pin no mapa. Toque num marcador para ver detalhes.`
-          : "Nenhum tem GPS — abra um resultado na pesquisa (Ctrl+K)."
+          ? `${withGps.length} com pin no mapa. Use «Lista» para ver todos e agendar.`
+          : "Nenhum tem GPS no mapa — use «Lista» para ver resultados e agendar."
       );
     },
     [opportunities, toast, handleAdminPickOpportunity, changeAdminView]
@@ -1185,7 +1207,12 @@ export default function Admin() {
   }, []);
 
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden brutal-grid-bg bg-background text-foreground">
+    <div
+      className={cn(
+        "relative flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground",
+        view !== "home" && "brutal-grid-bg"
+      )}
+    >
       <div className="safe-top shrink-0">
         <ServerConnectionBanner visible={serverUnreachable} />
       </div>
@@ -1198,8 +1225,10 @@ export default function Admin() {
         opportunities={opportunities}
         technicians={technicians}
         onSelectTechnician={handlePaletteSelectTechnician}
+        onOpenCreateService={() => setShowCreateServiceSheet(true)}
       />
-      <AdminHeader 
+      <AdminHeader
+        layout={view === "home" ? "dashboard" : "toolbar"}
         opportunitiesCount={opportunities.length}
         lastSync={lastSync}
         syncDataStale={oppsDataStale}
@@ -1208,13 +1237,20 @@ export default function Admin() {
         router={router}
         onRefresh={handleRefresh}
         onOpenSearch={() => setCommandPaletteOpen(true)}
+        onOpenCreateService={() => setShowCreateServiceSheet(true)}
         userName={userName}
         view={view}
         setView={changeAdminView}
         onInvestigateAgendaNotification={openAgendaNotificationInvestigate}
       />
 
-      <div className="relative flex-1 overflow-hidden bg-background" data-tour="admin-workspace">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+          view === "home" && "flex"
+        )}
+        data-tour="admin-workspace"
+      >
         {loading ? (
           <MapSkeleton />
         ) : oppsLoadError && opportunities.length === 0 ? (
@@ -1230,6 +1266,23 @@ export default function Admin() {
           </div>
         ) : (
           <div className="relative h-full min-h-0 w-full">
+            <div
+              className={cn(
+                view === "home"
+                  ? "absolute inset-0 flex min-h-0 flex-col"
+                  : "absolute inset-0 min-h-0 invisible pointer-events-none"
+              )}
+              aria-hidden={view !== "home"}
+            >
+              <AdminHomeView
+                stats={homeDashboardStats}
+                zoneInsights={zoneInsights}
+                onNavigate={(v: AdminViewId) => changeAdminView(v)}
+                onOpenSearch={() => setCommandPaletteOpen(true)}
+                onOpenMedicoes={() => router.push("/admin/medicoes")}
+                onOpenCreateService={() => setShowCreateServiceSheet(true)}
+              />
+            </div>
             <div
               className={cn(
                 "absolute inset-0 min-h-0",
@@ -1364,6 +1417,12 @@ export default function Admin() {
         workspaceMembers={workspaceMembers}
         isScheduling={isScheduling}
         handleMassSchedule={handleMassSchedule}
+      />
+
+      <CreateCommercialServiceSheet
+        open={showCreateServiceSheet}
+        onClose={() => setShowCreateServiceSheet(false)}
+        onCreated={(opp, options) => void handleCommercialServiceCreated(opp, options)}
       />
 
     </div>

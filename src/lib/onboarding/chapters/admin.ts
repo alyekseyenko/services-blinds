@@ -12,14 +12,21 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         "Capítulo essencial: avisos, mapa com sede, pin fictício NSI-GUIA-001 e agendamento simulado. Outros capítulos no ? cobrem filtros, rotas e agenda."
       ),
       {
-        element: '[data-tour="admin-views"]',
-        title: "Onde trabalha",
+        element: '[data-tour="admin-home-dashboard-header"]',
+        title: "Início do painel",
         description:
-          "Mapa, calendário ou histórico — muda com estes botões no computador (no telemóvel, o mesmo está no menu ☰).",
+          "Ecrã completo como as medições: resumo, indicadores e explorar. Mapa e restantes vistas no menu ☰.",
         side: "bottom",
-        viewport: "desktop",
         fallbackModalIfMissing: true,
         prepareOnHighlight: ["closeAdminMobileMenu", "closeAdminDesktopMenu"],
+      },
+      {
+        element: '[data-tour="admin-mobile-menu-trigger"]',
+        title: "Menu ☰",
+        description:
+          "Todas as vistas, medições, pesquisa, sincronizar CRM, guia e conta — exceto o sininho de avisos.",
+        side: "bottom",
+        fallbackModalIfMissing: true,
       },
       {
         element: '[data-tour="admin-header-notifications"]',
@@ -30,19 +37,10 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         fallbackModalIfMissing: true,
       },
       {
-        element: '[data-tour="admin-mobile-menu-trigger"]',
-        title: "Menu no telemóvel (☰)",
-        description:
-          "Vistas, pesquisa, sincronizar, guia ? e conta. Abrimos o menu nos passos seguintes.",
-        side: "bottom",
-        viewport: "mobile",
-        fallbackModalIfMissing: true,
-      },
-      {
         element: '[data-tour="admin-mobile-menu-sheet"]',
-        title: "Menu móvel",
+        title: "Menu do painel",
         description:
-          "Vistas em cima, depois Pesquisar e Sincronizar CRM, guia ? e Tema / Sair.",
+          "Vistas, medições, pesquisar, sincronizar CRM, guia ? e conta.",
         side: "top",
         viewport: "mobile",
         fallbackModalIfMissing: true,
@@ -84,7 +82,8 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
       {
         element: '[data-tour="admin-opp-drawer"]',
         title: "Painel da oportunidade",
-        description: "Cliente, notas, GPS e agendamento — deslize para ver tudo.",
+        description:
+          "Mesmo estilo do painel de roteiro: cabeçalho fixo e secções em cartões. Morada, contactos, notas e GPS abaixo.",
         side: "bottom",
         align: "center",
         tourAction: "openAdminDemoOpportunity",
@@ -192,6 +191,15 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         side: "bottom",
         fallbackModalIfMissing: true,
         prepareOnHighlight: ["showAdminViewMap", "openAdminMapFiltersPanel"],
+      },
+      {
+        element: '[data-tour="admin-map-display-mode"]',
+        title: "Mapa ou lista",
+        description:
+          "Alterne para «Lista» para ver todos os serviços filtrados em cartões — útil para agendar sem procurar pins. Os mesmos filtros aplicam-se.",
+        side: "bottom",
+        fallbackModalIfMissing: true,
+        prepareOnHighlight: ["showAdminViewMap", "closeAdminMapFiltersPanel"],
       },
       {
         element: '[data-tour="admin-map-zones-button"]',
@@ -457,6 +465,17 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         side: "bottom",
         prepareOnHighlight: "showAdminViewHistory",
         fallbackModalIfMissing: true,
+      },
+      {
+        element: '[data-tour="admin-opp-measurements"]',
+        title: "Medições",
+        description:
+          "No painel da oportunidade abre a ficha completa na app — produtos, versões e exportação Excel/PDF. No CRM, cada produto mostra só o nome e um link para a ficha.",
+        side: "bottom",
+        drawerStep: true,
+        fallbackModalIfMissing: true,
+        tourAction: "openAdminDemoHistoryOpportunity",
+        prepareOnHighlight: "openAdminDemoHistoryOpportunity",
       },
       {
         element: '[data-tour="admin-opp-report"]',

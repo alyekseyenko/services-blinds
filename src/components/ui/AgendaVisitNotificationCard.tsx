@@ -128,12 +128,14 @@ export function AgendaVisitNotificationCard({
       aria-label={n.read ? `${phaseLabel} — já visto` : `${phaseLabel} — novo`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <StatusChip label={phaseLabel} tone={tone} icon={<PhaseIcon className="h-3.5 w-3.5" />} />
-          {serviceTypeLabel ? (
-            <StatusChip label={serviceTypeLabel} tone="neutral" className="max-w-[11rem]" />
-          ) : null}
-          <span className="text-xs font-semibold text-muted-foreground">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <StatusChip label={phaseLabel} tone={tone} icon={<PhaseIcon className="h-3.5 w-3.5" />} />
+            {serviceTypeLabel ? (
+              <StatusChip label={serviceTypeLabel} tone="neutral" className="max-w-[10rem] truncate" />
+            ) : null}
+          </div>
+          <span className="text-[11px] font-semibold text-muted-foreground">
             {formatRelativeTime(n.createdAt)}
           </span>
         </div>
@@ -146,11 +148,21 @@ export function AgendaVisitNotificationCard({
       </div>
 
       {clientLine ? (
-        <p className={cn("font-black text-foreground dark:text-foreground", spacious ? "text-base" : "text-sm")}>
+        <p
+          className={cn(
+            "line-clamp-2 font-semibold leading-snug text-foreground",
+            spacious ? "text-base" : "text-sm"
+          )}
+        >
           {clientLine}
         </p>
       ) : (
-        <p className={cn("font-black text-foreground dark:text-foreground", spacious ? "text-base" : "text-sm")}>
+        <p
+          className={cn(
+            "line-clamp-2 font-semibold leading-snug text-foreground",
+            spacious ? "text-base" : "text-sm"
+          )}
+        >
           {n.title}
         </p>
       )}
@@ -168,16 +180,16 @@ export function AgendaVisitNotificationCard({
       )}
 
       {(techName || scheduled) && (
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground dark:text-muted-foreground">
+        <div className="flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           {techName && (
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
               <span
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-black text-muted-foreground dark:bg-muted"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground"
                 aria-hidden
               >
                 {technicianInitials(techName)}
               </span>
-              {techName}
+              <span className="truncate">{techName}</span>
             </span>
           )}
           {scheduled && (

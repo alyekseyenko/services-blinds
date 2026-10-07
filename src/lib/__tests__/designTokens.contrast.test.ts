@@ -21,7 +21,7 @@ function borderRatio(vars: Record<string, string>, borderKey: string, bgKey: str
 }
 
 describe("design tokens WCAG contrast", () => {
-  const { light, dark } = loadThemeTokensFromGlobals();
+  const { light, dark, fieldHigh } = loadThemeTokensFromGlobals();
 
   const textPairs: Array<{ fg: string; bg: string; min: number; label: string }> = [
     { fg: "foreground", bg: "background", min: 4.5, label: "texto principal" },
@@ -78,4 +78,18 @@ describe("design tokens WCAG contrast", () => {
       expect(ratio).toBeGreaterThanOrEqual(3);
     });
   }
+
+  it("fieldHigh: pares de texto (modo sol)", () => {
+    for (const { fg, bg, min, label } of textPairs) {
+      const ratio = pairRatio(fieldHigh, fg, bg);
+      expect(ratio, `fieldHigh ${label}`).toBeGreaterThanOrEqual(min);
+    }
+  });
+
+  it("fieldHigh: contornos UI", () => {
+    for (const { border, bg, min } of uiBorderPairs) {
+      const ratio = borderRatio(fieldHigh, border, bg);
+      expect(ratio, "fieldHigh border-strong").toBeGreaterThanOrEqual(min);
+    }
+  });
 });

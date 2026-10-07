@@ -25,8 +25,13 @@ import {
 } from "@/lib/agendaSnapshotStorage";
 import {
   agendaNotificationThreadKey,
+  dispatchActivateInAppNotification,
+  dispatchOpenInAppNotificationPanel,
+  dispatchOpenTaskFromNotification,
+  findInAppNotificationByThreadKey,
   loadInAppNotifications,
   pushOrMergeAgendaInAppNotification,
+  type InAppNotification,
 } from "@/lib/inAppNotifications";
 import {
   appendTimelineEvent,
@@ -43,7 +48,10 @@ import type { ToastType } from "@/components/ui/ToastContext";
 const MAX_TOASTS = 3;
 const LATE_CHECK_INTERVAL_MS = 60_000;
 
-type AgendaToastApi = Record<ToastType, (title: string, description?: string) => void>;
+type AgendaToastApi = Record<
+  ToastType,
+  (title: string, description?: string, action?: undefined, onClick?: () => void) => void
+>;
 
 export type UseAgendaNotificationsOptions = {
   scope: string;
@@ -118,43 +126,44 @@ function shortPathForEvents(events: AgendaDiffEvent[]): string {
   );
 }
 
-function emitThreadToast(toast: AgendaToastApi, threadEvents: AgendaDiffEvent[]): void {
+function emitThreadToast(
+  toast: AgendaToastApi,
+  threadEvents: AgendaDiffEvent[],
+  onOpen: () => void
+): void {
   const last = threadEvents[threadEvents.length - 1];
   const { title, description } = formatAgendaDiffToast(last);
   const type = agendaKindToToastType(last.kind);
   const path =
     threadEvents.length > 1 ? shortPathForEvents(threadEvents) : "";
   const desc = path ? `${description} (${path})` : description;
-  toast[type](title, desc);
+  toast[type](title, desc, undefined, onOpen);
 }
 
-function emitAgendaEvents(
+function toastOpenHandlerForThread(
   scope: string,
-  events: ReturnType<typeof diffAgendaSnapshots>,
-  toast: AgendaToastApi
+  threadEvents: AgendaDiffEvent[],
+  notification?: InAppNotification
+): () => void {
+  return () => {
+    if (notification?.id) {
+      dispatchActivateInAppNotification(scope, notification.id);
+      return;
+    }
+    const last = threadEvents[threadEvents.length - 1];
+    if (last.id) {
+      dispatchOpenTaskFromNotification({
+        taskId: last.id,
+        dueAtIso: last.dueAt,
+      });
+    }
+  };
+}
+
+function persistAgendaThreadNotifications(
+  scope: string,
+  grouped: Map<string, AgendaDiffEvent[]>
 ): void {
-  const afterLocal = filterOutLocalChanges(scope, events);
-  const fresh = filterFreshAgendaEvents(scope, afterLocal);
-  if (fresh.length === 0) return;
-
-  const grouped = groupEventsByThread(fresh);
-  const threads = Array.from(grouped.values());
-
-  if (threads.length > MAX_TOASTS) {
-    for (let i = 0; i < MAX_TOASTS; i++) {
-      emitThreadToast(toast, threads[i]);
-    }
-    const hidden = threads.length - MAX_TOASTS;
-    toast.info(
-      "Alterações na agenda",
-      `+${hidden} alteração${hidden === 1 ? "" : "ões"} adicionais no sininho.`
-    );
-  } else {
-    for (const threadEvents of threads) {
-      emitThreadToast(toast, threadEvents);
-    }
-  }
-
   const loadedSnapshot = loadInAppNotifications(scope);
   const now = Date.now();
 
@@ -187,6 +196,52 @@ function emitAgendaEvents(
       agendaTimeline: timeline,
       notificationKind: "agenda",
     });
+  }
+}
+
+function emitAgendaEvents(
+  scope: string,
+  events: ReturnType<typeof diffAgendaSnapshots>,
+  toast: AgendaToastApi
+): void {
+  const afterLocal = filterOutLocalChanges(scope, events);
+  const fresh = filterFreshAgendaEvents(scope, afterLocal);
+  if (fresh.length === 0) return;
+
+  const grouped = groupEventsByThread(fresh);
+  persistAgendaThreadNotifications(scope, grouped);
+
+  const threads = Array.from(grouped.values());
+
+  const notificationForThread = (threadEvents: AgendaDiffEvent[]) => {
+    const key = threadKeyForEvent(threadEvents[threadEvents.length - 1]);
+    return findInAppNotificationByThreadKey(scope, key);
+  };
+
+  if (threads.length > MAX_TOASTS) {
+    for (let i = 0; i < MAX_TOASTS; i++) {
+      const threadEvents = threads[i];
+      emitThreadToast(
+        toast,
+        threadEvents,
+        toastOpenHandlerForThread(scope, threadEvents, notificationForThread(threadEvents))
+      );
+    }
+    const hidden = threads.length - MAX_TOASTS;
+    toast.info(
+      "Alterações na agenda",
+      `+${hidden} alteração${hidden === 1 ? "" : "ões"} adicionais no sininho.`,
+      undefined,
+      () => dispatchOpenInAppNotificationPanel(scope)
+    );
+  } else {
+    for (const threadEvents of threads) {
+      emitThreadToast(
+        toast,
+        threadEvents,
+        toastOpenHandlerForThread(scope, threadEvents, notificationForThread(threadEvents))
+      );
+    }
   }
 }
 

@@ -30,12 +30,37 @@ export function parseCssVariables(block: string): CssVarMap {
   return vars;
 }
 
-export function loadThemeTokensFromGlobals(): { light: CssVarMap; dark: CssVarMap } {
+function extractHtmlDataBlock(css: string, dataAttr: string, value: string): string {
+  const needle = `html[data-${dataAttr}="${value}"] {`;
+  const start = css.indexOf(needle);
+  if (start < 0) return "";
+  let depth = 0;
+  let i = start + needle.length - 1;
+  for (; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return css.slice(start, i + 1);
+      }
+    }
+  }
+  return "";
+}
+
+export function loadThemeTokensFromGlobals(): {
+  light: CssVarMap;
+  dark: CssVarMap;
+  fieldHigh: CssVarMap;
+} {
   const cssPath = path.join(process.cwd(), "src/styles/design-system.css");
   const css = readFileSync(cssPath, "utf8");
   const lightBlock = extractBlock(css, ":root");
   const darkBlock = extractBlock(css, ".dark");
+  const fieldHighBlock = extractHtmlDataBlock(css, "field-contrast", "high");
   const light = parseCssVariables(lightBlock);
   const darkBase = { ...light, ...parseCssVariables(darkBlock) };
-  return { light, dark: darkBase };
+  const fieldHigh = { ...light, ...parseCssVariables(fieldHighBlock) };
+  return { light, dark: darkBase, fieldHigh };
 }

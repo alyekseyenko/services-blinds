@@ -28,14 +28,20 @@ export default function CalendarSidebar({
       className={
         embedded
           ? "p-4"
-          : "hidden w-64 shrink-0 overflow-y-auto border-l border-border bg-muted p-3 lg:block xl:w-72 xl:p-4"
+          : "hidden min-h-0 min-w-0 flex-col overflow-y-auto border-l-2 border-border-strong bg-muted p-3 lg:flex xl:p-4"
       }
     >
       {!embedded && (
-        <h3 className="mb-4 flex items-center gap-2 font-bold text-foreground">
-          <CalendarIcon className="h-5 w-5 text-info-solid" />
-          Agendamentos
-        </h3>
+        <div className="mb-3 shrink-0 border-b border-border pb-3">
+          <p className="ds-kicker">Agenda</p>
+          <h3 className="ds-title mt-1 flex items-center gap-2 text-sm tracking-tight text-foreground">
+            <CalendarIcon className="h-4 w-4 text-primary-ink" aria-hidden />
+            Agendamentos
+            <span className="ds-num rounded-md border border-border bg-card px-1.5 py-0.5 text-xs font-bold text-muted-foreground">
+              {sorted.length}
+            </span>
+          </h3>
+        </div>
       )}
 
       <div className="space-y-3">

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
+import { MAP_BRUTAL_FLOAT_BTN, MAP_BRUTAL_PANEL } from "@/lib/map/mapBrutalChrome";
 
 interface MapOverlayControlsProps {
   variant: "admin" | "technician";
@@ -52,8 +53,7 @@ export function MapOverlayControls({
       ? "bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))]"
       : "bottom-[max(1rem,calc(env(safe-area-inset-bottom)+0.75rem))] lg:bottom-[max(1rem,calc(env(safe-area-inset-bottom)+0.75rem))]";
 
-  const btnClass =
-    "flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-2xl border border-border/90 bg-card/95 text-foreground shadow-lg backdrop-blur transition-colors hover:bg-card active:scale-95";
+  const btnClass = MAP_BRUTAL_FLOAT_BTN;
 
   const rowClass =
     "flex w-full min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-foreground transition-colors hover:bg-muted active:bg-muted";
@@ -75,17 +75,17 @@ export function MapOverlayControls({
         {menuOpen ? (
           <button
             type="button"
-            className="pointer-events-auto fixed inset-0 z-10 bg-ink/20 backdrop-blur-[1px]"
+            className="pointer-events-auto fixed inset-0 z-10 bg-scrim/40"
             aria-label="Fechar menu do mapa"
             onClick={closeMenu}
           />
         ) : null}
         {menuOpen ? (
           <div
-            className="pointer-events-auto absolute bottom-14 right-0 z-20 w-[min(17.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border/90 bg-card/98 shadow-2xl backdrop-blur"
+            className={`pointer-events-auto absolute bottom-14 right-0 z-20 w-[min(17.5rem,calc(100vw-1.5rem))] ${MAP_BRUTAL_PANEL}`}
             role="menu"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <div className="flex items-center justify-between gap-2 border-b-2 border-border-strong bg-muted px-3 py-2">
               <p className="text-xs font-black uppercase tracking-wider text-foreground">
                 Controlos do mapa
               </p>

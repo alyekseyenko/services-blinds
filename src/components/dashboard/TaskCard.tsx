@@ -50,15 +50,14 @@ function TaskCard({ task, setSelectedTask }: TaskCardProps) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
-                <p className="min-w-0 truncate text-xs font-black uppercase tracking-wider text-muted-foreground">
-                  {task.client || "Cliente"}
-                  {task.nsi && task.nsi !== "N/A" ? ` · NSI ${task.nsi}` : ""}
-                </p>
-              </div>
+              <p className="mb-0.5 text-base font-bold leading-snug text-foreground">
+                {task.client || "Cliente"}
+                {task.nsi && task.nsi !== "N/A" ? (
+                  <span className="ds-num font-semibold text-muted-foreground"> · NSI {task.nsi}</span>
+                ) : null}
+              </p>
               <div className="flex min-w-0 items-start gap-2">
-                <h3 className="ds-title line-clamp-2 min-w-0 flex-1 break-words text-base leading-snug tracking-tight text-foreground transition-colors group-hover:text-primary-ink sm:text-lg">
+                <h3 className="line-clamp-2 min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-muted-foreground">
                   {task.title}
                 </h3>
                 {task.isOverdue && (
@@ -78,9 +77,9 @@ function TaskCard({ task, setSelectedTask }: TaskCardProps) {
 
         <hr className="ticket-divider" aria-hidden />
 
-        <div className="flex items-center gap-2.5 rounded-xl border-2 border-border-strong bg-muted p-3.5 text-sm font-semibold text-foreground">
-          <MapPin className="h-5 w-5 shrink-0 text-primary-ink" />
-          <span className="truncate">{task.address}</span>
+        <div className="flex items-start gap-2.5 rounded-xl border-2 border-border-strong bg-muted p-3.5 text-sm font-semibold text-foreground">
+          <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
+          <span className="line-clamp-3 min-w-0 leading-snug">{task.address}</span>
         </div>
 
         <div className="flex items-center gap-2 pt-1">

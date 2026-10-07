@@ -947,7 +947,10 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="relative min-h-0 flex-1" data-tour="tech-map-canvas">
+              <div
+                className="relative min-h-0 flex-1 border-2 border-border-strong bg-background md:m-2 md:rounded-2xl md:overflow-hidden"
+                data-tour="tech-map-canvas"
+              >
               <MapComponent
                 tasks={dayTasksForDisplay}
                 onTaskSelect={setSelectedTask}
@@ -1050,9 +1053,9 @@ export default function Dashboard() {
                         onClick={() => setSelectedTask(task)}
                         className="cursor-pointer transition-all active:scale-[0.99] [content-visibility:auto] [contain-intrinsic-size:auto_96px] hover:border-primary"
                       >
-                        <CardContent className="p-5 flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                          <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl sm:h-12 sm:w-12 ${
                               isTaskComp ? 'bg-primary/15 text-primary-ink' : 
                               isTaskCanc
                                 ? 'bg-danger-solid/15 text-danger-solid'
@@ -1060,16 +1063,27 @@ export default function Dashboard() {
                                   ? 'bg-warning-solid/15 text-warning-solid'
                                   : 'bg-secondary/80 text-muted-foreground'
                             }`}>
-                              <History className="w-6 h-6" />
+                              <History className="h-5 w-5 sm:h-6 sm:w-6" />
                             </div>
-                            <div>
-                              <h4 className="ds-title text-sm tracking-tight text-foreground">{task.title}</h4>
-                              <p className="text-xs text-muted-foreground font-bold uppercase mt-0.5">
-                                {task.dueDate.toLocaleDateString('pt-PT')} • {task.client}
+                            <div className="min-w-0 flex-1">
+                              <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+                                {task.client || task.title}
+                              </p>
+                              {task.client && task.title && task.title !== task.client ? (
+                                <p className="mt-0.5 line-clamp-1 text-xs font-medium text-muted-foreground">
+                                  {task.title}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                {task.dueDate.toLocaleDateString('pt-PT', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
                               </p>
                             </div>
                           </div>
-                          <span className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-black uppercase tracking-wider ${
+                          <span className={`self-start rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide sm:self-center ${
                             isTaskComp ? 'bg-primary text-primary-foreground border-2 border-border-strong' : 
                             isTaskCanc
                               ? 'bg-danger-solid text-ink-foreground border-2 border-border-strong'

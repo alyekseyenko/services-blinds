@@ -16,7 +16,11 @@ import {
   ChevronRight,
   MapPin,
   Hand,
+  List,
+  Map as MapIcon,
 } from "lucide-react";
+import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
+import { cn } from "@/lib/cn";
 import {
   MAP_HISTORY_OUTCOME_OPTIONS,
   MAP_SERVICE_TYPE_OPTIONS,
@@ -56,6 +60,9 @@ export interface AdminMapFiltersBarProps {
   autoGenerateRouteForZone: (zone: string) => void;
   mapTextSearch?: string | null;
   onClearMapTextSearch?: () => void;
+  layout?: "overlay" | "inline";
+  mapDisplayMode?: AdminMapDisplayMode;
+  setMapDisplayMode?: (mode: AdminMapDisplayMode) => void;
 }
 
 type MapPanel = null | "filters" | "zones";
@@ -105,24 +112,33 @@ function priorityLabel(priority: ZoneInsight["priority"]): string {
   }
 }
 
+type PanelPlacement = "dropdown" | "dock";
+
 function PanelShell({
   title,
   subtitle,
   onClose,
   children,
   footer,
+  placement = "dropdown",
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  placement?: PanelPlacement;
 }) {
   return (
     <div
       role="dialog"
       aria-label={title}
-      className="absolute left-0 top-[calc(100%+0.5rem)] z-30 flex w-[min(100vw-2rem,22rem)] max-h-[min(85vh,34rem)] flex-col overflow-hidden rounded-2xl border border-border/90 bg-card/98 shadow-2xl backdrop-blur"
+      className={cn(
+        "flex max-h-[min(50vh,28rem)] flex-col overflow-hidden rounded-2xl border-2 border-border-strong bg-card shadow-lg",
+        placement === "dropdown" &&
+          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[min(100vw-2rem,22rem)] max-h-[min(85vh,34rem)]",
+        placement === "dock" && "relative z-30 mt-1 w-full max-h-[min(55vh,32rem)]"
+      )}
     >
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div>
@@ -171,6 +187,9 @@ export default function AdminMapFiltersBar({
   autoGenerateRouteForZone,
   mapTextSearch = null,
   onClearMapTextSearch,
+  layout = "overlay",
+  mapDisplayMode = "map",
+  setMapDisplayMode,
 }: AdminMapFiltersBarProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [panel, setPanel] = useState<MapPanel>(null);
@@ -263,12 +282,25 @@ export default function AdminMapFiltersBar({
   };
 
   const zoneStepLabels = ["Método", "Zona", "Ação"];
+  const panelPlacement: PanelPlacement = layout === "inline" ? "dock" : "dropdown";
+  const isListView = mapDisplayMode === "list";
+
+  useEffect(() => {
+    if (isListView && panel === "zones") {
+      closeAll();
+    }
+  }, [isListView, panel]);
 
   return (
     <div
       ref={rootRef}
       data-tour="admin-map-filters"
-      className="pointer-events-auto flex max-w-[min(100%,24rem)] flex-col gap-2 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center"
+      className={cn(
+        "relative flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center",
+        layout === "overlay"
+          ? "pointer-events-auto max-w-[min(100%,24rem)] sm:max-w-none"
+          : "w-full"
+      )}
     >
       {mapTextSearch && onClearMapTextSearch && (
         <button
@@ -282,6 +314,43 @@ export default function AdminMapFiltersBar({
         </button>
       )}
       <div className="flex flex-wrap items-center gap-2">
+      {setMapDisplayMode && !routeSelectionMode ? (
+        <div
+          className="flex min-h-12 shrink-0 overflow-hidden rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur"
+          role="group"
+          aria-label="Vista mapa ou lista"
+          data-tour="admin-map-display-mode"
+        >
+          <button
+            type="button"
+            aria-pressed={mapDisplayMode === "map"}
+            onClick={() => setMapDisplayMode("map")}
+            className={cn(
+              "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 px-3 text-xs font-black uppercase tracking-wide",
+              mapDisplayMode === "map"
+                ? "bg-neon text-neon-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            <MapIcon className="h-4 w-4" aria-hidden />
+            <span className="hidden sm:inline">Mapa</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={mapDisplayMode === "list"}
+            onClick={() => setMapDisplayMode("list")}
+            className={cn(
+              "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 border-l border-border px-3 text-xs font-black uppercase tracking-wide",
+              mapDisplayMode === "list"
+                ? "bg-neon text-neon-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            <List className="h-4 w-4" aria-hidden />
+            <span className="hidden sm:inline">Lista</span>
+          </button>
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={() => setPanel(panel === "filters" ? null : "filters")}
@@ -302,23 +371,35 @@ export default function AdminMapFiltersBar({
         </span>
       </button>
 
-      <button
-        type="button"
-        onClick={() => (panel === "zones" ? closeAll() : openZones())}
-        data-tour="admin-map-zones-button"
-        className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all hover:bg-card sm:flex-none sm:justify-start ${
-          panel === "zones" || cityFilter ? "ring-2 ring-primary/25" : ""
-        }`}
-        aria-expanded={panel === "zones"}
-      >
-        <Sparkles className="h-4 w-4 text-primary-ink" aria-hidden />
-        <span>Zonas</span>
-        {cityFilter && (
-          <span className="max-w-[5.5rem] truncate text-xs font-semibold normal-case text-primary-ink">
-            {cityFilter}
-          </span>
-        )}
-      </button>
+      {!isListView ? (
+        <button
+          type="button"
+          onClick={() => (panel === "zones" ? closeAll() : openZones())}
+          data-tour="admin-map-zones-button"
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all hover:bg-card sm:flex-none sm:justify-start ${
+            panel === "zones" || cityFilter ? "ring-2 ring-primary/25" : ""
+          }`}
+          aria-expanded={panel === "zones"}
+        >
+          <Sparkles className="h-4 w-4 text-primary-ink" aria-hidden />
+          <span>Zonas</span>
+          {cityFilter && (
+            <span className="max-w-[5.5rem] truncate text-xs font-semibold normal-case text-primary-ink">
+              {cityFilter}
+            </span>
+          )}
+        </button>
+      ) : null}
+      {isListView && cityFilter ? (
+        <button
+          type="button"
+          onClick={() => setCityFilter(null)}
+          className="flex min-h-12 max-w-full items-center gap-2 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary-ink"
+        >
+          <span className="truncate">Zona: {cityFilter}</span>
+          <X className="h-4 w-4 shrink-0" aria-hidden />
+        </button>
+      ) : null}
       </div>
       {(serviceTypeFilters.length > 0 || mapTechnicianFilter || historyOutcomes.length > 0) && (
         <div className="flex max-w-[min(100%,20rem)] flex-wrap items-center gap-1 rounded-2xl border border-border bg-card/95 px-2 py-1 shadow-md backdrop-blur">
@@ -348,7 +429,8 @@ export default function AdminMapFiltersBar({
 
       {panel === "filters" && (
         <PanelShell
-          title="Filtros do mapa"
+          placement={panelPlacement}
+          title={isListView ? "Filtros da lista" : "Filtros do mapa"}
           subtitle={activeTypeLabel}
           onClose={closeAll}
           footer={
@@ -491,7 +573,9 @@ export default function AdminMapFiltersBar({
                 )}
               </div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Mostra intervenções terminadas com GPS (como no separador Histórico).
+                {isListView
+                  ? "Incluir concluídos, incompletos ou cancelados na lista."
+                  : "Mostra intervenções terminadas com GPS (como no separador Histórico)."}
               </p>
               <div className="grid grid-cols-3 gap-1.5">
                 {MAP_HISTORY_OUTCOME_OPTIONS.map((item) => {
@@ -543,17 +627,27 @@ export default function AdminMapFiltersBar({
               </div>
             </section>
 
-            {cityFilter && (
+            {cityFilter && !isListView ? (
               <p className="text-xs font-bold text-muted-foreground">
                 Zona ativa: <span className="text-primary-ink">{cityFilter}</span> — use o botão Zonas
               </p>
-            )}
+            ) : null}
+            {cityFilter && isListView ? (
+              <button
+                type="button"
+                onClick={() => setCityFilter(null)}
+                className="w-full min-h-10 rounded-xl border border-border text-xs font-black uppercase text-muted-foreground hover:bg-muted"
+              >
+                Remover filtro de zona ({cityFilter})
+              </button>
+            ) : null}
           </div>
         </PanelShell>
       )}
 
-      {panel === "zones" && (
+      {panel === "zones" && !isListView ? (
         <PanelShell
+          placement={panelPlacement}
           title="Zonas sugeridas"
           subtitle={`Passo ${zoneStep} de 3 · ${zoneStepLabels[zoneStep - 1]}`}
           onClose={closeAll}
@@ -783,7 +877,7 @@ export default function AdminMapFiltersBar({
           )}
           </div>
         </PanelShell>
-      )}
+      ) : null}
     </div>
   );
 }

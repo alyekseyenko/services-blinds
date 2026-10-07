@@ -53,6 +53,48 @@ export type InAppNotificationOpenTaskDetail = {
   dueAtIso?: string;
 };
 
+/** Abre o mesmo fluxo que clicar num cartão no sininho (mapa / investigar / visita). */
+export const IN_APP_NOTIFICATION_ACTIVATE_EVENT = "app:inapp-notification-activate";
+
+export type InAppNotificationActivateDetail = {
+  scope: string;
+  notificationId: string;
+};
+
+/** Abre o painel do sininho (ex.: toast «+N alterações»). */
+export const IN_APP_NOTIFICATION_OPEN_PANEL_EVENT = "app:inapp-notifications-open-panel";
+
+export type InAppNotificationOpenPanelDetail = {
+  scope: string;
+};
+
+export function dispatchActivateInAppNotification(scope: string, notificationId: string): void {
+  if (typeof window === "undefined" || !scope || !notificationId) return;
+  window.dispatchEvent(
+    new CustomEvent<InAppNotificationActivateDetail>(IN_APP_NOTIFICATION_ACTIVATE_EVENT, {
+      detail: { scope, notificationId },
+    })
+  );
+}
+
+export function dispatchOpenInAppNotificationPanel(scope: string): void {
+  if (typeof window === "undefined" || !scope) return;
+  window.dispatchEvent(
+    new CustomEvent<InAppNotificationOpenPanelDetail>(IN_APP_NOTIFICATION_OPEN_PANEL_EVENT, {
+      detail: { scope },
+    })
+  );
+}
+
+export function findInAppNotificationByThreadKey(
+  scope: string,
+  threadKey: string
+): InAppNotification | undefined {
+  return loadInAppNotifications(scope).find(
+    (n) => isAgendaInAppNotification(n) && agendaNotificationThreadKey(n) === threadKey
+  );
+}
+
 export const LEGACY_ADMIN_NOTIFICATION_SCOPE = "admin_member";
 export const LEGACY_TECH_NOTIFICATION_SCOPE = "technician";
 

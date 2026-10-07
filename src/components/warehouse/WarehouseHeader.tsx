@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { APP_NAME, APP_SHORT_NAME, APP_LOGO_PATH } from "@/lib/branding";
-import TourHelpButton from "@/components/onboarding/TourHelpButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export interface WarehouseHeaderProps {
@@ -44,7 +43,6 @@ export default function WarehouseHeader({ greeting, userName, onLogout }: Wareho
         </div>
 
         <div className="flex items-center gap-3 md:gap-8">
-          <TourHelpButton className="border-border bg-card" />
           <ThemeToggle />
           <div className="hidden md:block text-right">
             <p className="text-xs text-muted-foreground font-black uppercase tracking-widest">{greeting},</p>

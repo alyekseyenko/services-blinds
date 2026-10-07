@@ -1,8 +1,10 @@
 import "server-only";
 
 import type { ExtraServiceType } from "@/lib/schemas";
+import type { AdminCommercialServiceType } from "@/lib/schemas/adminCommercialService";
 import { logger } from "@/lib/logger";
-import { crmFetch } from "./client";
+import { crmManualCreatedBy, type CrmManualActor } from "./actor";
+import { crmFetch, crmRestCreate } from "./client";
 import { invalidateAdminCrmCache } from "@/lib/crmCache";
 import {
   CRM_STAGES,
@@ -61,6 +63,55 @@ const VISIT_SERVICE_STAGE: Record<ExtraServiceType, string> = {
 
 export function getVisitServiceStage(serviceType: ExtraServiceType): string {
   return VISIT_SERVICE_STAGE[serviceType];
+}
+
+/**
+ * Initial pipeline stage when operators create a service from the admin panel.
+ * Matches Twenty operational stages per service type (same as on-site extra services).
+ */
+export function getAdminCommercialServiceInitialStage(
+  serviceType: AdminCommercialServiceType
+): string {
+  if (serviceType === "INSTALACAO") {
+    return CRM_STAGES.MARCAR_INSTALACAO;
+  }
+  return getVisitServiceStage(serviceType);
+}
+
+export type AdminCommercialServiceCreateActor = CrmManualActor;
+
+export async function createAdminCommercialServiceOpportunity(
+  createData: Record<string, unknown>,
+  serviceType: AdminCommercialServiceType,
+  actor?: CrmManualActor
+): Promise<string> {
+  const stage = getAdminCommercialServiceInitialStage(serviceType);
+  const data = { ...createData, stage };
+
+  logger.info("[Pipeline] create admin commercial service opportunity", {
+    stage,
+    serviceType,
+    attributedToMember: Boolean(actor?.workspaceMemberId),
+  });
+
+  if (actor?.workspaceMemberId && actor.name) {
+    const created = await crmRestCreate<{ id: string }>("opportunities", {
+      ...data,
+      createdBy: crmManualCreatedBy(actor),
+    });
+    await invalidateAdminCrmCache();
+    return created.id;
+  }
+
+  const created = await crmFetch<{ createOpportunity: { id: string } }>(
+    `mutation createAdminCommercialOpp($data: OpportunityCreateInput!) {
+      createOpportunity(data: $data) { id }
+    }`,
+    { data }
+  );
+
+  await invalidateAdminCrmCache();
+  return created.createOpportunity.id;
 }
 
 /**

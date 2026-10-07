@@ -1,6 +1,7 @@
 import "server-only";
 import { crmFetch } from "./client";
-import { CRM_OBJECTS, WAREHOUSE_STATUS } from "./contract";
+import { CRM_OBJECTS, CRM_FIELDS, WAREHOUSE_STATUS } from "./contract";
+import { mapServiceItemToProdutoCreateInput } from "./produtoItemInput";
 
 export interface ServiceItem {
   opportunityId: string;
@@ -10,13 +11,20 @@ export interface ServiceItem {
   qty: number;
   color?: string;
   location?: string;
-  activation?: string;
-  material?: string;
-  fabric?: string;
-  reference?: string;
+  isPrepared: boolean;
+  division?: string;
   fixation?: string;
   controls?: string;
-  isPrepared: boolean;
+  material?: string;
+  materialOther?: string;
+  model?: string;
+  ralColor?: string;
+  fabric?: string;
+  reference?: string;
+  activation?: string;
+  productObservations?: string;
+  measurementGroupId?: string;
+  price?: number;
 }
 
 const { serviceItem: SI } = CRM_OBJECTS;
@@ -91,17 +99,7 @@ export async function createServiceItems(items: ServiceItem[]): Promise<{ succes
     `;
 
     const variables = {
-      data: items.map((item) => ({
-        servicoitemId: item.opportunityId,
-        produto: item.product,
-        largura: item.width,
-        altura: item.height,
-        quantidade: item.qty,
-        cor: item.color,
-        localizacao: item.location,
-        preparado: item.isPrepared,
-        name: `${item.product} - ${item.location?.split(" | ")[0] || "Geral"}`,
-      })),
+      data: items.map((item) => mapServiceItemToProdutoCreateInput(item)),
     };
 
     await crmFetch(batchMutation, variables);
@@ -118,6 +116,16 @@ export async function updateItemPreparationStatus(
   isPrepared: boolean,
   estadoDoArmazem?: string
 ) {
+  const { isMeasurementsDbConfigured } = await import("@/lib/measurements/db/client");
+  const { updateLineWarehouseState } = await import("@/lib/measurements/repo");
+  const enumVal =
+    estadoDoArmazem || (isPrepared ? WAREHOUSE_STATUS.PREPARADO : WAREHOUSE_STATUS.EM_PREPARACAO);
+
+  if (isMeasurementsDbConfigured() && itemId.length > 10) {
+    await updateLineWarehouseState(itemId, isPrepared, enumVal);
+    return { id: itemId, preparado: isPrepared, estadoDoArmazem: [enumVal] };
+  }
+
   const mutation = `
     mutation updateItem($id: UUID!, $preparado: Boolean!, $estadoDoArmazem: [${SI.warehouseStateEnum}!]) {
       ${SI.mutationUpdate}(id: $id, data: { preparado: $preparado, estadoDoArmazem: $estadoDoArmazem }) {
@@ -127,8 +135,6 @@ export async function updateItemPreparationStatus(
       }
     }
   `;
-  const enumVal =
-    estadoDoArmazem || (isPrepared ? WAREHOUSE_STATUS.PREPARADO : WAREHOUSE_STATUS.EM_PREPARACAO);
   return await crmFetch(mutation, {
     id: itemId,
     preparado: isPrepared,
@@ -137,19 +143,33 @@ export async function updateItemPreparationStatus(
 }
 
 export async function fetchServiceItemsByOpportunity(opportunityId: string) {
+  const F = CRM_FIELDS.serviceItem;
   const query = `
     query findItems($oppId: UUID!) {
       ${SI.queryName}(filter: { servicoitemId: { eq: $oppId } }) {
         edges {
           node {
             id
-            produto
-            largura
-            altura
-            quantidade
-            cor
-            localizacao
-            preparado
+            ${F.product}
+            ${F.width}
+            ${F.height}
+            ${F.quantity}
+            ${F.color}
+            ${F.location}
+            ${F.prepared}
+            ${F.division}
+            ${F.fixation}
+            ${F.controls}
+            ${F.material}
+            ${F.materialOther}
+            ${F.model}
+            ${F.ralColor}
+            ${F.fabric}
+            ${F.reference}
+            ${F.activation}
+            ${F.productObservations}
+            ${F.measurementGroupId}
+            ${F.price}
           }
         }
       }

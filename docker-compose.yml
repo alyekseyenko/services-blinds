@@ -37,6 +37,7 @@ services:
       - TWENTY_API_URL=http://twenty-server-1:3000
       - REDIS_URL=redis://technician-cache:6379
       - APP_DATA_DIR=/app/data
+      - MEASUREMENTS_DATABASE_URL=postgresql://measurements:${MEASUREMENTS_DB_PASSWORD:-changeme}@measurements-db:5432/measurements
     volumes:
       - technician-app-data:/app/data
     networks:
@@ -44,6 +45,34 @@ services:
     depends_on:
       technician-cache:
         condition: service_healthy
+      measurements-db:
+        condition: service_healthy
+
+  measurements-db:
+    image: postgres:16-alpine
+    container_name: technician-measurements-db
+    restart: always
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      POSTGRES_USER: measurements
+      POSTGRES_PASSWORD: ${MEASUREMENTS_DB_PASSWORD:-changeme}
+      POSTGRES_DB: measurements
+    expose:
+      - "5432"
+    volumes:
+      - technician-measurements-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U measurements -d measurements"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
 
   # Unique service name — do NOT use "redis" on twenty_default (collides with Twenty CRM).
   technician-cache:
@@ -100,3 +129,4 @@ networks:
 volumes:
   technician-app-data:
   technician-redis-data:
+  technician-measurements-data:

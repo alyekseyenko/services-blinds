@@ -1,6 +1,6 @@
 import type { Opportunity } from "@/types/admin";
 
-type RawOpportunity = Omit<Opportunity, "dueDate" | "scheduledAt" | "start" | "end"> & {
+export type RawOpportunity = Omit<Opportunity, "dueDate" | "scheduledAt" | "start" | "end"> & {
   dueDate?: string | Date | null;
   scheduledAt?: string | Date | null;
 };

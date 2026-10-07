@@ -5,6 +5,8 @@ export const CLIENT_PREF_KEYS = {
   PWA_INSTALL_STATUS: "pwa_install_status",
   PWA_INSTALL_DISMISSED_AT: "pwa_install_dismissed_at",
   COLOR_THEME: "app_color_theme",
+  /** Alto contraste para uso ao sol (técnico). Valores: "high" | ausente. */
+  FIELD_CONTRAST: "field_contrast",
 } as const;
 
 const PRESERVED_ON_LOGOUT: string[] = [
@@ -13,6 +15,7 @@ const PRESERVED_ON_LOGOUT: string[] = [
   CLIENT_PREF_KEYS.PWA_INSTALL_STATUS,
   CLIENT_PREF_KEYS.PWA_INSTALL_DISMISSED_AT,
   CLIENT_PREF_KEYS.COLOR_THEME,
+  CLIENT_PREF_KEYS.FIELD_CONTRAST,
 ];
 
 /** How long "Not now" suppresses the PWA install banner before it may reappear. */

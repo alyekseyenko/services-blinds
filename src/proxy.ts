@@ -88,6 +88,14 @@ export default withAuth(
       return NextResponse.redirect(new URL("/", req.url));
     }
 
+    if (pathname.startsWith("/medicoes")) {
+      const canView =
+        role && (canAccessAdminPanel(role) || isWarehouseRole(role));
+      if (role && !canView) {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
+    }
+
     if (pathname.startsWith("/dashboard") && role && !canAccessTechnicianDashboard(role)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
@@ -115,6 +123,7 @@ export const config = {
     "/admin/:path*",
     "/ceo/:path*",
     "/armazem/:path*",
+    "/medicoes/:path*",
     "/avaliacao/:path*",
     "/cancelamento/:path*",
     "/api/opportunities/:path*",

@@ -74,10 +74,19 @@ Para técnicos que utilizam a aplicação na rua, em carrinhas ou sob luz solar 
 
 | Uso | Receita / token | Notas |
 | :--- | :--- | :--- |
-| **Títulos** (h1/h2, cabeçalhos de painel, diálogo, folha, cartão de visita) | `ds-title` + escala (`text-display-*`, `text-base`…) | Nunca `font-black` nem `italic` em Michroma |
-| **Corpo, botões, rótulos** | `font-sans` (herdado do `body`) | `font-semibold` / `font-bold` quando precisar de ênfase |
+| **Títulos de ecrã** (h1/h2, cabeçalhos de painel, diálogo, folha, nav) | `ds-title` + escala (`text-display-*`, `text-base`…) | Nunca `font-black` nem `italic` em Michroma |
+| **Dados operacionais** (cliente, morada, notas, NSI, título de serviço no cartão) | `font-sans`, frase normal, ≥ `text-sm` | **Michroma nunca** em dados que o técnico lê no campo |
+| **Corpo, botões, rótulos de campo** | `font-sans` | Labels de medição: `text-sm font-bold`, sem `tracking-widest` |
+| **Largura / altura / qtd (medições)** | `ds-num` + `text-xl` (mobile) | Instrumento de leitura — o elemento mais visível da linha |
 | **Números, telefones, NSI, horas** | `ds-num` | Inter com `tabular-nums` — não usar `font-mono` |
+| **Chips, nav, botões de 1–2 palavras** | `text-xs` + `uppercase` opcional | Maiúsculas só onde o texto é curto e estrutural |
 | **Mapa / guia / calendário** | Overrides em `globals.css` + `MAP_SVG_FONT_FAMILY` nos pins | Inter Variable alinhada à app |
+
+### Brutalismo de campo (técnico `/dashboard`, `/medicoes`)
+
+* **Estrutura brutalista, dados de instrumento:** bordas fortes, nav ink, carimbo de hora e lima mantêm-se; nomes e milímetros usam Inter legível.
+* **Moradas:** até 2–3 linhas (`line-clamp-3`), sem `truncate` na lista.
+* **Modo sol:** `html[data-field-contrast="high"]` — fundo mais branco, contornos mais fortes, grelha de fundo desligada; toggle no menu do técnico (persistido em `localStorage`).
 
 
 * **Geometria**:

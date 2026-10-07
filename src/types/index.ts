@@ -15,10 +15,22 @@ export interface MeasurementRow {
   qty: number | string;
   width: string;
   height: string;
+  /** Legado / export CRM — etiqueta da divisão. */
   fixation: string;
   controls: string;
   notes: string;
   price: string;
+  divisionCode?: string;
+  divisionCustom?: string;
+  fixationCodes?: string;
+  fixationCustom?: string;
+  controlsCodes?: string;
+  controlsCustom?: string;
+  openingWidth?: string;
+  openingHeight?: string;
+  lineCollapsed?: string;
+  /** Observações da linha (≠ divisão). */
+  lineNotes?: string;
 }
 
 export interface ProductGroupDetails {
@@ -30,6 +42,22 @@ export interface ProductGroupDetails {
   fabric: string;
   reference: string;
   observations: string;
+  compactPlacement?: string;
+  compactMaterialType?: string;
+  structureColor?: string;
+  otherModel?: string;
+  roloVariant?: string;
+  otherRoloVariant?: string;
+  manualType?: string;
+  rtsCommandMode?: string;
+  rtsChannelCount?: string;
+  rtsMotorBrand?: string;
+  otherRtsMotorBrand?: string;
+  mosquitoOpening?: string;
+  otherActivation?: string;
+  exteriorInstallType?: string;
+  partialPartCodes?: string;
+  partialPartCustom?: string;
 }
 
 export interface ProductGroup {

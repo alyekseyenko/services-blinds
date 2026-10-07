@@ -36,7 +36,7 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="tech-drawer"]',
         title: "Painel da visita",
         description:
-          "Deslize o painel para ver todo o conteúdo. Este exemplo é Tirar Medidas — há separador «Medições do Estore» e zona para fechar a visita.",
+          "Deslize o painel para ver todo o conteúdo. Este exemplo é Tirar Medidas — há separador «Medições» e zona para fechar a visita.",
         side: "bottom",
         align: "center",
         tourAction: "openDemoVisit",
@@ -46,7 +46,7 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="tech-drawer-header"]',
         title: "Cabeçalho da visita",
         description:
-          "Título, NSI, tipo de serviço e avisos (ex.: visita urgente). Use o X ou a barra no topo para fechar quando não estiver no guia.",
+          "Cliente, referência NSI e avisos (ex.: visita urgente). O tipo de serviço aparece mais abaixo em «Serviços nesta visita». Use o X ou a barra no topo para fechar quando não estiver no guia.",
         side: "bottom",
         drawerStep: true,
       },
@@ -54,7 +54,7 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="tech-drawer-client-card"]',
         title: "Cliente e morada",
         description:
-          "Confirme quem é o cliente, a morada e a hora antes de iniciar trabalho no local.",
+          "O nome do cliente está no topo. Aqui confirme morada, hora e telefones (toque no ícone para ligar) antes de iniciar trabalho no local.",
         side: "bottom",
         drawerStep: true,
       },
@@ -255,15 +255,25 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="tech-measurements-form"]',
         title: "Preencher medições",
         description:
-          "Por produto: tipo, material, RAL, activação; por janela: quantidade, largura e altura em mm. Carregamos valores de exemplo ao entrar.",
+          "Em 3 passos: 1) tipo de produto; 2) material e detalhes (só abre se faltar algo); 3) janelas — largura e altura em mm primeiro, depois divisão. Fixação e vão ficam em «Mais nesta janela».",
+        side: "bottom",
+        drawerStep: true,
+        prepareOnHighlight: "drawerTabMeasurements",
+      },
+      {
+        element: '[data-tour="tech-measurements-progress"]',
+        title: "Progresso",
+        description:
+          "Resumo no topo: produtos, janelas e quantas ainda faltam medidas (largura × altura).",
         side: "bottom",
         drawerStep: true,
         prepareOnHighlight: "drawerTabMeasurements",
       },
       {
         element: '[data-tour="tech-measurements-add-row"]',
-        title: "Linha por janela",
-        description: "Use «Adicionar Nova Medição (Linha)» quando há várias janelas no mesmo produto.",
+        title: "Janela por linha",
+        description:
+          "Use «Adicionar outra na mesma divisão» ou «Adicionar janela (linha)» quando há várias janelas no mesmo produto.",
         side: "bottom",
         drawerStep: true,
         prepareOnHighlight: "drawerTabMeasurements",
@@ -281,7 +291,7 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="tech-drawer-measurements-save-btn"]',
         title: "Guardar medições",
         description:
-          "Grava no relatório (CRM ou fila offline). A validação completa ocorre ao escolher «Concluído» na finalização.",
+          "Grava a ficha no escritório (Medições) e sincroniza com o CRM, ou entra na fila offline. A validação completa ocorre ao escolher «Concluído» na finalização.",
         side: "top",
         drawerStep: true,
         prepareOnHighlight: "drawerTabMeasurements",

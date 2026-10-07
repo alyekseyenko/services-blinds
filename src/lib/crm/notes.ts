@@ -1,5 +1,6 @@
 import "server-only";
-import { crmFetch } from './client';
+import { crmManualCreatedBy, type CrmManualActor } from "./actor";
+import { crmFetch, crmRestCreate } from "./client";
 import type { AppNote } from "./appTypes";
 
 export type { AppNote };
@@ -12,8 +13,9 @@ export async function createOpportunityNote(
   personId: string | null,
   title: string,
   bodyMarkdown: string,
-  clientRequestId?: string
-): Promise<any> {
+  clientRequestId?: string,
+  actor?: CrmManualActor
+): Promise<{ id: string; title?: string }> {
   const { noteBodyWithSyncMarker } = await import("./syncIdempotency");
   if (clientRequestId) {
     let existingNotes: AppNote[];
@@ -31,6 +33,41 @@ export async function createOpportunityNote(
   const bodyWithMarker = clientRequestId
     ? noteBodyWithSyncMarker(bodyMarkdown, clientRequestId)
     : bodyMarkdown;
+  const noteTitle = title || "Instrução";
+  const noteBody = { bodyV2: { markdown: bodyWithMarker } };
+
+  if (actor?.workspaceMemberId && actor.name) {
+    const createdBy = crmManualCreatedBy(actor);
+    const note = await crmRestCreate<{ id: string }>("notes", {
+      title: noteTitle,
+      ...noteBody,
+      createdBy,
+    });
+
+    if (note?.id) {
+      if (opportunityId) {
+        await crmRestCreate("noteTargets", {
+          noteId: note.id,
+          targetOpportunityId: opportunityId,
+          createdBy,
+        }).catch((err) =>
+          console.error("[createOpportunityNote] Failed to link note to Opportunity:", err)
+        );
+      }
+      if (personId) {
+        await crmRestCreate("noteTargets", {
+          noteId: note.id,
+          targetPersonId: personId,
+          createdBy,
+        }).catch((err) =>
+          console.error("[createOpportunityNote] Failed to link note to Person:", err)
+        );
+      }
+    }
+
+    return { id: note.id, title: noteTitle };
+  }
+
   const createNoteMutation = `
     mutation createN($data: NoteCreateInput!) {
       createNote(data: $data) {
@@ -48,35 +85,36 @@ export async function createOpportunityNote(
     }
   `;
 
-  // 1. Create the Note object
-  const result = await crmFetch<any>(createNoteMutation, {
+  const result = await crmFetch<{ createNote: { id: string; title?: string } }>(createNoteMutation, {
     data: {
-      title: title || "Instrução",
-      bodyV2: { markdown: bodyWithMarker }
-    }
+      title: noteTitle,
+      ...noteBody,
+    },
   });
 
   const note = result.createNote;
 
-  if (note && note.id) {
-    // 2. Link Note to Opportunity
+  if (note?.id) {
     if (opportunityId) {
       await crmFetch(createTargetMutation, {
         data: {
           noteId: note.id,
-          targetOpportunityId: opportunityId
-        }
-      }).catch(err => console.error("[createOpportunityNote] Failed to link note to Opportunity:", err));
+          targetOpportunityId: opportunityId,
+        },
+      }).catch((err) =>
+        console.error("[createOpportunityNote] Failed to link note to Opportunity:", err)
+      );
     }
 
-    // 3. Link Note to Person/Client
     if (personId) {
       await crmFetch(createTargetMutation, {
         data: {
           noteId: note.id,
-          targetPersonId: personId
-        }
-      }).catch(err => console.error("[createOpportunityNote] Failed to link note to Person:", err));
+          targetPersonId: personId,
+        },
+      }).catch((err) =>
+        console.error("[createOpportunityNote] Failed to link note to Person:", err)
+      );
     }
   }
 

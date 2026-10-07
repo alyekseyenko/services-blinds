@@ -7,11 +7,20 @@ import {
   type AppColorTheme,
   resolveInitialTheme,
 } from "@/lib/theme/colorTheme";
+import {
+  applyFieldContrast,
+  readAppliedFieldContrastFromDom,
+  type FieldContrastMode,
+  resolveInitialFieldContrast,
+} from "@/lib/theme/fieldContrast";
 
 type ThemeContextValue = {
   theme: AppColorTheme;
   setTheme: (theme: AppColorTheme) => void;
   toggleTheme: () => void;
+  fieldContrast: FieldContrastMode;
+  setFieldContrast: (mode: FieldContrastMode) => void;
+  toggleFieldContrast: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -25,6 +34,7 @@ type ThemeProviderProps = {
 export function ThemeProvider({ children, initialTheme = "light" }: ThemeProviderProps) {
   // Estado inicial fixo — o tema real aplica-se só após hidratação (evita #418 no html/body).
   const [theme, setThemeState] = useState<AppColorTheme>("light");
+  const [fieldContrast, setFieldContrastState] = useState<FieldContrastMode>("default");
 
   useEffect(() => {
     const fromCookie =
@@ -33,6 +43,11 @@ export function ThemeProvider({ children, initialTheme = "light" }: ThemeProvide
       readAppliedColorThemeFromDom() ?? fromCookie ?? resolveInitialTheme();
     setThemeState(initial);
     applyColorTheme(initial);
+
+    const initialContrast =
+      readAppliedFieldContrastFromDom() ?? resolveInitialFieldContrast();
+    setFieldContrastState(initialContrast);
+    applyFieldContrast(initialContrast);
   }, [initialTheme]);
 
   const setTheme = useCallback((next: AppColorTheme) => {
@@ -48,9 +63,29 @@ export function ThemeProvider({ children, initialTheme = "light" }: ThemeProvide
     });
   }, []);
 
+  const setFieldContrast = useCallback((mode: FieldContrastMode) => {
+    setFieldContrastState(mode);
+    applyFieldContrast(mode);
+  }, []);
+
+  const toggleFieldContrast = useCallback(() => {
+    setFieldContrastState((prev) => {
+      const next = prev === "high" ? "default" : "high";
+      applyFieldContrast(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ theme, setTheme, toggleTheme }),
-    [theme, setTheme, toggleTheme]
+    () => ({
+      theme,
+      setTheme,
+      toggleTheme,
+      fieldContrast,
+      setFieldContrast,
+      toggleFieldContrast,
+    }),
+    [theme, setTheme, toggleTheme, fieldContrast, setFieldContrast, toggleFieldContrast]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

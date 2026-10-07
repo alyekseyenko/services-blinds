@@ -37,6 +37,7 @@ export const E2E_COVERS_BY_CHECK_ID: Record<string, string[]> = {
   "twenty-auth-origin": ["system:twenty-rest"],
   "crm-circuit-breaker": ["system:twenty-graphql"],
   "redis-ping": ["system:redis"],
+  "measurements-db-ping": ["system:measurements-db"],
   "app-data-dir-writable": ["system:app-data-dir"],
   "outbox-drain-heartbeat": ["system:outbox-drain"],
   "outbox-queue-health": [],
@@ -49,6 +50,10 @@ export const E2E_COVERS_BY_CHECK_ID: Record<string, string[]> = {
   "location-store-roundtrip": ["system:location-store"],
   "field-sync-health": ["system:field-sync", "api:/api/sync-telemetry"],
   "admin-agenda-feed-api": ["api:/api/agenda/feed", "system:twenty-graphql"],
+  "admin-measurements-export-api": [
+    "api:/api/opportunities/[id]/measurements/export",
+    "system:measurements-db",
+  ],
   "public-cancel-token": ["system:public-portals"],
   "public-evaluation-token": ["system:public-portals"],
   "evaluation-link-api": ["system:public-portals", "api:/api/public-links/evaluation"],

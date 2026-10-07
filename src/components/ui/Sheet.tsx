@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBackToClose } from "@/hooks/useBackToClose";
@@ -20,6 +21,8 @@ interface SheetProps {
   flexBody?: boolean;
   priority?: "default" | "elevated";
   panelDataTour?: string;
+  /** Bottom sheet ocupa o ecrã inteiro (guias, menus longos). */
+  fullScreen?: boolean;
 }
 
 export function Sheet({
@@ -34,10 +37,16 @@ export function Sheet({
   flexBody = false,
   priority = "default",
   panelDataTour,
+  fullScreen = false,
 }: SheetProps) {
   const trapRef = useFocusTrap(open);
   const [panelEl, setPanelEl] = useState<HTMLElement | null>(null);
   const [handleEl, setHandleEl] = useState<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useBackToClose(open, onClose, `sheet-${title}`);
 
@@ -70,12 +79,18 @@ export function Sheet({
 
   const panelClass =
     side === "bottom"
-      ? "absolute inset-x-0 bottom-0 flex w-full max-h-[min(85dvh,720px)] flex-col rounded-t-2xl border-2 border-border-strong bg-card animate-in slide-in-from-bottom duration-200"
+      ? cn(
+          "absolute inset-x-0 bottom-0 flex w-full flex-col border-2 border-border-strong bg-card animate-in slide-in-from-bottom duration-200",
+          fullScreen
+            ? "top-0 max-h-none h-[100dvh] rounded-none border-x-0 border-b-0 safe-top"
+            : "max-h-[min(85dvh,720px)] rounded-t-2xl"
+        )
       : "absolute inset-y-0 right-0 flex h-full w-full max-w-md flex-col border-l-2 border-border-strong bg-card";
 
-  const overlayZ = priority === "elevated" ? "z-[1000000020]" : "z-[70]";
+  const overlayZ =
+    priority === "elevated" ? "z-[1000000020]" : "z-[210]";
 
-  return (
+  const sheetTree = (
     <div
       className={cn(
         "fixed inset-0",
@@ -119,7 +134,11 @@ export function Sheet({
               <h2 id="sheet-title" className="ds-title text-base tracking-tight text-foreground">
                 {title}
               </h2>
-              {description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{description}</p>}
+              {description && (
+                <p className="mt-1.5 text-xs font-semibold leading-relaxed text-muted-foreground">
+                  {description}
+                </p>
+              )}
             </div>
             <IconButton aria-label="Fechar painel" variant="ghost" size="sm" onClick={onClose}>
               <X className="h-5 w-5" />
@@ -137,4 +156,10 @@ export function Sheet({
       </div>
     </div>
   );
+
+  if (!mounted || typeof document === "undefined") {
+    return sheetTree;
+  }
+
+  return createPortal(sheetTree, document.body);
 }

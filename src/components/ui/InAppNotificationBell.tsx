@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
@@ -8,6 +8,10 @@ import { Bell, X } from "lucide-react";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import {
   IN_APP_NOTIFICATIONS_UPDATED_EVENT,
+  IN_APP_NOTIFICATION_ACTIVATE_EVENT,
+  IN_APP_NOTIFICATION_OPEN_PANEL_EVENT,
+  type InAppNotificationActivateDetail,
+  type InAppNotificationOpenPanelDetail,
   dispatchOpenTaskFromNotification,
   loadInAppNotifications,
   markAllInAppNotificationsRead,
@@ -132,38 +136,66 @@ export default function InAppNotificationBell({
     dismissPanel(false);
   };
 
-  const handleActivate = (n: InAppNotification) => {
-    markInAppNotificationRead(scope, n.id);
-    setItems(loadInAppNotifications(scope));
+  const handleActivate = useCallback(
+    (n: InAppNotification) => {
+      markInAppNotificationRead(scope, n.id);
+      setItems(loadInAppNotifications(scope));
 
-    runAfterOverlayDismiss(() => {
-      if (n.href) {
-        router.push(n.href);
-        return;
-      }
-      if (onInvestigate && (n.taskId || n.opportunityId)) {
-        onInvestigate(n);
-        return;
-      }
-      if (n.taskId && onOpenTaskOnMap) {
-        onOpenTaskOnMap(n);
-        return;
-      }
-      if (n.taskId) {
-        dispatchOpenTaskFromNotification({
-          taskId: n.taskId,
-          dueAtIso: n.dueAtIso,
-        });
-      }
-    });
-  };
+      runAfterOverlayDismiss(() => {
+        if (n.href) {
+          router.push(n.href);
+          return;
+        }
+        if (onInvestigate && (n.taskId || n.opportunityId)) {
+          onInvestigate(n);
+          return;
+        }
+        if (n.taskId && onOpenTaskOnMap) {
+          onOpenTaskOnMap(n);
+          return;
+        }
+        if (n.taskId) {
+          dispatchOpenTaskFromNotification({
+            taskId: n.taskId,
+            dueAtIso: n.dueAtIso,
+          });
+        }
+      });
+    },
+    [scope, router, onInvestigate, onOpenTaskOnMap]
+  );
+
+  useEffect(() => {
+    if (!scope) return;
+
+    const onActivateFromToast = (event: Event) => {
+      const detail = (event as CustomEvent<InAppNotificationActivateDetail>).detail;
+      if (!detail || detail.scope !== scope) return;
+      const n = loadInAppNotifications(scope).find((item) => item.id === detail.notificationId);
+      if (n) handleActivate(n);
+    };
+
+    const onOpenPanel = (event: Event) => {
+      const detail = (event as CustomEvent<InAppNotificationOpenPanelDetail>).detail;
+      if (!detail || detail.scope !== scope) return;
+      refresh();
+      setOpen(true);
+    };
+
+    window.addEventListener(IN_APP_NOTIFICATION_ACTIVATE_EVENT, onActivateFromToast);
+    window.addEventListener(IN_APP_NOTIFICATION_OPEN_PANEL_EVENT, onOpenPanel);
+    return () => {
+      window.removeEventListener(IN_APP_NOTIFICATION_ACTIVATE_EVENT, onActivateFromToast);
+      window.removeEventListener(IN_APP_NOTIFICATION_OPEN_PANEL_EVENT, onOpenPanel);
+    };
+  }, [scope, handleActivate]);
 
   const renderCard = (n: InAppNotification) => {
     if (n.notificationKind === "observability") {
       return (
         <ObservabilityNotificationCard
           notification={n}
-          spacious={useAdminSidebar}
+          spacious={useAdminSidebar || isTechScope}
           onActivate={() => handleActivate(n)}
         />
       );
@@ -171,7 +203,7 @@ export default function InAppNotificationBell({
     return (
       <AgendaVisitNotificationCard
         notification={n}
-        spacious={useAdminSidebar}
+        spacious={useAdminSidebar || isTechScope}
         actionLabel={actionLabel}
         onActivate={() => handleActivate(n)}
       />
@@ -312,7 +344,11 @@ export default function InAppNotificationBell({
                 <ul
                   className={cn(
                     "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain custom-scrollbar",
-                    useAdminSidebar ? "px-4 py-4 md:px-5 md:py-5" : "max-md:pb-1 md:max-h-[min(20rem,55vh)]"
+                    useAdminSidebar
+                      ? "px-4 py-4 md:px-5 md:py-5"
+                      : isTechScope
+                        ? "px-0 py-2 max-md:pb-2 md:max-h-[min(20rem,55vh)]"
+                        : "max-md:pb-1 md:max-h-[min(20rem,55vh)]"
                   )}
                 >
                   {dayGroups.map((group) => (

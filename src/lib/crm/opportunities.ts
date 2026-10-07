@@ -283,23 +283,47 @@ type CrmTaskNode = {
   bodyV2?: { markdown?: string | null } | null;
 };
 
-/** Escolhe a tarefa que define estado no mapa/histórico (terminais têm prioridade sobre reagendamentos). */
+/** Escolhe a tarefa que define estado no mapa/histórico (concluídos/incompletos têm prioridade; cancelados não bloqueiam reagendamentos). */
 export function pickRepresentativeTaskForOpportunity(
   tasks: CrmTaskNode[]
 ): CrmTaskNode | null {
   if (tasks.length === 0) return null;
 
-  const terminal = tasks.filter((t) => isTaskTerminal(t.status));
-  if (terminal.length > 0) {
+  const outcomeTerminal = tasks.filter(
+    (t) => isTaskCompleted(t.status) || isTaskIncomplete(t.status)
+  );
+  if (outcomeTerminal.length > 0) {
     const terminalRank = (status?: string) => {
       if (isTaskCompleted(status)) return 3;
       if (isTaskIncomplete(status)) return 2;
-      if (isTaskCancelled(status)) return 1;
       return 0;
     };
-    return [...terminal].sort((a, b) => {
+    return [...outcomeTerminal].sort((a, b) => {
       const rank = terminalRank(b.status) - terminalRank(a.status);
       if (rank !== 0) return rank;
+      const dueB = new Date(b.dueAt || 0).getTime();
+      const dueA = new Date(a.dueAt || 0).getTime();
+      return dueB - dueA;
+    })[0];
+  }
+
+  const openTasks = tasks.filter((t) => !isTaskTerminal(t.status));
+  if (openTasks.length > 0) {
+    const taskStatusPriority = (status: string) => {
+      const s = normalizeTaskStatus(status);
+      if (s === CRM_TASK_STATUS.AGENDADO) return 5;
+      if (s === CRM_TASK_STATUS.POR_AGENDAR) return 4;
+      if (s === CRM_TASK_STATUS.EM_CURSO) return 4;
+      return 1;
+    };
+    return [...openTasks].sort(
+      (a, b) => taskStatusPriority(b.status || "") - taskStatusPriority(a.status || "")
+    )[0];
+  }
+
+  const cancelledOnly = tasks.filter((t) => isTaskCancelled(t.status));
+  if (cancelledOnly.length > 0) {
+    return [...cancelledOnly].sort((a, b) => {
       const dueB = new Date(b.dueAt || 0).getTime();
       const dueA = new Date(a.dueAt || 0).getTime();
       return dueB - dueA;
@@ -409,11 +433,9 @@ function mapOpportunityNode(node: any) {
     scheduledAt:
       isTaskObsolete || !task
         ? null
-        : isTaskTerminal(task.status)
+        : isTaskBlockingSchedule(task.status)
           ? task.dueAt
-          : isTaskBlockingSchedule(task.status)
-            ? task.dueAt
-            : null,
+          : null,
     technician: isTaskObsolete ? "Não Atribuído" : task?.technicianName || "Não Atribuído",
     technicianId: isTaskObsolete ? null : task?.assigneeId,
     scheduledBy: isTaskObsolete ? undefined : task?.scheduledBy || undefined,
@@ -775,6 +797,11 @@ function parseMarkdownTable(markdown: string) {
 }
 
 export async function fetchPreparationList() {
+  const {
+    fetchLatestMeasurementLinesForOpportunities,
+    mergeCrmPrepWithMeasurementLines,
+  } = await import("@/lib/measurements/warehouseQueries");
+
   const query = `
     query getPrepList {
       opportunities(filter: { stage: { eq: "PREPARACAO" } }, orderBy: { createdAt: DescNullsLast }, first: 100) {
@@ -785,22 +812,6 @@ export async function fetchPreparationList() {
             nsi
             stage
             createdAt
-            notasImportantes { markdown }
-            servicoitem {
-              edges {
-                node {
-                  id
-                  produto
-                  largura
-                  altura
-                  quantidade
-                  cor
-                  localizacao
-                  preparado
-                  estadoDoArmazem
-                }
-              }
-            }
             pointOfContact {
               name {
                 firstName
@@ -813,7 +824,6 @@ export async function fetchPreparationList() {
                   task {
                     id
                     status
-                    bodyV2 { markdown }
                   }
                 }
               }
@@ -825,102 +835,25 @@ export async function fetchPreparationList() {
   `;
 
   const data = await crmFetch<{ opportunities: { edges: any[] } }>(query);
-  
-  return data.opportunities.edges.map(edge => {
+
+  const crmOpportunities = data.opportunities.edges.map((edge) => {
     const node = edge.node;
     const contact = node.pointOfContact;
-    const rawNotes = node.notasImportantes?.markdown || "";
-    let measurements = null;
-    
-    // 1. New: Check for structured items in the Twenty relation first
-    const structuredItems = node.servicoitem?.edges || [];
-    if (structuredItems.length > 0) {
-      const groups: any = {};
-      structuredItems.forEach((edge: any) => {
-        const item = edge.node;
-        const type = item.produto || "PRODUTO";
-        
-        // Extrair detalhes da string de localização para preencher os campos corretamente
-        const loc = item.localizacao || "";
-        const extract = (key: string) => {
-          const match = loc.match(new RegExp(`${key}: ([^|]+)`));
-          return match ? match[1].trim() : null;
-        };
-
-        const fixation = extract("Fixação");
-        const controls = extract("Comandos");
-        const material = extract("Mat");
-        const model = extract("Mod");
-        const activation = extract("Acion");
-        const observations = extract("Obs");
-        const local = extract("Local") || loc.split(' | ')[0];
-
-        if (!groups[type]) {
-          groups[type] = {
-            id: `twenty-${type}`,
-            type: type,
-            details: { 
-              ral: item.cor,
-              material: material,
-              model: model,
-              activation: activation,
-              observations: observations
-            },
-            measurements: []
-          };
-        }
-        groups[type].measurements.push({
-          id: item.id,
-          qty: item.quantidade,
-          width: item.largura,
-          height: item.altura,
-          notes: local,
-          fixation: fixation,
-          controls: controls,
-          isPrepared: item.preparado,
-          estadoDoArmazem: item.estadoDoArmazem && item.estadoDoArmazem.length > 0 ? item.estadoDoArmazem[0] : "EM_PREPARACAO"
-        });
-      });
-      measurements = { groups: Object.values(groups) };
-    }
-
-    // 2. Fallback: Try to find structured JSON measurements (Old way)
-    if (!measurements) {
-      let markdownSource = rawNotes;
-      if (!markdownSource.includes('[MEASUREMENTS]')) {
-        const taskWithData = node.taskTargets?.edges?.find((e: any) => e.node.task?.bodyV2?.markdown?.includes('[MEASUREMENTS]'));
-        if (taskWithData) markdownSource = taskWithData.node.task.bodyV2.markdown;
-      }
-
-      if (markdownSource.includes('[MEASUREMENTS]')) {
-        try {
-          const jsonPart = markdownSource.split('[MEASUREMENTS]')[1].split('\n')[0].trim();
-          measurements = JSON.parse(jsonPart);
-        } catch (e) {
-          try {
-            const regex = /\[MEASUREMENTS\](\{.*\})/;
-            const match = markdownSource.match(regex);
-            if (match) measurements = JSON.parse(match[1]);
-          } catch (innerE) {}
-        }
-      }
-    }
-
-    // 3. Last Fallback: Parse the human-readable Markdown table
-    if (!measurements && rawNotes.includes('|') && rawNotes.includes('###')) {
-      measurements = parseMarkdownTable(rawNotes);
-    }
-
     return {
       id: node.id,
-      twentyId: node.id,
-      title: node.name,
-      nsi: node.nsi || 'N/A',
+      name: node.name,
+      nsi: node.nsi || "N/A",
       createdAt: node.createdAt,
-      client: contact ? `${contact.name?.firstName || ''} ${contact.name?.lastName || ''}`.trim() : 'Cliente',
-      measurements: measurements,
-      rawNotes: rawNotes,
-      taskId: node.taskTargets?.edges?.[0]?.node?.task?.id
+      client: contact
+        ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim()
+        : "Cliente",
+      taskId: node.taskTargets?.edges?.[0]?.node?.task?.id as string | undefined,
     };
   });
+
+  const linesByOpp = await fetchLatestMeasurementLinesForOpportunities(
+    crmOpportunities.map((o) => o.id)
+  );
+
+  return mergeCrmPrepWithMeasurementLines(crmOpportunities, linesByOpp);
 }

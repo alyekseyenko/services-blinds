@@ -19,6 +19,22 @@ describe("pickRepresentativeTaskForOpportunity", () => {
     expect(picked?.id).toBe("done");
   });
 
+  it("prefere reagendamento ativo a tarefa cancelada", () => {
+    const picked = pickRepresentativeTaskForOpportunity([
+      {
+        id: "cancelled",
+        status: CRM_TASK_STATUS.CANCELADO,
+        dueAt: "2026-10-06T21:00:00.000Z",
+      },
+      {
+        id: "open",
+        status: CRM_TASK_STATUS.POR_AGENDAR,
+        dueAt: "2026-10-10T09:00:00.000Z",
+      },
+    ]);
+    expect(picked?.id).toBe("open");
+  });
+
   it("entre terminais escolhe a visita mais recente por dueAt", () => {
     const picked = pickRepresentativeTaskForOpportunity([
       {

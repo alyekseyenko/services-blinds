@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Navigation, X } from "lucide-react";
 import RouteSidebar from "@/components/admin/RouteSidebar";
 import AdminMapFiltersBar from "@/components/admin/AdminMapFiltersBar";
+import AdminMapServicesList from "@/components/admin/AdminMapServicesList";
+import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
 import { Sheet } from "@/components/ui/Sheet";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 import type { HqLocation } from "@/lib/hq";
@@ -145,6 +147,43 @@ export default function AdminMapView({
   onClearMapTextSearch,
   mapFocusOpportunityId = null,
 }: AdminMapViewProps) {
+  const [mapDisplayMode, setMapDisplayMode] = useState<AdminMapDisplayMode>("map");
+
+  useEffect(() => {
+    if (routeSelectionMode) setMapDisplayMode("map");
+  }, [routeSelectionMode]);
+
+  const filtersBarProps = {
+    mapTab,
+    setMapTab,
+    serviceTypeFilters,
+    onToggleServiceTypeFilter,
+    mapTechnicianFilter,
+    setMapTechnicianFilter,
+    mapTechnicianOptions,
+    historyOutcomes,
+    onToggleHistoryOutcome,
+    onClearServiceTypeFilters,
+    onClearHistoryOutcomes,
+    stallFilter,
+    setStallFilter,
+    cityFilter,
+    setCityFilter,
+    visibleCount: mapOpportunities.length,
+    loading,
+    zoneInsights,
+    withoutGpsCount,
+    onSyncAddresses,
+    isSyncing,
+    routeSelectionMode,
+    setRouteSelectionMode,
+    autoGenerateRouteForZone,
+    mapTextSearch,
+    onClearMapTextSearch,
+    mapDisplayMode,
+    setMapDisplayMode,
+  };
+
   const routeSidebarProps = {
     selectedForRoute,
     toggleSelectionForRoute,
@@ -202,92 +241,100 @@ export default function AdminMapView({
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        <div className="relative min-h-[50vh] flex-1 lg:min-h-0" data-tour="admin-map-canvas">
-          <MapComponent
-            tasks={mapOpportunities}
-            allOpportunities={allOpportunities}
-            onTaskSelect={onTaskSelect}
-            markerInteraction="popup"
-            onScheduleFromMap={onScheduleFromMap}
-            autoFitKey={autoFitKey}
-            routeSelectionMode={routeSelectionMode}
-            isTaskInRoute={(task) => selectedForRoute.some((s) => s.id === task.id)}
-            onToggleRouteFromMap={toggleSelectionForRoute}
-            showTechnicianColors={true}
-            highlightedIds={highlightedIds}
-            hqLocation={hqLocation}
-            optimizedRoute={optimizedRoute}
-            fuelPrice={fuelPrice}
-            fuelConsumption={fuelConsumption}
-            techniciansLocations={techniciansLocations}
-            onRouteUpdate={(data) => {
-              setRealRouteData(data);
-              setUnoptimizedTotalDistance(
-                data && savingRatio > 1 ? data.distanceKm * savingRatio : null
-              );
-            }}
-            onboardingMapTourId="admin"
-          />
+        <div
+          className="relative flex min-h-0 flex-1 flex-col border-2 border-border-strong lg:m-2 lg:rounded-2xl lg:overflow-hidden"
+          data-tour="admin-map-canvas"
+        >
+          {mapDisplayMode === "list" ? (
+            <div className="flex min-h-0 flex-1 flex-col bg-muted">
+              <div className="sticky top-0 z-30 shrink-0 border-b-2 border-border-strong bg-card shadow-sm">
+                <div className="p-3 lg:px-4">
+                  <AdminMapFiltersBar {...filtersBarProps} layout="inline" />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <AdminMapServicesList
+                  opportunities={mapOpportunities}
+                  mapTab={mapTab}
+                  loading={loading}
+                  onSelect={onTaskSelect}
+                  onSchedule={onScheduleFromMap}
+                />
+              </div>
+            </div>
+          ) : null}
 
-          <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-2 pointer-events-none">
-            <AdminMapFiltersBar
-              mapTab={mapTab}
-              setMapTab={setMapTab}
-              serviceTypeFilters={serviceTypeFilters}
-              onToggleServiceTypeFilter={onToggleServiceTypeFilter}
-              mapTechnicianFilter={mapTechnicianFilter}
-              setMapTechnicianFilter={setMapTechnicianFilter}
-              mapTechnicianOptions={mapTechnicianOptions}
-              historyOutcomes={historyOutcomes}
-              onToggleHistoryOutcome={onToggleHistoryOutcome}
-              onClearServiceTypeFilters={onClearServiceTypeFilters}
-              onClearHistoryOutcomes={onClearHistoryOutcomes}
-              stallFilter={stallFilter}
-              setStallFilter={setStallFilter}
-              cityFilter={cityFilter}
-              setCityFilter={setCityFilter}
-              visibleCount={mapOpportunities.length}
-              loading={loading}
-              zoneInsights={zoneInsights}
-              withoutGpsCount={withoutGpsCount}
-              onSyncAddresses={onSyncAddresses}
-              isSyncing={isSyncing}
+          <div
+            className={
+              mapDisplayMode === "list"
+                ? "pointer-events-none invisible absolute inset-0 -z-10 h-0 overflow-hidden opacity-0"
+                : "relative min-h-[50vh] flex-1 bg-background"
+            }
+            aria-hidden={mapDisplayMode === "list"}
+          >
+            <MapComponent
+              tasks={mapOpportunities}
+              allOpportunities={allOpportunities}
+              onTaskSelect={onTaskSelect}
+              markerInteraction="popup"
+              onScheduleFromMap={onScheduleFromMap}
+              autoFitKey={autoFitKey}
               routeSelectionMode={routeSelectionMode}
-              setRouteSelectionMode={setRouteSelectionMode}
-              autoGenerateRouteForZone={autoGenerateRouteForZone}
-              mapTextSearch={mapTextSearch}
-              onClearMapTextSearch={onClearMapTextSearch}
+              isTaskInRoute={(task) => selectedForRoute.some((s) => s.id === task.id)}
+              onToggleRouteFromMap={toggleSelectionForRoute}
+              showTechnicianColors={true}
+              highlightedIds={highlightedIds}
+              hqLocation={hqLocation}
+              optimizedRoute={optimizedRoute}
+              fuelPrice={fuelPrice}
+              fuelConsumption={fuelConsumption}
+              techniciansLocations={techniciansLocations}
+              onRouteUpdate={(data) => {
+                setRealRouteData(data);
+                setUnoptimizedTotalDistance(
+                  data && savingRatio > 1 ? data.distanceKm * savingRatio : null
+                );
+              }}
+              onboardingMapTourId="admin"
             />
 
-            {techniciansLocations.length > 0 && (
-              <div className="pointer-events-auto hidden items-center gap-2 rounded-2xl border border-primary/40 bg-ink/90 px-3 py-2 text-xs font-black uppercase tracking-wider text-ink-foreground shadow-xl backdrop-blur sm:flex">
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                <span className="text-neon">{techniciansLocations.length}</span>
-                <span>
-                  {techniciansLocations.length === 1
-                    ? "Técnico em campo"
-                    : "Técnicos em campo"}
-                </span>
-              </div>
-            )}
+            {mapDisplayMode === "map" ? (
+              <div className="pointer-events-none absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-2">
+                <AdminMapFiltersBar {...filtersBarProps} layout="overlay" />
 
-            {routeSelectionMode && (
-              <div
-                data-tour="admin-route-mode-banner"
-                className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-info-border bg-info-solid/95 px-3 py-2 text-xs font-black uppercase tracking-wider text-ink-foreground shadow-lg backdrop-blur"
-              >
-                <span>Modo de seleção</span>
-                <span className="rounded-lg bg-card/20 px-2 py-0.5">{selectedForRoute.length} paragens</span>
-                <button
-                  type="button"
-                  onClick={onExitRoutePlanning}
-                  aria-label="Sair do modo de seleção"
-                  className="ml-1 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-ink/40 hover:bg-ink/60"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
+                {techniciansLocations.length > 0 && (
+                  <div className="pointer-events-auto hidden items-center gap-2 rounded-2xl border border-primary/40 bg-ink/90 px-3 py-2 text-xs font-black uppercase tracking-wider text-ink-foreground shadow-xl backdrop-blur sm:flex">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    <span className="text-neon">{techniciansLocations.length}</span>
+                    <span>
+                      {techniciansLocations.length === 1
+                        ? "Técnico em campo"
+                        : "Técnicos em campo"}
+                    </span>
+                  </div>
+                )}
+
+                {routeSelectionMode && (
+                  <div
+                    data-tour="admin-route-mode-banner"
+                    className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-info-border bg-info-solid/95 px-3 py-2 text-xs font-black uppercase tracking-wider text-ink-foreground shadow-lg backdrop-blur"
+                  >
+                    <span>Modo de seleção</span>
+                    <span className="rounded-lg bg-card/20 px-2 py-0.5">
+                      {selectedForRoute.length} paragens
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onExitRoutePlanning}
+                      aria-label="Sair do modo de seleção"
+                      className="ml-1 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-ink/40 hover:bg-ink/60"
+                    >
+                      <X className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

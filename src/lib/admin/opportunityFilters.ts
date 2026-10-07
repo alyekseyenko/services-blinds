@@ -2,6 +2,7 @@ import {
   CRM_STAGES,
   STAGE_GROUPS,
   isRemediationStage,
+  isTaskBlockingSchedule,
   isTaskCompleted,
   normalizeString,
 } from "@/lib/crm/contract";
@@ -153,7 +154,7 @@ export function filterCalendarOpportunities(
   selectedTechnician: string
 ): Opportunity[] {
   let filtered = opportunities
-    .filter((opp) => opp.scheduledAt)
+    .filter((opp) => opp.scheduledAt && isTaskBlockingSchedule(opp.status))
     .map((opp) => ({
       ...opp,
       start: opp.scheduledAt as Date,

@@ -304,10 +304,17 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
       }
     `;
 
+    const { fetchCeoWarehouseItemStatsFromDb } = await import(
+      "@/lib/measurements/warehouseQueries"
+    );
+    const dbWarehouseStats = await fetchCeoWarehouseItemStatsFromDb();
+
     const [oppsRes, tasksRes, itemsRes] = await Promise.allSettled([
       fetchCeoOpportunityNodes(activeYear),
       fetchCeoTaskNodes(activeYear),
-      crmFetch<{ produtos: { edges: Array<{ node: any }> } }>(itemsQuery),
+      dbWarehouseStats
+        ? Promise.resolve(null)
+        : crmFetch<{ produtos: { edges: Array<{ node: any }> } }>(itemsQuery),
     ]);
 
     if (oppsRes.status === "rejected") {
@@ -324,7 +331,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
           : "Não foi possível carregar tarefas do CRM para o painel CEO."
       );
     }
-    if (itemsRes.status === "rejected") {
+    if (!dbWarehouseStats && itemsRes.status === "rejected") {
       throw new Error(
         itemsRes.reason instanceof Error
           ? itemsRes.reason.message
@@ -334,7 +341,10 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
 
     const filteredOpps = oppsRes.value;
     const allTaskNodes = tasksRes.value;
-    const itemNodes = itemsRes.value.produtos?.edges?.map((e) => e.node) || [];
+    const itemNodes =
+      dbWarehouseStats || itemsRes.status !== "fulfilled" || !itemsRes.value
+        ? []
+        : itemsRes.value.produtos?.edges?.map((e) => e.node) || [];
 
     // --- CÁLCULOS FINANCEIROS (RECEITA GANHA, FORECAST, VALOR PERDIDO, WIN RATE) ---
     let wonRevenue = 0;
@@ -778,15 +788,26 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
 
     // --- WAREHOUSE CALCULATIONS ---
     let preparedItems = 0;
-    itemNodes.forEach((item) => {
-      if (item.preparado === true || item.estadoDoArmazem === "PREPARADO") {
-        preparedItems += 1;
-      }
-    });
+    let totalItems = 0;
+    let pendingItems = 0;
+    let preparationRate = 0;
 
-    const totalItems = itemNodes.length;
-    const pendingItems = totalItems - preparedItems;
-    const preparationRate = totalItems > 0 ? Number(((preparedItems / totalItems) * 100).toFixed(1)) : 0;
+    if (dbWarehouseStats) {
+      preparedItems = dbWarehouseStats.preparedItems;
+      totalItems = dbWarehouseStats.totalItems;
+      pendingItems = dbWarehouseStats.pendingItems;
+      preparationRate = dbWarehouseStats.preparationRate;
+    } else {
+      itemNodes.forEach((item) => {
+        if (item.preparado === true || item.estadoDoArmazem === "PREPARADO") {
+          preparedItems += 1;
+        }
+      });
+      totalItems = itemNodes.length;
+      pendingItems = totalItems - preparedItems;
+      preparationRate =
+        totalItems > 0 ? Number(((preparedItems / totalItems) * 100).toFixed(1)) : 0;
+    }
 
     // --- SATISFACTION / NPS ---
     const averageRating = ratings.length > 0 

@@ -94,6 +94,22 @@ export const CRM_FIELDS = {
     location: 'localizacao',
     prepared: 'preparado',
     warehouseState: 'estadoDoArmazem',
+    /** Custom measurement fields (Twenty metadata — see docs/TWENTY_PRODUTO_MEDICOES_FIELDS.md) */
+    division: 'divisao',
+    fixation: 'fixacao',
+    controls: 'comandos',
+    material: 'material',
+    materialOther: 'materialOutro',
+    model: 'modelo',
+    ralColor: 'ralCor',
+    fabric: 'tecido',
+    reference: 'referencia',
+    activation: 'acionamento',
+    productObservations: 'observacoesProduto',
+    measurementGroupId: 'grupoMedicaoId',
+    price: 'preco',
+    /** URL para ficha de medições na app (Twenty LINKS field) */
+    appLink: 'linkAppTecnicos',
   },
   auth: {
     email: 'email',

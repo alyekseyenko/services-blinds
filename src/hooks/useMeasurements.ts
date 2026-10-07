@@ -3,8 +3,15 @@ import { ProductGroup, ProductType, Task } from "@/types";
 import { parseMeasurementsFromReport } from "@/lib/measurementsUtils";
 import { isOnboardingDemoEntity, ONBOARDING_DEMO_OPP_ID } from "@/lib/onboarding/demoMapPin";
 import { ONBOARDING_SEED_MEASUREMENTS_EVENT } from "@/lib/onboarding/demoMeasurementsSeed";
+import { hapticMeasurementCaptured } from "@/lib/haptics";
 import { isBrowserOnline } from "@/lib/networkOnline";
-import { getServiceItemsByOpportunityAction } from "@/actions/measurements-actions";
+import { getMeasurementsPayloadForOpportunityAction } from "@/actions/measurements-actions";
+import { measurementsPayloadToProductGroups } from "@/lib/measurementsUtils";
+import {
+  sanitizeGroupDetailsForType,
+  sanitizeGroupDetailsOnProductTypeChange,
+} from "@/lib/measurementProductDetails";
+import { emptyMeasurementRow, hydrateMeasurementRowFromLegacy } from "@/lib/measurements/rowPayload";
 
 const DEFAULT_GROUP = (): ProductGroup => ({
   id: Date.now(),
@@ -19,103 +26,21 @@ const DEFAULT_GROUP = (): ProductGroup => ({
     reference: "",
     observations: "",
   },
-  measurements: [{ qty: 1, width: "", height: "", fixation: "", controls: "", notes: "", price: "" }],
+  measurements: [emptyMeasurementRow()],
   isOpen: true,
 });
-
-function parseAndGroupServiceItems(items: Array<Record<string, unknown>>): ProductGroup[] {
-  const parseItemDeServico = (item: Record<string, unknown>) => {
-    const loc = String(item.localizacao || "");
-    const colorStr = String(item.cor || "");
-
-    const getField = (pattern: RegExp) => {
-      const match = loc.match(pattern);
-      return match ? match[1].trim() : "";
-    };
-    const notes = getField(/Local:\s*([^|]+)/) || getField(/Notas:\s*([^|]+)/);
-    const fixation = getField(/Fixação:\s*([^|]+)/);
-    const controls = getField(/Comandos:\s*([^|]+)/);
-    const material = getField(/Mat:\s*([^|]+)/);
-    const model = getField(/Mod:\s*([^|]+)/);
-    const activation = getField(/Acion:\s*([^|]+)/);
-    const observations = getField(/Obs:\s*([^|]+)/);
-
-    const getCorField = (pattern: RegExp) => {
-      const match = colorStr.match(pattern);
-      return match ? match[1].trim() : "";
-    };
-    const ral =
-      getCorField(/RAL\s*([^/]+)/) ||
-      (colorStr.includes("RAL") ? colorStr.split("RAL")[1].split("/")[0].trim() : "");
-    const fabric = getCorField(/Tec:\s*([^/]+)/);
-    const reference = getCorField(/Ref:\s*([^/]+)/);
-
-    return {
-      qty: Number(item.quantidade) || 1,
-      width: item.largura ? String(item.largura) : "",
-      height: item.altura ? String(item.altura) : "",
-      fixation,
-      controls,
-      notes,
-      price: "",
-      type: item.produto as ProductType,
-      material: material || "",
-      ral: ral || colorStr || "",
-      activation: activation || "",
-      model: model || "",
-      fabric: fabric || "",
-      reference: reference || "",
-      observations: observations || "",
-    };
-  };
-
-  const groupsMap: Record<string, ProductGroup> = {};
-
-  items.forEach((item) => {
-    const parsed = parseItemDeServico(item);
-    const key = `${parsed.type}_${parsed.material}_${parsed.ral}_${parsed.activation}_${parsed.model}_${parsed.fabric}_${parsed.reference}_${parsed.observations}`;
-
-    if (!groupsMap[key]) {
-      groupsMap[key] = {
-        id: Date.now() + Math.random(),
-        type: parsed.type,
-        details: {
-          material: parsed.material,
-          otherMaterial: "",
-          ral: parsed.ral,
-          activation: parsed.activation,
-          model: parsed.model,
-          fabric: parsed.fabric,
-          reference: parsed.reference,
-          observations: parsed.observations,
-        },
-        measurements: [],
-        isOpen: false,
-      };
-    }
-
-    groupsMap[key].measurements.push({
-      qty: parsed.qty,
-      width: parsed.width,
-      height: parsed.height,
-      fixation: parsed.fixation,
-      controls: parsed.controls,
-      notes: parsed.notes,
-      price: "",
-    });
-  });
-
-  const result = Object.values(groupsMap);
-  if (result.length > 0) {
-    result[0].isOpen = true;
-  }
-  return result;
-}
 
 export function useMeasurements(task?: Task, opportunityId?: string) {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([DEFAULT_GROUP()]);
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
   const userEditedRef = useRef(false);
+  const rowDimensionHapticRef = useRef(new Map<string, boolean>());
+
+  const isRowDimensionallyComplete = (row: { width: string; height: string }) => {
+    const w = Number.parseInt(String(row.width).trim(), 10);
+    const h = Number.parseInt(String(row.height).trim(), 10);
+    return Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0;
+  };
 
   useEffect(() => {
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -167,10 +92,10 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
 
       if (loadOppId && isBrowserOnline()) {
         try {
-          const res = await getServiceItemsByOpportunityAction(loadOppId, taskId);
+          const res = await getMeasurementsPayloadForOpportunityAction(loadOppId, taskId);
           if (cancelled) return;
-          if (res.success && res.data && res.data.length > 0) {
-            const mappedGroups = parseAndGroupServiceItems(res.data as Array<Record<string, unknown>>);
+          if (res.success && res.data?.groups?.length) {
+            const mappedGroups = measurementsPayloadToProductGroups(res.data);
             if (mappedGroups.length > 0) {
               setProductGroups(mappedGroups);
               return;
@@ -191,15 +116,17 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
               id: legacy.id ?? Date.now() + index,
               type: (legacy.type as ProductType) || "ESTORE_EXTERIOR",
               details: legacy.details ?? DEFAULT_GROUP().details,
-              measurements: g.measurements.map((m) => ({
-                qty: m.qty,
-                width: String(m.width ?? ""),
-                height: String(m.height ?? ""),
-                fixation: m.fixation ?? "",
-                controls: m.controls ?? "",
-                notes: m.notes ?? "",
-                price: "",
-              })),
+              measurements: g.measurements.map((m) =>
+                hydrateMeasurementRowFromLegacy({
+                  qty: m.qty,
+                  width: String(m.width ?? ""),
+                  height: String(m.height ?? ""),
+                  fixation: m.fixation ?? "",
+                  controls: m.controls ?? "",
+                  notes: m.notes ?? "",
+                  price: String((m as { price?: string | number }).price ?? ""),
+                })
+              ),
               isOpen: false,
             };
           })
@@ -291,7 +218,17 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
 
   const updateGroupType = (groupId: number, type: ProductType) => {
     markAsDirty();
-    setProductGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, type } : g)));
+    setProductGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              type,
+              details: sanitizeGroupDetailsOnProductTypeChange(type, g.type, g.details),
+            }
+          : g
+      )
+    );
   };
 
   const updateGroupDetails = (groupId: number, field: string, value: string) => {
@@ -308,7 +245,16 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
     setProductGroups((prev) =>
       prev.map((g) =>
         g.id === groupId
-          ? { ...g, measurements: [...g.measurements, { ...JSON.parse(JSON.stringify(row)) }] }
+          ? {
+              ...g,
+              measurements: [
+                ...g.measurements,
+                {
+                  ...(JSON.parse(JSON.stringify(row)) as typeof row),
+                  lineCollapsed: "",
+                },
+              ],
+            }
           : g
       )
     );
@@ -317,17 +263,25 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
   const addRow = (groupId: number) => {
     markAsDirty();
     setProductGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const last = g.measurements[g.measurements.length - 1];
+        const newRow = last
           ? {
-              ...g,
-              measurements: [
-                ...g.measurements,
-                { qty: 1, width: "", height: "", fixation: "", controls: "", notes: "", price: "" },
-              ],
+              ...(JSON.parse(JSON.stringify(last)) as typeof last),
+              qty: 1,
+              width: "",
+              height: "",
+              openingWidth: "",
+              openingHeight: "",
+              lineCollapsed: "",
             }
-          : g
-      )
+          : emptyMeasurementRow();
+        return {
+          ...g,
+          measurements: [...g.measurements, newRow],
+        };
+      })
     );
   };
 
@@ -351,6 +305,16 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
         const newMeasures = g.measurements.map((row, i) =>
           i === rowIndex ? { ...row, [field]: value } : row
         );
+        if (field === "width" || field === "height") {
+          const key = `${groupId}:${rowIndex}`;
+          const row = newMeasures[rowIndex];
+          const complete = row ? isRowDimensionallyComplete(row) : false;
+          const wasComplete = rowDimensionHapticRef.current.get(key) ?? false;
+          if (complete && !wasComplete) {
+            hapticMeasurementCaptured();
+          }
+          rowDimensionHapticRef.current.set(key, complete);
+        }
         return { ...g, measurements: newMeasures };
       })
     );

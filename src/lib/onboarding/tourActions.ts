@@ -11,6 +11,7 @@ export type OnboardingTourAction =
   | "showTechViewList"
   | "showTechViewCalendar"
   | "showTechViewHistory"
+  | "showAdminViewHome"
   | "showAdminViewMap"
   | "showAdminViewCalendar"
   | "showAdminViewHistory"
@@ -58,6 +59,7 @@ const TECH_VIEW_ACTIONS = new Set<OnboardingTourAction>([
 ]);
 
 const ADMIN_VIEW_ACTIONS = new Set<OnboardingTourAction>([
+  "showAdminViewHome",
   "showAdminViewMap",
   "showAdminViewCalendar",
   "showAdminViewHistory",

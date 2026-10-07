@@ -225,16 +225,18 @@ input, textarea, select {
   }
 }
 
-/* Google Maps InfoWindow — alinhado ao design system */
+/* Google Maps InfoWindow — brutalista (borda forte, sem sombra soft) */
 .gm-style .gm-style-iw-c {
   padding: 0 !important;
-  border-radius: 1.25rem !important;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12) !important;
+  border-radius: 1rem !important;
+  border: 2px solid var(--border-strong) !important;
+  box-shadow: none !important;
   background: var(--card) !important;
 }
 
-.dark .gm-style .gm-style-iw-c {
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45) !important;
+.gm-style .gm-style-iw-tc::after {
+  background: var(--card) !important;
+  box-shadow: none !important;
 }
 
 .gm-style .gm-style-iw-d {
@@ -331,8 +333,8 @@ input, textarea, select {
 /* Admin agenda — calendário mais compacto no desktop */
 @media (min-width: 1024px) {
   .admin-calendar-shell .admin-calendar-rbc {
-    height: min(62dvh, 580px) !important;
-    max-height: 580px;
+    height: min(56dvh, 520px) !important;
+    max-height: 520px;
   }
 
   .admin-calendar-shell .rbc-toolbar {
@@ -367,11 +369,11 @@ input, textarea, select {
   }
 
   .admin-calendar-shell .rbc-timeslot-group {
-    min-height: 2.25rem;
+    min-height: 1.85rem;
   }
 
   .admin-calendar-shell .rbc-month-row {
-    min-height: 3.25rem;
+    min-height: 2.75rem;
   }
 
   .admin-calendar-shell .rbc-event {
@@ -555,13 +557,37 @@ html[data-onboarding-tour] .driver-active-element[data-tour="tech-map-canvas"],
 html[data-onboarding-tour] .driver-active-element[data-tour="tech-calendar"],
 html[data-onboarding-tour] .driver-active-element[data-tour="tech-history"],
 html[data-onboarding-tour] .driver-active-element[data-tour="tech-list-agenda"],
-html[data-onboarding-tour] .driver-active-element[data-tour="tech-map-day"],
-html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer"] {
+html[data-onboarding-tour] .driver-active-element[data-tour="tech-map-day"] {
   background-color: transparent !important;
   background: transparent !important;
   box-shadow:
     inset 0 0 0 3px #a3e635,
     0 0 0 5px rgba(163, 230, 53, 0.28) !important;
+}
+
+/* Painel da visita — fundo sólido para ler cliente / procedimento com o popover em baixo */
+html[data-onboarding-tour] .driver-active-element[data-tour="tech-drawer"],
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] {
+  background-color: var(--card) !important;
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  box-shadow:
+    inset 0 0 0 3px #a3e635,
+    0 0 0 5px rgba(163, 230, 53, 0.28) !important;
+}
+
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] * {
+  color: inherit;
+}
+
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] .text-muted-foreground,
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] .text-primary-ink {
+  color: var(--muted-foreground) !important;
+}
+
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] .text-foreground,
+html[data-onboarding-tour] .driver-active-element[data-tour^="tech-drawer-"] .font-black {
+  color: var(--foreground) !important;
 }
 
 html[data-onboarding-tour] .driver-active-element[data-tour="tech-bottom-nav"],
@@ -625,10 +651,12 @@ html[data-onboarding-tour] .driver-active-element-parent {
 
 html[data-onboarding-tour="admin"] .admin-header-mobile-sheet {
   z-index: 1000000004 !important;
+  pointer-events: auto !important;
 }
 
 html[data-onboarding-tour="admin"] .admin-header-desktop-menu {
   z-index: 1000000004 !important;
+  pointer-events: auto !important;
 }
 
 html[data-onboarding-tour="admin"] .gm-style-iw-c,
@@ -737,29 +765,52 @@ html[data-onboarding-tour] [data-tour="app-tour-modal"].driver-active-element {
   pointer-events: none !important;
 }
 
+@media (max-width: 1023px) {
+  html[data-onboarding-tour] .driver-popover.app-tour-popover {
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    padding: 1.125rem 1.25rem;
+    background: var(--card) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 2px solid var(--border-strong) !important;
+  }
+
+  html[data-onboarding-tour] .driver-popover.app-tour-popover .driver-popover-description {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--foreground) !important;
+  }
+
+  html[data-onboarding-tour] .driver-popover.app-tour-popover .driver-popover-footer {
+    background: var(--card) !important;
+  }
+}
+
 @media (min-width: 1024px) {
   html[data-onboarding-tour="technician"] [data-tour="tech-drawer"] {
     max-height: min(92dvh, 820px) !important;
   }
 
   html[data-onboarding-tour="admin"] [data-tour="admin-opp-drawer"] {
-    max-height: min(92dvh, 820px) !important;
-  }
-
-  .driver-popover.app-tour-popover {
-    max-width: min(24rem, calc(100vw - 2rem));
+    max-height: none !important;
+    height: 100% !important;
   }
 }
 
 .driver-popover.app-tour-popover {
-  all: revert-layer;
   box-sizing: border-box;
   position: fixed !important;
   display: block !important;
   z-index: 1000000010 !important;
   min-width: min(20rem, calc(100vw - 2rem));
   max-width: min(22rem, calc(100vw - 2rem));
-  background: rgba(255, 255, 255, 0.99);
+  background: var(--card) !important;
   border: 2px solid var(--primary);
   border-radius: 1.25rem;
   box-shadow:
@@ -767,10 +818,12 @@ html[data-onboarding-tour] [data-tour="app-tour-modal"].driver-active-element {
     0 28px 72px rgba(2, 6, 23, 0.55);
   color: var(--foreground);
   padding: 1rem 1.125rem;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .dark .driver-popover.app-tour-popover {
-  background: rgba(12, 16, 24, 0.98);
+  background: var(--card) !important;
   border-color: var(--primary);
   box-shadow:
     0 0 0 4px rgba(163, 230, 53, 0.18),

@@ -61,6 +61,13 @@ export function useOnboardingAdminTour({
         case "closeAdminDemoOpportunity":
           setSelectedOpportunity(null);
           break;
+        case "showAdminViewHome":
+          dispatchOnboardingTourAction("closeAdminMobileMenu");
+          flushSync(() => {
+            setSelectedOpportunity(null);
+            setView("home");
+          });
+          break;
         case "showAdminViewMap":
           dispatchOnboardingTourAction("closeAdminMobileMenu");
           flushSync(() => {

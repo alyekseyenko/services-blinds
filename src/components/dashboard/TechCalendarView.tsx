@@ -5,6 +5,7 @@ import { Calendar, dateFnsLocalizer, type View } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { pt } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import { calendarMessagesPt } from "@/lib/admin/calendarMessages";
 import { getServiceTypeColor } from "@/lib/techniciansConfig";
 
 const BigCalendar = Calendar as React.ComponentType<Record<string, unknown>>;
@@ -46,6 +47,7 @@ export default function TechCalendarView({
     >
       <div className="tech-calendar-shell mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col rounded-2xl border-2 border-border-strong bg-card p-4 md:p-6">
         <BigCalendar
+          culture="pt-PT"
           localizer={localizer}
           events={tasks}
           startAccessor="dueDate"
@@ -62,15 +64,7 @@ export default function TechCalendarView({
           view={calendarView}
           onNavigate={onNavigate}
           onView={onViewChange}
-          messages={{
-            next: "Próximo",
-            previous: "Anterior",
-            today: "Hoje",
-            month: "Mês",
-            week: "Semana",
-            day: "Dia",
-            agenda: "Agenda",
-          }}
+          messages={calendarMessagesPt}
           eventPropGetter={(event: { serviceType?: unknown; stage?: unknown }) => {
             const raw = event.serviceType ?? event.stage;
             const tipo = Array.isArray(raw) ? raw[0] : raw;

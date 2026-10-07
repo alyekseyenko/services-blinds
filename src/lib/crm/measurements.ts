@@ -1,134 +1,280 @@
 import "server-only";
-import { crmFetch } from './client';
-import { createServiceItems } from './items';
-import { MeasurementsPayload } from '@/lib/schemas';
-import { CRM_STAGES } from './contract';
+import { crmFetch } from "./client";
+import { fetchServiceItemsByOpportunity } from "./items";
+import { MeasurementsPayload, MeasurementsPayloadSchema } from "@/lib/schemas";
+import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
+import { measurementSheetHasData } from "@/lib/schemas/measurementSheet";
+import { buildMeasurementSheetFromPayload } from "@/lib/measurementSheetBuilder";
+import {
+  parseAndGroupServiceItems,
+  parseMeasurementsFromReport,
+  productGroupsToMeasurementsPayload,
+} from "@/lib/measurementsUtils";
+import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
+import { CRM_ADDRESS_GRAPHQL_FIELDS } from "./contract";
+import { isMeasurementsDbConfigured } from "@/lib/measurements/db/client";
+import { processMeasurementsOutboxBatch } from "@/lib/measurements/processOutbox";
+import {
+  getLatestMeasurementsPayload,
+  getLatestSheetByOpportunity,
+  saveSubmittedSheet,
+} from "@/lib/measurements/repo";
 
-export async function saveMeasurements(
-  taskId: string,
-  opportunityId: string,
-  measurements: MeasurementsPayload | any,
-  clientRequestId?: string
+function formatServiceAddress(morada?: {
+  addressStreet1?: string | null;
+  addressStreet2?: string | null;
+  addressCity?: string | null;
+  addressPostcode?: string | null;
+} | null): string {
+  if (!morada) return "N/A";
+  return (
+    [
+      morada.addressStreet1,
+      morada.addressStreet2,
+      morada.addressCity,
+      morada.addressPostcode,
+    ]
+      .filter((p) => Boolean(p?.trim()))
+      .join(", ") || "N/A"
+  );
+}
+
+function pickPrimaryTask(
+  taskTargets?: { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
 ) {
-  try {
-    // 1. Obter dados atuais da oportunidade
-    const query = `
-      query getOpp($id: UUID!) {
-        opportunities(filter: { id: { eq: $id } }) {
-          edges {
-            node {
-              id
-              notasImportantes {
-                markdown
-              }
-              updatedAt
-              pointOfContact {
-                name {
-                  firstName
+  const tasks =
+    taskTargets?.edges
+      ?.map((e) => e.node?.task)
+      .filter((t): t is Record<string, unknown> => Boolean(t)) ?? [];
+  if (tasks.length === 0) return null;
+  return tasks[0];
+}
+
+async function resolveMeasurementsPayloadFromCrm(
+  opportunityId: string,
+  notesMarkdown: string
+): Promise<MeasurementsPayload | null> {
+  const fromNotes = parseMeasurementsFromReport(notesMarkdown);
+  if (fromNotes?.groups?.length) {
+    const validated = MeasurementsPayloadSchema.safeParse(fromNotes);
+    if (validated.success && validated.data.groups.some((g) => g.measurements.length > 0)) {
+      return validated.data;
+    }
+  }
+
+  const items = await fetchServiceItemsByOpportunity(opportunityId);
+  if (!items.length) return null;
+  const groups = parseAndGroupServiceItems(items as Array<Record<string, unknown>>);
+  if (!groups.length) return null;
+  return productGroupsToMeasurementsPayload(groups);
+}
+
+type OppMeasurementContext = {
+  clientName: string;
+  nsi?: string;
+  address: string;
+  serviceLabel?: string;
+  technicianName?: string;
+  visitDateIso?: string;
+};
+
+async function fetchOpportunityMeasurementContext(
+  opportunityId: string
+): Promise<OppMeasurementContext | null> {
+  const query = `
+    query getOppMeasurements($id: UUID!) {
+      opportunities(filter: { id: { eq: $id } }) {
+        edges {
+          node {
+            id
+            name
+            nsi
+            stage
+            moradaDeServico {
+              ${CRM_ADDRESS_GRAPHQL_FIELDS}
+            }
+            pointOfContact {
+              name { firstName lastName }
+            }
+            taskTargets {
+              edges {
+                node {
+                  task {
+                    dueAt
+                    technicianName
+                    title
+                  }
                 }
               }
             }
           }
         }
       }
-    `;
-    const currentOppData = await crmFetch<any>(query, { id: opportunityId });
-    const oppNode = currentOppData?.opportunities?.edges?.[0]?.node;
-    const existingNotes = oppNode?.notasImportantes?.markdown || "";
-    const lastUpdate = oppNode?.updatedAt;
-
-    const { hasMeasurementSyncMarker, prependMeasurementSyncMarker } = await import(
-      "./syncIdempotency"
-    );
-    if (clientRequestId && hasMeasurementSyncMarker(existingNotes, clientRequestId)) {
-      return { success: true, idempotent: true };
     }
-    
-    // Log para auditoria de concorrência
+  `;
 
-    // 2. Criar relatório em Markdown para as Notas Importantes
-    let markdownSummary = `### [MEASUREMENTS] ${new Date().toLocaleString('pt-PT')}\n\n`;
-    measurements.groups.forEach((g: any) => {
-      markdownSummary += `#### ${g.type}\n`;
-      markdownSummary += `- Material: ${g.details.material || g.details.model}\n`;
-      if (g.details.ral) markdownSummary += `- RAL: ${g.details.ral}\n`;
-      if (g.details.fabric) markdownSummary += `- Tecido: ${g.details.fabric}\n`;
-      
-      markdownSummary += `\n| Qtd | Largura | Altura | Notas |\n|---|---|---|---|\n`;
-      g.measurements.forEach((m: any) => {
-        markdownSummary += `| ${m.qty} | ${m.width}mm | ${m.height}mm | ${m.notes || ''} |\n`;
-      });
-      markdownSummary += `\n---\n`;
+  const data = await crmFetch<{
+    opportunities?: { edges?: Array<{ node?: Record<string, unknown> }> };
+  }>(query, { id: opportunityId });
+
+  const node = data?.opportunities?.edges?.[0]?.node;
+  if (!node) return null;
+
+  const contact = node.pointOfContact as {
+    name?: { firstName?: string; lastName?: string };
+  } | undefined;
+  const clientName =
+    [contact?.name?.firstName, contact?.name?.lastName].filter(Boolean).join(" ").trim() ||
+    String(node.name || "Cliente");
+
+  const task = pickPrimaryTask(
+    node.taskTargets as { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
+  );
+
+  return {
+    clientName,
+    nsi: node.nsi ? String(node.nsi) : undefined,
+    address: formatServiceAddress(
+      node.moradaDeServico as {
+        addressStreet1?: string;
+        addressCity?: string;
+        addressPostcode?: string;
+        addressStreet2?: string;
+      }
+    ),
+    serviceLabel: formatVisitServiceTypeLabel({
+      stage: String(node.stage || ""),
+      visitTitle: task?.title ? String(task.title) : String(node.name || ""),
+    }),
+    technicianName: task?.technicianName ? String(task.technicianName) : undefined,
+    visitDateIso: task?.dueAt ? String(task.dueAt) : undefined,
+  };
+}
+
+export async function fetchMeasurementsPayloadForOpportunity(
+  opportunityId: string
+): Promise<MeasurementsPayload | null> {
+  if (isMeasurementsDbConfigured()) {
+    const fromDb = await getLatestMeasurementsPayload(opportunityId);
+    if (fromDb?.groups?.length) {
+      return fromDb;
+    }
+  }
+
+  const query = `
+    query getOppNotes($id: UUID!) {
+      opportunities(filter: { id: { eq: $id } }) {
+        edges { node { notasImportantes { markdown } } }
+      }
+    }
+  `;
+  const data = await crmFetch<{
+    opportunities?: { edges?: Array<{ node?: { notasImportantes?: { markdown?: string } } }> };
+  }>(query, { id: opportunityId });
+  const notes =
+    data?.opportunities?.edges?.[0]?.node?.notasImportantes?.markdown || "";
+  return resolveMeasurementsPayloadFromCrm(opportunityId, notes);
+}
+
+export async function fetchMeasurementSheet(opportunityId: string): Promise<MeasurementSheet | null> {
+  if (isMeasurementsDbConfigured()) {
+    const fromDb = await getLatestSheetByOpportunity(opportunityId);
+    if (fromDb && measurementSheetHasData(fromDb)) {
+      return fromDb;
+    }
+  }
+
+  const ctx = await fetchOpportunityMeasurementContext(opportunityId);
+  if (!ctx) return null;
+
+  const query = `
+    query getOppNotes($id: UUID!) {
+      opportunities(filter: { id: { eq: $id } }) {
+        edges { node { notasImportantes { markdown } } }
+      }
+    }
+  `;
+  const data = await crmFetch<{
+    opportunities?: { edges?: Array<{ node?: { notasImportantes?: { markdown?: string } } }> };
+  }>(query, { id: opportunityId });
+  const notes =
+    data?.opportunities?.edges?.[0]?.node?.notasImportantes?.markdown || "";
+
+  const payload = await resolveMeasurementsPayloadFromCrm(opportunityId, notes);
+  if (!payload) return null;
+
+  const sheet = buildMeasurementSheetFromPayload(
+    {
+      opportunityId,
+      clientName: ctx.clientName,
+      nsi: ctx.nsi,
+      address: ctx.address,
+      serviceLabel: ctx.serviceLabel,
+      technicianName: ctx.technicianName,
+      visitDateIso: ctx.visitDateIso,
+    },
+    payload
+  );
+
+  return measurementSheetHasData(sheet) ? sheet : null;
+}
+
+export async function saveMeasurements(
+  taskId: string,
+  opportunityId: string,
+  measurements: MeasurementsPayload,
+  clientRequestId?: string,
+  technicianMeta?: { technicianName?: string; technicianUserId?: string }
+) {
+  try {
+    const parsed = MeasurementsPayloadSchema.safeParse(measurements);
+    if (!parsed.success) {
+      return { success: false, error: "Dados de medidas inválidos." };
+    }
+
+    if (!isMeasurementsDbConfigured()) {
+      return {
+        success: false,
+        error: "Base de dados de medições indisponível. Contacte o suporte.",
+      };
+    }
+
+    const ctx = await fetchOpportunityMeasurementContext(opportunityId);
+    if (!ctx) {
+      return { success: false, error: "Oportunidade não encontrada no CRM." };
+    }
+
+    const saveResult = await saveSubmittedSheet({
+      opportunityId,
+      taskId,
+      clientRequestId,
+      technicianName: technicianMeta?.technicianName ?? ctx.technicianName,
+      technicianUserId: technicianMeta?.technicianUserId,
+      clientName: ctx.clientName,
+      nsi: ctx.nsi,
+      address: ctx.address,
+      serviceLabel: ctx.serviceLabel,
+      visitAt: ctx.visitDateIso ? new Date(ctx.visitDateIso) : undefined,
+      payload: parsed.data,
     });
 
-    markdownSummary += `\n*Relatório gerado automaticamente pela App Técnica ${process.env.NEXT_PUBLIC_APP_NAME || "Blinds Technical Services"}.*`;
-    const cleanedExistingNotes = existingNotes.replace(/<!--\s*\[JSON_MEASUREMENTS\].*?\s*-->/g, '').trim();
-    let finalNotes = `<!-- [JSON_MEASUREMENTS]${JSON.stringify(measurements)} -->\n${markdownSummary}\n\n${cleanedExistingNotes}`;
-    if (clientRequestId) {
-      finalNotes = prependMeasurementSyncMarker(finalNotes, clientRequestId);
+    if (!saveResult.success) {
+      return { success: false, error: saveResult.error };
     }
 
-    // Executar atualizações
-    await crmFetch(`
-      mutation updateOppNotes($id: UUID!, $notes: RichTextUpdateInput!) {
-        updateOpportunity(id: $id, data: { notasImportantes: $notes }) { id }
-      }
-    `, { id: opportunityId, notes: { markdown: finalNotes } });
+    void processMeasurementsOutboxBatch().catch((err) => {
+      console.warn("[saveMeasurements] outbox:", err);
+    });
 
-    // 3. Criar itens estruturados (Escrita Dupla)
-    if (opportunityId) {
-      const itemsToCreate = measurements.groups.flatMap((g: any) => 
-        g.measurements.map((m: any) => {
-          const technicalDetails = [
-            m.notes ? `Local: ${m.notes}` : null,
-            m.fixation ? `Fixação: ${m.fixation}` : null,
-            m.controls ? `Comandos: ${m.controls}` : null,
-            g.details.material ? `Mat: ${g.details.material}` : null,
-            g.details.model ? `Mod: ${g.details.model}` : null,
-            g.details.activation ? `Acion: ${g.details.activation}` : null,
-            g.details.observations ? `Obs: ${g.details.observations}` : null
-          ].filter(Boolean).join(' | ');
-
-          const finish = [
-            g.details.ral ? `RAL ${g.details.ral}` : null,
-            g.details.fabric ? `Tec: ${g.details.fabric}` : null,
-            g.details.reference ? `Ref: ${g.details.reference}` : null
-          ].filter(Boolean).join(' / ');
-
-          return {
-            opportunityId,
-            product: g.type,
-            width: parseInt(m.width.toString()) || 0,
-            height: parseInt(m.height.toString()) || 0,
-            qty: parseInt(m.qty.toString()) || 0,
-            color: finish || 'Padrão',
-            location: technicalDetails || 'Geral',
-            isPrepared: false
-          };
-        })
-      );
-      
-      await createServiceItems(itemsToCreate);
-
-      // Trigger n8n Report (Opcional/Silencioso)
-      try {
-        const { serverTriggerMeasurementsReport } = await import('../notificationAction');
-        await serverTriggerMeasurementsReport({
-          taskId,
-          opportunityId,
-          measurements,
-          clientName: oppNode?.pointOfContact?.name?.firstName || 'Cliente',
-          address: '',
-          nsi: 'N/A'
-        });
-      } catch (e: any) {
-        console.warn('Notification failed:', e.message);
-      }
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error saving measurements:', error);
-    return { success: false, error: error.message };
+    return {
+      success: true,
+      idempotent: saveResult.idempotent,
+      sheetId: saveResult.sheetId,
+      version: saveResult.version,
+    };
+  } catch (error: unknown) {
+    console.error("Error saving measurements:", error);
+    const message = error instanceof Error ? error.message : "Erro ao guardar medições.";
+    return { success: false, error: message };
   }
 }

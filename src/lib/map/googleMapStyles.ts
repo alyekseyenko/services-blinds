@@ -1,14 +1,13 @@
 /**
- * Operations map: muted chrome + minimal labels so service pins stay focal.
- * Roads stay visible for routing context; POI/transit/neighbourhood clutter hidden.
+ * Operations map — fundo alinhado a `--background`, estradas chapadas, POI ocultos.
+ * Partilhado por admin e técnico.
  */
 export const OPERATIONS_MAP_STYLES = [
-  { elementType: "geometry", stylers: [{ color: "#e8eaef" }] },
+  { elementType: "geometry", stylers: [{ color: "#ebebe8" }] },
   { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#f1f5f9" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#525252" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ebebe8" }] },
 
-  /* Administrative: keep city/town names, drop fine-grained labels */
   {
     featureType: "administrative.neighborhood",
     elementType: "labels",
@@ -22,7 +21,7 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "administrative.locality",
     elementType: "labels.text.fill",
-    stylers: [{ color: "#64748b" }],
+    stylers: [{ color: "#525252" }],
   },
   {
     featureType: "administrative.province",
@@ -37,21 +36,20 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#cbd5e1" }, { visibility: "simplified" }],
+    stylers: [{ color: "#d4d4cf" }, { visibility: "simplified" }],
   },
 
   {
     featureType: "landscape",
     elementType: "geometry",
-    stylers: [{ color: "#e2e6ed" }],
+    stylers: [{ color: "#e4e4e0" }],
   },
   {
     featureType: "landscape.man_made",
     elementType: "geometry",
-    stylers: [{ color: "#dfe3ea" }],
+    stylers: [{ color: "#e0e0dc" }],
   },
 
-  /* POI + transit: hidden (shops, hospitals, metro, etc.) */
   { featureType: "poi", stylers: [{ visibility: "off" }] },
   { featureType: "poi.business", stylers: [{ visibility: "off" }] },
   { featureType: "poi.medical", stylers: [{ visibility: "off" }] },
@@ -62,7 +60,6 @@ export const OPERATIONS_MAP_STYLES = [
   { featureType: "poi.park", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 
-  /* Roads: geometry on, most street names off */
   {
     featureType: "road",
     elementType: "geometry",
@@ -71,7 +68,7 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#c5ccd6" }],
+    stylers: [{ color: "#d4d4cf" }],
   },
   {
     featureType: "road",
@@ -81,27 +78,27 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#f8fafc" }],
+    stylers: [{ color: "#fafafa" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#b8c0cc" }],
+    stylers: [{ color: "#0a0a0a" }, { weight: 0.4 }],
   },
   {
     featureType: "road.highway",
     elementType: "labels.text.fill",
-    stylers: [{ color: "#64748b" }],
+    stylers: [{ color: "#525252" }],
   },
   {
     featureType: "road.highway",
     elementType: "labels.text.stroke",
-    stylers: [{ color: "#f1f5f9" }],
+    stylers: [{ color: "#ebebe8" }],
   },
   {
     featureType: "road.arterial",
     elementType: "geometry",
-    stylers: [{ color: "#f1f5f9" }],
+    stylers: [{ color: "#f5f5f2" }],
   },
   {
     featureType: "road.arterial",
@@ -117,7 +114,7 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#b8c5d4" }],
+    stylers: [{ color: "#c5ccd6" }],
   },
   {
     featureType: "water",

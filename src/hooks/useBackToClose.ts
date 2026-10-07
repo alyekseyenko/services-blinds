@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 
 /**
  * Maps Android back / browser back to closing an overlay without leaving the route.
@@ -9,8 +9,14 @@ export function useBackToClose(open: boolean, onClose: () => void, overlayKey?: 
   const onCloseRef = useRef(onClose);
   const pushedRef = useRef(false);
   const ignorePopRef = useRef(false);
+  const skipHistoryBackRef = useRef(false);
 
   onCloseRef.current = onClose;
+
+  const dismissForNavigation = useCallback(() => {
+    skipHistoryBackRef.current = true;
+    onCloseRef.current();
+  }, []);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -31,11 +37,14 @@ export function useBackToClose(open: boolean, onClose: () => void, overlayKey?: 
     window.addEventListener("popstate", onPop);
     return () => {
       window.removeEventListener("popstate", onPop);
-      if (pushedRef.current) {
+      if (pushedRef.current && !skipHistoryBackRef.current) {
         ignorePopRef.current = true;
         pushedRef.current = false;
         window.history.back();
       }
+      skipHistoryBackRef.current = false;
     };
   }, [open, key]);
+
+  return { dismissForNavigation };
 }

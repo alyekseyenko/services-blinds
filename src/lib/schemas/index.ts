@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { CRM_STAGES, CRM_TASK_STATUS } from "../crm/contract";
+import {
+  MeasurementGroupExtrasSchema,
+  MeasurementLineExtrasSchema,
+} from "../measurements/extendedFields";
 
 // --- Enums and Shared Types ---
 export const OpportunityStageEnum = z.enum([
@@ -50,23 +54,34 @@ export const ServiceItemSchema = z.object({
 // A group of service items (typically how the UI sends them)
 export const ServiceItemGroupSchema = z.object({
   type: z.string(),
-  details: z.object({
-    material: z.string().optional(),
-    ral: z.string().optional(),
-    activation: z.string().optional(),
-    model: z.string().optional(),
-    observations: z.string().optional()
-  }).optional(),
-  measurements: z.array(z.object({
-    id: z.string().optional(),
-    qty: z.union([z.string(), z.number()]).transform(val => Number(val)),
-    width: z.union([z.string(), z.number()]).transform(val => Number(val)),
-    height: z.union([z.string(), z.number()]).transform(val => Number(val)),
-    notes: z.string().optional(),
-    fixation: z.string().optional(),
-    controls: z.string().optional(),
-    isPrepared: z.boolean().optional()
-  }))
+  details: z
+    .object({
+      material: z.string().optional(),
+      otherMaterial: z.string().optional(),
+      ral: z.string().optional(),
+      activation: z.string().optional(),
+      model: z.string().optional(),
+      fabric: z.string().optional(),
+      reference: z.string().optional(),
+      observations: z.string().optional(),
+    })
+    .merge(MeasurementGroupExtrasSchema)
+    .optional(),
+  measurements: z.array(
+    z
+      .object({
+        id: z.string().optional(),
+        qty: z.union([z.string(), z.number()]).transform((val) => Number(val)),
+        width: z.union([z.string(), z.number()]).transform((val) => Number(val)),
+        height: z.union([z.string(), z.number()]).transform((val) => Number(val)),
+        notes: z.string().optional(),
+        fixation: z.string().optional(),
+        controls: z.string().optional(),
+        price: z.union([z.string(), z.number()]).optional(),
+        isPrepared: z.boolean().optional(),
+      })
+      .merge(MeasurementLineExtrasSchema)
+  ),
 });
 
 export const MeasurementsPayloadSchema = z.object({
@@ -153,4 +168,5 @@ export type SyncConflict = z.infer<typeof SyncConflictSchema>;
 
 export * from "./ceoMetrics";
 export * from "./auth";
+export * from "./measurementSheet";
 

@@ -6,6 +6,7 @@ import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import { getServiceTypeLegendHint } from "@/lib/map/serviceMarkerArt";
 import { MapLegendMarkerPreview } from "@/components/map/MapLegendMarkerPreview";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
+import { MAP_BRUTAL_PANEL } from "@/lib/map/mapBrutalChrome";
 
 const STORAGE_KEY = "map_legend_open";
 const HELP_STORAGE_KEY = "map_legend_help_open";
@@ -97,7 +98,7 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
 
   return (
     <div
-      className={`pointer-events-auto absolute left-3 right-3 z-20 overflow-y-auto rounded-2xl border border-border/90 bg-card/95 shadow-xl backdrop-blur custom-scrollbar md:left-auto md:right-4 md:w-80 ${
+      className={`pointer-events-auto absolute left-3 right-3 z-20 overflow-y-auto custom-scrollbar md:left-auto md:right-4 md:w-80 ${MAP_BRUTAL_PANEL} ${
         compact
           ? "max-h-[min(36dvh,16.5rem)] p-3"
           : "max-h-[min(60dvh,28rem)] p-4 md:max-h-[50vh]"

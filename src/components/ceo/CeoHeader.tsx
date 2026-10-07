@@ -7,7 +7,6 @@ import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreference
 import { Calendar, RefreshCw, ShieldCheck, LogOut } from "lucide-react";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { APP_LOGO_PATH } from "@/lib/branding";
-import TourHelpButton from "@/components/onboarding/TourHelpButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export interface CeoHeaderProps {
@@ -77,7 +76,6 @@ export default function CeoHeader({
           />
         </div>
 
-        <TourHelpButton className="border-border bg-card" />
         <ThemeToggle />
 
         <button

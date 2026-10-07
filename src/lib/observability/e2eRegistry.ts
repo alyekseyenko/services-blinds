@@ -11,6 +11,8 @@ import { appBuildVersionCheck } from "./checks/appBuild";
 import { circuitBreakerCheck } from "./checks/circuitBreaker";
 import { crmGraphqlCheck } from "./checks/crmGraphql";
 import { adminAgendaFeedApiCheck } from "./checks/adminAgendaFeedApi";
+import { adminMeasurementsExportApiCheck } from "./checks/adminMeasurementsExportApi";
+import { measurementsDbCheck } from "./checks/measurementsDb";
 import { fieldSyncHealthCheck } from "./checks/fieldSyncHealth";
 import {
   geocoderConfigCheck,
@@ -56,6 +58,7 @@ export const E2E_CHECK_REGISTRY: E2ECheckDefinition[] = [
 
   // Infra
   redisPingCheck,
+  measurementsDbCheck,
   appDataDirWritableCheck,
   outboxDrainHeartbeatCheck,
   outboxQueueCheck,
@@ -70,6 +73,7 @@ export const E2E_CHECK_REGISTRY: E2ECheckDefinition[] = [
   locationStoreRoundtripCheck,
   fieldSyncHealthCheck,
   adminAgendaFeedApiCheck,
+  adminMeasurementsExportApiCheck,
 
   // Public portals (HMAC)
   publicCancelTokenCheck,

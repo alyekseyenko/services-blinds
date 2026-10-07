@@ -33,6 +33,11 @@ import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
+import {
+  hapticConfirmAfterAsync,
+  hapticSelection,
+  hapticTap,
+} from "@/lib/haptics";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import MeasurementsForm, {
   MeasurementsSaveButton,
@@ -42,6 +47,11 @@ import ContactPhoneList from "@/components/ui/ContactPhoneList";
 import AddVisitServiceSheet from "@/components/dashboard/AddVisitServiceSheet";
 import type { VisitService } from "@/lib/schemas";
 import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
+import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
+import {
+  buildTechVisitDrawerHeader,
+  formatVisitServiceSupplementaryName,
+} from "@/lib/techVisitDisplay";
 import {
   isUrgentSchedulingNote,
   isUrgentVisitMarkdown,
@@ -104,6 +114,7 @@ export default function TaskDetailsDrawer({
   const [measurementOppId, setMeasurementOppId] = useState<string | undefined>();
   const measurementsFormRef = useRef<MeasurementsFormHandle>(null);
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
+  const finalizeSectionRef = useRef<HTMLDivElement>(null);
   const [drawerPanelEl, setDrawerPanelEl] = useState<HTMLElement | null>(null);
   const [measurementsSaving, setMeasurementsSaving] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -195,6 +206,48 @@ export default function TaskDetailsDrawer({
           },
         ]
       : [];
+
+  const primaryVisitService = visitServices.find((s) => s.isPrimary) ?? visitServices[0];
+
+  const primaryServiceLabel = useMemo(() => {
+    if (!selectedTask) return undefined;
+    if (primaryVisitService) {
+      const fromType = getExtraServiceTypeLabel(primaryVisitService.serviceType);
+      if (fromType && fromType !== "Geral") return fromType;
+      return primaryVisitService.name?.trim() || undefined;
+    }
+    return formatVisitServiceTypeLabel({
+      serviceType: selectedTask.serviceType,
+      visitTitle: selectedTask.title,
+      stage: selectedTask.stage,
+    });
+  }, [selectedTask, primaryVisitService]);
+
+  const visitDrawerHeader = useMemo(() => {
+    if (!selectedTask) return { heading: "Visita", detail: "" };
+    return buildTechVisitDrawerHeader({
+      client: selectedTask.client,
+      title: selectedTask.title,
+      address: selectedTask.address,
+      omitServiceLabels: primaryServiceLabel ? [primaryServiceLabel] : undefined,
+    });
+  }, [selectedTask, primaryServiceLabel]);
+
+  const clientPhones = useMemo(() => {
+    if (!selectedTask) return [];
+    if (selectedTask.clientPhones?.length) return selectedTask.clientPhones;
+    if (selectedTask.clientPhone) return [selectedTask.clientPhone];
+    return [];
+  }, [selectedTask]);
+
+  const hasOnSiteVisitServices = visitServices.some((s) => s.createdOnSite);
+  const showPrimaryServiceInList =
+    hasOnSiteVisitServices || visitServices.length > 1;
+
+  const primaryServiceColors = useMemo(() => {
+    if (!primaryVisitService) return null;
+    return getServiceTypeColor(primaryVisitService.serviceType);
+  }, [primaryVisitService]);
 
   const measurementServices = visitServices.filter(
     (s) =>
@@ -503,6 +556,7 @@ export default function TaskDetailsDrawer({
       if (!ok) return;
     }
 
+    hapticTap();
     setIsUploading(true);
     try {
       if (selectedTask.id) {
@@ -527,9 +581,14 @@ export default function TaskDetailsDrawer({
         }
 
         if (!success) {
+          hapticConfirmAfterAsync("error");
           toast.error("Erro ao atualizar estado", errorMessage);
           return;
         }
+
+        hapticConfirmAfterAsync(
+          statusAction === "Concluído" ? "complete" : "success"
+        );
 
         mutateTasks();
 
@@ -560,13 +619,29 @@ export default function TaskDetailsDrawer({
     }
   };
 
+  const mobileDrawerExpanded = !isDesktop;
+
   const measurementsFullscreen =
-    showMeasurementsTab && activeTab === "measurements" && !isDesktop;
+    mobileDrawerExpanded && showMeasurementsTab && activeTab === "measurements";
 
   const showMeasurementsSaveBar =
     activeTab === "measurements" &&
     showMeasurementsTab &&
     isTaskActive(selectedTask.status);
+
+  const showStatusSubmitBar =
+    mobileDrawerExpanded &&
+    activeTab === "info" &&
+    Boolean(statusAction) &&
+    isTaskActive(selectedTask.status);
+
+  useEffect(() => {
+    if (!statusAction) return;
+    const id = window.requestAnimationFrame(() => {
+      finalizeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [statusAction]);
 
   const handleDrawerBackClose = useCallback(() => {
     if (showAddService) {
@@ -641,9 +716,14 @@ export default function TaskDetailsDrawer({
         aria-labelledby="task-drawer-title"
         data-tour="tech-drawer"
         className={
-          measurementsFullscreen
-            ? "fixed inset-0 z-[60] flex min-h-0 max-h-[100dvh] w-full flex-col border-0 bg-background text-card-foreground shadow-none pb-[env(safe-area-inset-bottom)]"
+          mobileDrawerExpanded
+            ? "fixed inset-0 z-[60] flex min-h-0 max-h-[100dvh] w-full flex-col border-0 bg-background text-card-foreground shadow-none"
             : "fixed bottom-0 left-0 z-[60] flex w-full min-h-0 max-h-[min(88dvh,720px)] flex-col rounded-t-3xl border border-border bg-card text-card-foreground shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))] md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:h-full md:max-w-md md:rounded-none md:border-l-2 md:border-t-0 md:shadow-xl"
+        }
+        style={
+          mobileDrawerExpanded
+            ? { paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }
+            : undefined
         }
         onKeyDown={(e) => {
           if (e.key === "Escape" && !document.documentElement.hasAttribute("data-onboarding-tour")) {
@@ -655,12 +735,12 @@ export default function TaskDetailsDrawer({
           }
         }}
       >
-        {!measurementsFullscreen ? (
+        {!measurementsFullscreen && mobileDrawerExpanded ? (
           <button
             ref={drawerHandleRef}
             type="button"
             aria-label="Fechar visita — arraste para baixo"
-            className="mx-auto flex min-h-12 w-full max-w-[12rem] shrink-0 touch-manipulation items-center justify-center rounded-full active:opacity-80"
+            className="mx-auto flex min-h-10 w-full max-w-[12rem] shrink-0 touch-manipulation items-center justify-center rounded-full active:opacity-80"
             onClick={() => void closeDrawer()}
           >
             <span className="h-1.5 w-16 rounded-full bg-border" aria-hidden />
@@ -714,7 +794,7 @@ export default function TaskDetailsDrawer({
                     key={svc.opportunityId}
                     type="button"
                     onClick={() => setMeasurementOppId(svc.opportunityId)}
-                    className={`shrink-0 rounded-lg px-3 py-2 text-[11px] font-black uppercase ${
+                    className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black uppercase ${
                       measurementOppId === svc.opportunityId
                         ? "bg-primary text-primary-foreground border-2 border-border-strong"
                         : "bg-muted text-muted-foreground"
@@ -729,14 +809,40 @@ export default function TaskDetailsDrawer({
         ) : null}
 
         {!measurementsFullscreen ? (
-        <div className="shrink-0 px-4 pb-2 pt-1 md:px-5">
+        <div
+          className={`shrink-0 px-4 pb-2 md:px-5 ${mobileDrawerExpanded ? "border-b border-border bg-card pt-[max(0.25rem,env(safe-area-inset-top))]" : "pt-1"}`}
+        >
           <div className="mb-2 flex items-start justify-between gap-2" data-tour="tech-drawer-header">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 id="task-drawer-title" className="text-base font-bold leading-snug text-foreground md:text-lg">{selectedTask.title}</h2>
-                <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-primary">
-                  NSI #{selectedTask.nsi}
-                </span>
+              <h2
+                id="task-drawer-title"
+                className="text-lg font-bold leading-snug text-foreground md:text-xl"
+              >
+                {visitDrawerHeader.heading}
+              </h2>
+              {visitDrawerHeader.detail ? (
+                <p className="mt-1 text-sm font-medium leading-snug text-muted-foreground">
+                  {visitDrawerHeader.detail}
+                </p>
+              ) : null}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {primaryServiceLabel && primaryServiceColors ? (
+                  <span
+                    className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
+                    style={{
+                      backgroundColor: primaryServiceColors.bg,
+                      color: primaryServiceColors.text,
+                      borderColor: `${primaryServiceColors.text}20`,
+                    }}
+                  >
+                    {primaryServiceLabel}
+                  </span>
+                ) : null}
+                {selectedTask.nsi && selectedTask.nsi !== "N/A" ? (
+                  <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                    NSI <span className="ds-num text-foreground">#{selectedTask.nsi}</span>
+                  </span>
+                ) : null}
                 {(isUrgentVisitMarkdown(selectedTask.report) ||
                   notes.some((n) => isUrgentSchedulingNote(n))) && (
                   <span className="rounded-xl border-2 border-danger-solid bg-danger-surface px-3 py-1 text-xs font-black uppercase tracking-wider text-danger-fg">
@@ -744,28 +850,6 @@ export default function TaskDetailsDrawer({
                   </span>
                 )}
               </div>
-              {selectedTask.serviceType && (
-                <div className="flex flex-wrap gap-1.5 mt-2.5">
-                  {(Array.isArray(selectedTask.serviceType) ? selectedTask.serviceType : [selectedTask.serviceType]).map(
-                    (tipo: any, idx: number) => {
-                      const colors = getServiceTypeColor(tipo);
-                      return (
-                        <span
-                          key={idx}
-                          className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
-                          style={{
-                            backgroundColor: colors.bg,
-                            color: colors.text,
-                            borderColor: `${colors.text}20`,
-                          }}
-                        >
-                          {colors.label}
-                        </span>
-                      );
-                    }
-                  )}
-                </div>
-              )}
             </div>
             <button
               type="button"
@@ -780,7 +864,10 @@ export default function TaskDetailsDrawer({
 
           {/* SEPARADOR E TAB HEADER PARA SERVIÇOS DE MEDIÇÃO (iDraft Glassmorphism) */}
           {showMeasurementsTab && (
-            <div className="bg-muted p-1.5 rounded-2xl border border-border shadow-inner flex w-full max-w-lg mx-auto mb-8 gap-1.5" data-tour="tech-drawer-tabs">
+            <div
+              className={`bg-muted p-1.5 rounded-2xl border border-border shadow-inner flex w-full max-w-lg mx-auto gap-1.5 ${mobileDrawerExpanded ? "mb-4" : "mb-8"}`}
+              data-tour="tech-drawer-tabs"
+            >
               <button
                 type="button"
                 data-tour="tech-drawer-tab-info"
@@ -803,7 +890,7 @@ export default function TaskDetailsDrawer({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
-                <Ruler className="w-4 h-4" /> Medições do Estore
+                <Ruler className="w-4 h-4" /> Medições
               </button>
             </div>
           )}
@@ -813,60 +900,50 @@ export default function TaskDetailsDrawer({
         <div
           data-tour-scroll="tech-drawer-body"
           className={`min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar touch-manipulation ${
-            measurementsFullscreen ? "px-3 py-2" : "p-4 pb-4 md:p-5"
+            measurementsFullscreen ? "px-3 py-2" : mobileDrawerExpanded ? "px-4 py-3 md:p-5" : "p-4 pb-4 md:p-5"
           }`}
           onFocusCapture={(e) => scrollFocusedFieldIntoView(e.target)}
         >
           {/* ABA 1: INFORMAÇÕES DO CLIENTE & RELATÓRIO DO CRM */}
           {(activeTab === "info" || !showMeasurementsTab) && (
-            <div className="space-y-8 animate-in fade-in duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className={`animate-in fade-in duration-300 ${mobileDrawerExpanded ? "space-y-5" : "space-y-8"}`}
+            >
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <Card className="p-5" data-tour="tech-drawer-client-card">
-                  <CardContent className="p-0 space-y-3">
-                    <p className="text-muted-foreground flex items-center gap-3 text-sm font-semibold">
-                      <User className="w-5 h-5 text-primary-ink" /> <span className="text-foreground font-black">{selectedTask.client}</span>
-                    </p>
-                    <p className="text-muted-foreground flex items-start gap-3 text-sm font-semibold">
-                      <MapPin className="w-5 h-5 text-primary-ink shrink-0 mt-0.5" />
-                      <span className="text-foreground">{selectedTask.address}</span>
-                    </p>
-                    <p className="text-muted-foreground flex items-center gap-3 text-sm font-semibold">
-                      <Clock className="w-5 h-5 text-primary-ink" />{" "}
-                      <span className="text-foreground">
-                        {selectedTask.dueDate.toLocaleTimeString("pt-PT", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </p>
-                    {selectedTask.isOverdue && (
-                      <p className="text-warning-solid text-xs font-black uppercase tracking-wider bg-warning-surface border border-warning-border rounded-xl px-3 py-2">
-                        Visita atrasada — conclua ou contacte o admin
+                  <CardContent className="space-y-4 p-0">
+                    <div className="space-y-3">
+                      <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
+                        <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
+                        <span className="text-foreground">{selectedTask.address}</span>
                       </p>
-                    )}
+                      <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+                        <Clock className="h-5 w-5 shrink-0 text-primary-ink" />
+                        <span className="text-foreground">
+                          {selectedTask.dueDate.toLocaleTimeString("pt-PT", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </p>
+                      {selectedTask.isOverdue && (
+                        <p className="rounded-xl border border-warning-border bg-warning-surface px-3 py-2 text-xs font-black uppercase tracking-wider text-warning-solid">
+                          Visita atrasada — conclua ou contacte o admin
+                        </p>
+                      )}
+                    </div>
+                    {clientPhones.length > 0 ? (
+                      <div className="border-t border-border pt-4">
+                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                          Telefones do cliente
+                        </p>
+                        <ContactPhoneList phones={clientPhones} emptyLabel="Indisponível" />
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
 
-                <Card className="flex flex-col items-center justify-center gap-2 p-4" data-tour="tech-drawer-contact-card">
-                  {(selectedTask.clientPhones?.length ?? 0) > 0 || selectedTask.clientPhone ? (
-                    <div className="w-full space-y-2">
-                      <p className="text-xs font-black uppercase tracking-wider text-muted-foreground text-center">
-                        Telefones do cliente
-                      </p>
-                      <ContactPhoneList
-                        phones={
-                          selectedTask.clientPhones?.length
-                            ? selectedTask.clientPhones
-                            : selectedTask.clientPhone
-                              ? [selectedTask.clientPhone]
-                              : []
-                        }
-                        emptyLabel="Indisponível"
-                        compact
-                        className="justify-center"
-                      />
-                    </div>
-                  ) : null}
+                <Card className="flex flex-col gap-2 p-4" data-tour="tech-drawer-contact-card">
                   {isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status) && (
                     <Button
                       data-tour="tech-drawer-start-visit"
@@ -966,21 +1043,45 @@ export default function TaskDetailsDrawer({
                   )}
                 </div>
                 <div className="space-y-2">
-                  {visitServices
-                    .filter((svc) => svc.isPrimary)
-                    .map((svc) => (
-                      <div
-                        key={svc.opportunityId}
-                        className="rounded-2xl border border-border bg-muted px-4 py-3 text-xs font-semibold text-foreground"
-                      >
-                        <span className="font-black uppercase tracking-wide text-muted-foreground">
-                          Serviço principal da visita
-                        </span>
-                        <p className="mt-1 text-sm text-foreground">
-                          {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
-                        </p>
-                      </div>
-                    ))}
+                  {showPrimaryServiceInList
+                    ? visitServices
+                        .filter((svc) => svc.isPrimary)
+                        .map((svc) => {
+                          const colors = getServiceTypeColor(svc.serviceType);
+                          const label = getExtraServiceTypeLabel(svc.serviceType) || svc.name;
+                          const extraDetail = formatVisitServiceSupplementaryName({
+                            rawName: svc.name,
+                            serviceLabel: label,
+                            visitTitle: selectedTask.title,
+                            address: selectedTask.address,
+                          });
+                          return (
+                            <div
+                              key={svc.opportunityId}
+                              className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-card px-4 py-3"
+                            >
+                              <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                                Principal
+                              </span>
+                              <span
+                                className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
+                                style={{
+                                  backgroundColor: colors.bg,
+                                  color: colors.text,
+                                  borderColor: `${colors.text}20`,
+                                }}
+                              >
+                                {label}
+                              </span>
+                              {extraDetail ? (
+                                <span className="min-w-0 text-xs font-medium text-muted-foreground">
+                                  {extraDetail}
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                    : null}
 
                   {visitServices.some((s) => s.createdOnSite) && (
                     <p className="pt-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
@@ -1145,7 +1246,11 @@ export default function TaskDetailsDrawer({
               {isTaskActive(selectedTask.status) && (
                 <>
                   <div className="h-px bg-secondary w-full my-8"></div>
-                  <div className="space-y-6" data-tour="tech-drawer-finalize">
+                  <div
+                    ref={finalizeSectionRef}
+                    className="space-y-6 scroll-mt-4"
+                    data-tour="tech-drawer-finalize"
+                  >
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-primary-ink" />
                       <h3 className="ds-title text-base tracking-tight text-foreground">Finalizar Visita Técnica</h3>
@@ -1157,6 +1262,7 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-concluido"
                         onClick={() => {
+                          hapticSelection();
                           setStatusAction("Concluído");
                           setReason("");
                         }}
@@ -1173,6 +1279,7 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-incompleto"
                         onClick={() => {
+                          hapticSelection();
                           setStatusAction("Incompleto");
                           setReason("");
                         }}
@@ -1187,6 +1294,7 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-cancelado"
                         onClick={() => {
+                          hapticSelection();
                           setStatusAction("Cancelado");
                           setReason("");
                         }}
@@ -1247,16 +1355,18 @@ export default function TaskDetailsDrawer({
                           </div>
                         )}
 
-                        <Button
-                          variant="inverse"
-                          data-tour="tech-drawer-submit-report"
-                          onClick={handleStatusUpdate}
-                          disabled={isUploading}
-                          className="w-full py-5 shadow-md"
-                          loading={isUploading}
-                        >
-                          Submeter Relatório de Serviço
-                        </Button>
+                        {!showStatusSubmitBar ? (
+                          <Button
+                            variant="inverse"
+                            data-tour="tech-drawer-submit-report"
+                            onClick={handleStatusUpdate}
+                            disabled={isUploading}
+                            className="w-full py-5 shadow-md"
+                            loading={isUploading}
+                          >
+                            Submeter Relatório de Serviço
+                          </Button>
+                        ) : null}
                       </div>
                     )}
                   </div>
@@ -1292,7 +1402,8 @@ export default function TaskDetailsDrawer({
                 focusedLayout={measurementsFullscreen}
                 task={selectedTask}
                 opportunityId={measurementOppId || selectedTask.opportunityId}
-                isAdmin={!isTaskActive(selectedTask.status)}
+                isAdmin={false}
+                readOnly={!isTaskActive(selectedTask.status)}
                 onSave={async (data) => {
                   const oppId = measurementOppId || selectedTask.opportunityId;
                   if (!oppId) {
@@ -1339,6 +1450,25 @@ export default function TaskDetailsDrawer({
               loading={measurementsSaving}
               dataTour="tech-drawer-measurements-save-btn"
             />
+          </div>
+        )}
+
+        {showStatusSubmitBar && (
+          <div
+            className="shrink-0 border-t border-border bg-card px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
+            data-tour="tech-drawer-submit-report-bar"
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+          >
+            <Button
+              variant="inverse"
+              data-tour="tech-drawer-submit-report"
+              onClick={handleStatusUpdate}
+              disabled={isUploading}
+              className="w-full min-h-12 py-4 shadow-md"
+              loading={isUploading}
+            >
+              Submeter Relatório de Serviço
+            </Button>
           </div>
         )}
       </div>

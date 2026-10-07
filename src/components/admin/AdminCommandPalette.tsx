@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Map as MapIcon, Calendar, History, User } from "lucide-react";
+import {
+  Search,
+  Map as MapIcon,
+  Calendar,
+  History,
+  User,
+  LayoutDashboard,
+  ClipboardPlus,
+} from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { cn } from "@/lib/cn";
 import { searchOpportunities } from "@/lib/admin/opportunitySearch";
@@ -10,12 +18,13 @@ import type { Opportunity } from "@/types/admin";
 interface AdminCommandPaletteProps {
   open: boolean;
   onClose: () => void;
-  onNavigate: (view: "map" | "calendar" | "history") => void;
+  onNavigate: (view: "home" | "map" | "calendar" | "history") => void;
   onSearch: (query: string) => void;
   onSelectOpportunity: (opp: Opportunity) => void;
   opportunities: Opportunity[];
   technicians: string[];
   onSelectTechnician: (name: string) => void;
+  onOpenCreateService?: () => void;
 }
 
 export default function AdminCommandPalette({
@@ -27,6 +36,7 @@ export default function AdminCommandPalette({
   opportunities,
   technicians,
   onSelectTechnician,
+  onOpenCreateService,
 }: AdminCommandPaletteProps) {
   const [query, setQuery] = useState("");
   const trapRef = useFocusTrap(open);
@@ -96,7 +106,7 @@ export default function AdminCommandPalette({
                 onClose();
               }
             }}
-            placeholder="NSI, cliente, morada, técnico…"
+            placeholder="Cliente, morada, serviço ou técnico…"
             className="h-12 min-h-12 flex-1 text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground"
             aria-label="Pesquisar serviços"
           />
@@ -131,7 +141,9 @@ export default function AdminCommandPalette({
                       {opp.client || "Cliente"}
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground">
-                      {[opp.nsi, opp.title].filter(Boolean).join(" · ")}
+                      {[opp.title, opp.addressCity, opp.nsi ? `NSI ${opp.nsi}` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                     {opp.address ? (
                       <span className="line-clamp-1 text-xs text-muted-foreground">{opp.address}</span>
@@ -142,12 +154,33 @@ export default function AdminCommandPalette({
             </>
           )}
 
+          {showNav && onOpenCreateService && (
+            <>
+              <p className="px-3 py-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                Operações
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenCreateService();
+                  onClose();
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-foreground hover:bg-muted"
+                data-tour="admin-palette-novo-servico"
+              >
+                <ClipboardPlus className="h-4 w-4 text-neon" aria-hidden />
+                Novo serviço (cliente Twenty)
+              </button>
+            </>
+          )}
+
           {showNav && (
             <>
               <p className="px-3 py-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
                 Navegação
               </p>
               {[
+                { id: "home" as const, label: "Início", icon: LayoutDashboard },
                 { id: "map" as const, label: "Mapa", icon: MapIcon },
                 { id: "calendar" as const, label: "Agenda", icon: Calendar },
                 { id: "history" as const, label: "Histórico", icon: History },

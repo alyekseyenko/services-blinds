@@ -23,6 +23,7 @@ export const INTEGRATION_SYSTEMS: IntegrationSystem[] = [
   { id: "public-portals", label: "Portais públicos (HMAC)", category: "PORTALS" },
   { id: "field-sync", label: "Sincronização dos técnicos", category: "APP" },
   { id: "location-store", label: "Localização da frota", category: "APP" },
+  { id: "measurements-db", label: "Postgres de medições", category: "INFRA" },
 ];
 
 export const INTEGRATION_SYSTEM_IDS = INTEGRATION_SYSTEMS.map((s) => s.id);

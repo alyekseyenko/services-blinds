@@ -3,6 +3,8 @@ import {
   isPermanentBusinessSyncError,
   isSessionExpiredSyncError,
   isTransientSyncError,
+  isTransientSyncFailure,
+  resolveActionErrorCode,
   syncRetryBackoffMs,
 } from "@/lib/sync/syncQueuePolicy";
 import { isStaleServerActionError } from "@/lib/staleClientError";
@@ -27,6 +29,12 @@ describe("syncQueuePolicy", () => {
     expect(isSessionExpiredSyncError("Não autenticado.")).toBe(true);
     expect(isStaleServerActionError("Server Action \"x\" was not found on the server.")).toBe(true);
     expect(isTransientSyncError("Server Action \"x\" was not found on the server.")).toBe(false);
+  });
+
+  it("reconhece mensagens pt-PT de erro transitório após toUserMessage", () => {
+    const msg = "O pedido expirou. Verifique a rede e tente novamente.";
+    expect(resolveActionErrorCode(msg)).toBe("transient");
+    expect(isTransientSyncFailure(msg, resolveActionErrorCode(msg))).toBe(true);
   });
 
   it("aplica backoff crescente entre tentativas", () => {

@@ -29,6 +29,7 @@ export type TourChapterId =
   | "views"
   | "offline-sync"
   | "map-filters"
+  | "clientes-servicos"
   | "schedule-cancel"
   | "routes-mass"
   | "calendar-history"

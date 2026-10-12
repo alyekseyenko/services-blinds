@@ -77,6 +77,28 @@ export const ClientFollowUpSchema = z.object({
   formattedAmount: z.string(),
 });
 
+export const TechnicianOnSiteServiceDurationSchema = z.object({
+  serviceType: z.string(),
+  serviceLabel: z.string(),
+  sampleCount: z.number(),
+  avgMinutes: z.number(),
+  formattedAvg: z.string(),
+});
+
+export const TechnicianOnSiteDurationSchema = z.object({
+  name: z.string(),
+  sampleCount: z.number(),
+  avgMinutes: z.number(),
+  formattedAvg: z.string(),
+  byService: z.array(TechnicianOnSiteServiceDurationSchema),
+});
+
+export const OnSiteDurationFleetSchema = z.object({
+  sampleCount: z.number(),
+  avgMinutes: z.number(),
+  formattedAvg: z.string(),
+});
+
 export const TechnicianRankingSchema = z.object({
   rank: z.number(),
   name: z.string(),
@@ -141,6 +163,8 @@ export const CeoMetricsSchema = z.object({
     successRate: z.number(),
   })),
   technicianRankings: z.array(TechnicianRankingSchema),
+  onSiteDuration: OnSiteDurationFleetSchema,
+  technicianOnSiteDurations: z.array(TechnicianOnSiteDurationSchema),
   upcomingFollowUps: z.array(ClientFollowUpSchema),
   servicesList: z.array(CeoServiceItemSchema),
 });
@@ -152,4 +176,6 @@ export type FleetKmStats = z.infer<typeof FleetKmStatsSchema>;
 export type FinancialMetrics = z.infer<typeof FinancialMetricsSchema>;
 export type ClientFollowUp = z.infer<typeof ClientFollowUpSchema>;
 export type TechnicianRanking = z.infer<typeof TechnicianRankingSchema>;
+export type TechnicianOnSiteDuration = z.infer<typeof TechnicianOnSiteDurationSchema>;
+export type OnSiteDurationFleet = z.infer<typeof OnSiteDurationFleetSchema>;
 export type CeoMetrics = z.infer<typeof CeoMetricsSchema>;

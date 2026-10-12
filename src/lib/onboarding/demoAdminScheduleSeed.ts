@@ -1,4 +1,4 @@
-import type { ScheduleForm } from "@/components/admin/ScheduleModal";
+import type { ScheduleForm } from "@/lib/admin/scheduleForm";
 import type { Opportunity, WorkspaceMember } from "@/types/admin";
 
 /** Preenche o modal de agendamento no guia (valores editáveis, não vão ao CRM). */

@@ -597,6 +597,8 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
               onRemoveRow={removeRow}
 
+              voiceObservationsTourAnchor={gIdx === 0 && !isAdmin && !readOnly}
+
             />
 
           ))}

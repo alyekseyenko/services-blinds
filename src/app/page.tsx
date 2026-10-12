@@ -16,6 +16,7 @@ import { APP_NAME, APP_LOGO_PATH, LOGIN_EMAIL_PLACEHOLDER } from "@/lib/branding
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Marquee } from "@/components/ui/Marquee";
 import { DisplayHeading } from "@/components/ui/DisplayHeading";
+import { LoginSceneBackdrop } from "@/components/login/LoginSceneBackdrop";
 
 export default function Login() {
   const router = useRouter();
@@ -97,7 +98,7 @@ export default function Login() {
 
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 font-sans text-foreground brutal-grid-bg bg-background"
+      className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 font-sans text-foreground bg-background"
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
@@ -105,6 +106,8 @@ export default function Login() {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
+      <LoginSceneBackdrop />
+
       <div className="pointer-events-none absolute inset-x-0 bottom-0" aria-hidden>
         <Marquee segments={["Medir", "Instalar", "Sincronizar"]} />
       </div>

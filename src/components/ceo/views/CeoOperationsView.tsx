@@ -9,6 +9,7 @@ import {
   Gauge,
   MapPin,
   Trophy,
+  Clock,
 } from "lucide-react";
 import { HQ_LABEL } from "@/lib/branding";
 import type { CeoMetrics } from "@/lib/schemas/ceoMetrics";
@@ -114,6 +115,60 @@ export default function CeoOperationsView({ metrics, selectedYear }: CeoOperatio
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+
+            <div className="brutal-panel rounded-2xl p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="ds-title flex items-center gap-2 text-xl tracking-tight text-foreground">
+                    <Clock className="w-5 h-5 text-info-solid" />
+                    Tempo no local por técnico e tipo de serviço
+                  </h2>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                    Da marcação «Cheguei ao local» até ao encerramento na app · média da frota:{" "}
+                    {metrics.onSiteDuration.formattedAvg}
+                    {metrics.onSiteDuration.sampleCount > 0
+                      ? ` (${metrics.onSiteDuration.sampleCount} visitas)`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+
+              {metrics.technicianOnSiteDurations.length === 0 ? (
+                <div className="text-center py-10 bg-card rounded-2xl border border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
+                  Ainda sem visitas com registo de chegada e saída neste período.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {metrics.technicianOnSiteDurations.map((tech) => (
+                    <div
+                      key={tech.name}
+                      className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="text-sm font-black text-foreground">{tech.name}</div>
+                        <span className="text-xs font-bold text-info-fg">
+                          Média: {tech.formattedAvg}
+                        </span>
+                      </div>
+                      <ul className="space-y-2 text-xs">
+                        {tech.byService.map((svc) => (
+                          <li
+                            key={`${tech.name}-${svc.serviceType}`}
+                            className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
+                          >
+                            <span className="font-semibold text-foreground">{svc.serviceLabel}</span>
+                            <span className="ds-num font-black text-muted-foreground">
+                              {svc.formattedAvg}
+                              <span className="ml-1 font-medium">({svc.sampleCount})</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

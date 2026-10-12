@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAdminOpportunityLookup } from "@/lib/crm/opportunities";
-import { CRMError } from "@/lib/crm/client";
+import { CRMError } from "@/lib/crm/errors";
 import { CircuitBreakerOpenException } from "@/lib/crm/circuitBreaker";
 import { isAdminRole } from "@/lib/auth/session";
 import { getAppSession } from "@/lib/auth/session.server";

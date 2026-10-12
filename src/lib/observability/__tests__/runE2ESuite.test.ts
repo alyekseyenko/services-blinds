@@ -35,6 +35,7 @@ vi.mock("@/lib/server/healthProbes", () => ({
     graphql: { status: "connected", latencyMs: 1 },
     metadata: { status: "connected", latencyMs: 1 },
     redis: { status: "connected", latencyMs: 1 },
+    measurements: { status: "connected", latencyMs: 1 },
     appData: { status: "connected", latencyMs: 1 },
     authOriginConfigured: true,
   }),

@@ -7,12 +7,17 @@ import {
   type RawOpportunity,
 } from "@/lib/admin/opportunityNormalizers";
 import { createAdminCommercialService } from "@/lib/crm/adminCommercialService";
-import { fetchPersonDefaultServiceAddress, searchPeopleForAdmin } from "@/lib/crm/people";
-import type { AdminClientSearchHit } from "@/lib/schemas/adminCommercialService";
+import {
+  createPersonForAdmin,
+  fetchPersonDefaultServiceAddress,
+  searchPeopleForAdmin,
+} from "@/lib/crm/people";
 import { fetchAdminOpportunityById } from "@/lib/crm/opportunities";
 import {
   CreateAdminCommercialServiceSchema,
+  CreateAdminClientSchema,
   type AdminServiceAddress,
+  type AdminClientSearchHit,
 } from "@/lib/schemas/adminCommercialService";
 import type { ActionResponse } from "@/lib/types/action-response";
 import type { Opportunity } from "@/types/admin";
@@ -34,6 +39,28 @@ async function requireAdminPanel(): Promise<
         : "Administrador");
   const workspaceMemberId = resolveWorkspaceMemberId(ctx.user);
   return { userName, workspaceMemberId };
+}
+
+export async function createAdminClientAction(
+  raw: unknown
+): Promise<ActionResponse<AdminClientSearchHit>> {
+  try {
+    const auth = await requireAdminPanel();
+    if (!auth) return { success: false, error: "Não autorizado." };
+
+    const parsed = CreateAdminClientSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0]?.message;
+      return { success: false, error: first || "Dados inválidos." };
+    }
+
+    const client = await createPersonForAdmin(parsed.data);
+    return { success: true, data: client };
+  } catch (error: unknown) {
+    const message = toUserMessage(error, "Não foi possível criar o cliente.");
+    console.error("[createAdminClientAction]", error);
+    return { success: false, error: message };
+  }
 }
 
 export async function searchAdminClientsAction(

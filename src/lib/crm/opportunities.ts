@@ -23,6 +23,11 @@ import {
 } from './contract';
 import { isOpportunityCreatedOnSite, isOpportunityDeferredInTask } from './visitServicesMarker';
 import {
+  computeOnSiteDurationMs,
+  formatOnSiteDurationPt,
+  parseVisitSiteTimes,
+} from '@/lib/visitSiteTimes';
+import {
   ADMIN_HISTORY_PAGE_SIZE,
   ADMIN_PIPELINE_FETCH_LIMIT,
   isTerminalHistoryStatus,
@@ -221,6 +226,9 @@ export type AdminHistoryPageResult = {
     completed: number;
     incomplete: number;
     cancelled: number;
+    onSiteDurationSampleCount: number;
+    onSiteDurationAvgMinutes: number | null;
+    onSiteDurationFormattedAvg: string | null;
   };
 };
 
@@ -247,6 +255,24 @@ export async function fetchAdminHistoryPage(
     Array.from(merged.values()).filter((opp) => isTerminalHistoryStatus(opp.status))
   );
 
+  let onSiteDurationTotalMs = 0;
+  let onSiteDurationSampleCount = 0;
+  for (const opp of historyItems) {
+    const ms = opp.visitOnSiteDurationMs;
+    if (ms != null && ms > 0) {
+      onSiteDurationTotalMs += ms;
+      onSiteDurationSampleCount += 1;
+    }
+  }
+  const onSiteDurationAvgMinutes =
+    onSiteDurationSampleCount > 0
+      ? Math.max(1, Math.round(onSiteDurationTotalMs / onSiteDurationSampleCount / 60_000))
+      : null;
+  const onSiteDurationFormattedAvg =
+    onSiteDurationSampleCount > 0
+      ? formatOnSiteDurationPt(Math.round(onSiteDurationTotalMs / onSiteDurationSampleCount))
+      : null;
+
   const total = historyItems.length;
   const totalPages = Math.max(1, Math.ceil(total / safePageSize));
   const start = (safePage - 1) * safePageSize;
@@ -265,6 +291,9 @@ export async function fetchAdminHistoryPage(
       completed: historyItems.filter((opp) => isCompleted(opp.status || "")).length,
       incomplete: historyItems.filter((opp) => isIncomplete(opp.status || "")).length,
       cancelled: historyItems.filter((opp) => isCancelled(opp.status || "")).length,
+      onSiteDurationSampleCount,
+      onSiteDurationAvgMinutes,
+      onSiteDurationFormattedAvg,
     },
   };
 
@@ -405,6 +434,9 @@ function mapOpportunityNode(node: any) {
 
   const pointOfContactPhones = extractPhonesFromTwenty(contact?.phones);
 
+  const visitSiteTimes = task ? parseVisitSiteTimes(task.bodyV2?.markdown) : {};
+  const visitOnSiteDurationMs = computeOnSiteDurationMs(visitSiteTimes);
+
   return {
     id: node.id,
     twentyId: node.id,
@@ -442,6 +474,11 @@ function mapOpportunityNode(node: any) {
     nsi: node.nsi || "N/A",
     serviceType: deriveWorkflowMarkerKey(node.stage, node.name),
     createdOnSite,
+    visitArrivedAt: visitSiteTimes.arrivedAt ?? null,
+    visitClosedAt: visitSiteTimes.closedAt ?? null,
+    visitOnSiteDurationMs,
+    visitOnSiteDurationLabel:
+      visitOnSiteDurationMs != null ? formatOnSiteDurationPt(visitOnSiteDurationMs) : null,
   };
 }
 

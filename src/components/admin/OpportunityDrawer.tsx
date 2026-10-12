@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/hooks/useAppRouter";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
@@ -19,6 +19,7 @@ import {
   Loader2,
   User,
   ShieldCheck,
+  Clock,
 } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { IconButton } from "@/components/ui/IconButton";
@@ -102,7 +103,7 @@ export default function OpportunityDrawer({
     [isDemoOpp]
   );
 
-  const router = useRouter();
+  const router = useAppRouter();
   const closeDrawer = () => setSelectedOpportunity(null);
   const { dismissForNavigation } = useBackToClose(
     Boolean(selectedOpportunity),
@@ -364,6 +365,18 @@ export default function OpportunityDrawer({
             ) : (
               <p className="text-xs font-medium text-muted-foreground">Sem visita agendada.</p>
             )}
+            {selectedOpportunity.visitOnSiteDurationLabel ? (
+              <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+                <Clock className="h-5 w-5 shrink-0 text-info-solid" aria-hidden />
+                <span className="text-foreground">
+                  Tempo no local:{" "}
+                  <span className="ds-num">{selectedOpportunity.visitOnSiteDurationLabel}</span>
+                  <span className="block text-xs font-medium text-muted-foreground">
+                    Entre «Cheguei ao local» e o encerramento na app.
+                  </span>
+                </span>
+              </p>
+            ) : null}
             {scheduleNoteLabel ? (
               <div className="space-y-0.5 text-xs font-semibold text-muted-foreground">
                 <p>

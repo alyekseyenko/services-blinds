@@ -10,7 +10,10 @@ import {
   ChevronRight,
   Loader2,
   ClipboardPlus,
+  Clock,
+  UserPlus,
 } from "lucide-react";
+import { useSync } from "@/hooks/useSync";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import type { AdminHomeDashboardStats } from "@/lib/admin/homeDashboardStats";
@@ -47,6 +50,7 @@ type Props = {
   onOpenSearch: () => void;
   onOpenMedicoes: () => void;
   onOpenCreateService?: () => void;
+  onOpenCreateClient?: () => void;
 };
 
 export default function AdminHomeView({
@@ -58,6 +62,7 @@ export default function AdminHomeView({
   onOpenSearch,
   onOpenMedicoes,
   onOpenCreateService,
+  onOpenCreateClient,
 }: Props) {
   const topZones = zoneInsights.slice(0, 4);
   const [measStats, setMeasStats] = useState<AdminMeasurementsDashboardStats | null>(null);
@@ -83,6 +88,13 @@ export default function AdminHomeView({
   }, []);
 
   const m = measStats;
+
+  const { data: historyMeta } = useSync<{
+    summary?: {
+      onSiteDurationSampleCount?: number;
+      onSiteDurationFormattedAvg?: string | null;
+    };
+  }>("/api/opportunities/history?page=1&pageSize=1");
 
   const attentionItems = [
     {
@@ -190,6 +202,40 @@ export default function AdminHomeView({
           </Panel>
         </section>
 
+        {(historyMeta?.summary?.onSiteDurationSampleCount ?? 0) > 0 ? (
+          <section aria-label="Tempo médio no local">
+            <SectionHeading
+              title="Tempo no local"
+              detail="Média geral (chegada → encerramento na app)"
+            />
+            <Panel
+              variant="outline"
+              className="flex flex-col gap-2 rounded-2xl border-2 border-border-strong p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-info-surface text-info-solid">
+                  <Clock className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-2xl font-black text-foreground">
+                    {historyMeta?.summary?.onSiteDurationFormattedAvg}
+                  </p>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Baseado em {historyMeta?.summary?.onSiteDurationSampleCount} visitas com registo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate("history")}
+                className="min-h-12 self-start rounded-xl border-2 border-border px-4 text-xs font-bold text-foreground sm:self-center"
+              >
+                Ver no histórico
+              </button>
+            </Panel>
+          </section>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-6">
           <div className="space-y-6 xl:col-span-8">
             <section aria-label="Análise visual">
@@ -256,11 +302,20 @@ export default function AdminHomeView({
             <section aria-label="Atalhos">
               <h3 className="ds-kicker mb-3">Atalhos</h3>
               <ul className="space-y-2">
+                {onOpenCreateClient ? (
+                  <NavRow
+                    icon={UserPlus}
+                    label="Novo cliente"
+                    detail="Contacto no Twenty CRM"
+                    onClick={onOpenCreateClient}
+                    dataTour="admin-home-novo-cliente"
+                  />
+                ) : null}
                 {onOpenCreateService ? (
                   <NavRow
                     icon={ClipboardPlus}
                     label="Novo serviço"
-                    detail="Cliente no Twenty"
+                    detail="Com cliente existente ou novo"
                     onClick={onOpenCreateService}
                     dataTour="admin-home-novo-servico"
                   />

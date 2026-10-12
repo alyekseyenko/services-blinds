@@ -1,7 +1,7 @@
 import "server-only";
 import { crmFetch } from "@/lib/crm/client";
 import { CRM_FIELDS, CRM_OBJECTS } from "@/lib/crm/contract";
-import { getProductTypeLabel } from "@/lib/measurementLabels";
+import { getProductTypeLabel } from "@/lib/measurements/labels";
 import { getSheetById, setLineTwentyProdutoId } from "./repo";
 
 const SI = CRM_OBJECTS.serviceItem;

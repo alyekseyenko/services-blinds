@@ -24,7 +24,7 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="admin-mobile-menu-trigger"]',
         title: "Menu ☰",
         description:
-          "Vistas, medições, pesquisa e conta. Sincronizar CRM está no topo do ecrã (botão junto ao sininho).",
+          "Vistas, operações e conta. Pesquisar e sincronizar CRM estão no topo (junto ao sininho).",
         side: "bottom",
         fallbackModalIfMissing: true,
       },
@@ -40,7 +40,7 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         element: '[data-tour="admin-mobile-menu-sheet"]',
         title: "Menu do painel",
         description:
-          "Vistas, medições, pesquisar, sincronizar CRM, guia ? e conta.",
+          "Vistas, operações e conta. Pesquisa, sync e sininho ficam no cabeçalho.",
         side: "top",
         viewport: "mobile",
         fallbackModalIfMissing: true,
@@ -131,6 +131,45 @@ export const ADMIN_CHAPTERS: TourChapter[] = [
         side: "bottom",
         fallbackModalIfMissing: true,
         prepareOnHighlight: ["showAdminViewMap", "openAdminMobileMenu", "closeAdminDesktopMenu"],
+      },
+    ],
+  },
+  {
+    id: "clientes-servicos",
+    title: "Clientes e serviços",
+    description: "Criar contacto no Twenty e abrir serviço técnico sem sair do painel.",
+    steps: [
+      modalStep(
+        "Clientes e serviços",
+        "Pode criar o contacto na app (grava no Twenty) e, a seguir, «Novo serviço» para medição, instalação ou reparação."
+      ),
+      {
+        element: '[data-tour="admin-home-novo-cliente"]',
+        title: "Novo cliente",
+        description:
+          "Atalho no Início ou no menu ☰. O contacto fica no Twenty CRM; propostas e valores continuam no funil comercial.",
+        side: "bottom",
+        tourAction: "showAdminViewHome",
+        prepareOnHighlight: ["showAdminViewHome", "closeAdminMobileMenu"],
+        fallbackModalIfMissing: true,
+      },
+      {
+        element: '[data-tour="admin-home-novo-servico"]',
+        title: "Novo serviço",
+        description:
+          "Escolha um cliente existente ou crie um novo na pesquisa. A morada do serviço é só desta oportunidade.",
+        side: "bottom",
+        tourAction: "showAdminViewHome",
+        prepareOnHighlight: ["showAdminViewHome", "closeAdminMobileMenu"],
+        fallbackModalIfMissing: true,
+      },
+      {
+        element: '[data-tour="admin-menu-novo-cliente"]',
+        title: "Também no menu",
+        description: "Em qualquer vista, abra ☰ → Operações → Novo cliente ou Novo serviço.",
+        side: "left",
+        prepareOnHighlight: ["openAdminMobileMenu"],
+        fallbackModalIfMissing: true,
       },
     ],
   },

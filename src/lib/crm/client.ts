@@ -3,20 +3,12 @@ import "server-only";
 import { env } from '@/lib/env';
 import { crmRetryDelayMs, parseRetryAfterMs } from '@/lib/server/crmRetryDelay';
 import { crmCircuitBreaker } from './circuitBreaker';
+import { CRMError } from './errors';
+
+export { CRMError } from './errors';
 
 const TWENTY_API_URL = env.TWENTY_API_URL;
 const TWENTY_API_KEY = env.TWENTY_API_KEY;
-
-export class CRMError extends Error {
-  constructor(
-    public message: string, 
-    public originalError?: any,
-    public status?: number
-  ) {
-    super(message);
-    this.name = 'CRMError';
-  }
-}
 
 export interface FetchOptions {
   timeoutMs?: number;

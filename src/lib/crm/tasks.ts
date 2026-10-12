@@ -50,6 +50,8 @@ import {
   buildTechnicianLeftSiteNotePt,
   formatTaskStatusPt,
 } from '@/lib/taskStatusLabels';
+import { recordVisitArrival, recordVisitDeparture } from '@/lib/visitSiteTimes';
+import { offlineStatusConflict } from '@/lib/visits/statusConflict';
 
 const PHONES_FIELDS = `
   primaryPhoneNumber
@@ -510,7 +512,9 @@ export async function updateTaskStatus(
   status: string,
   observations?: string,
   photos: string[] = [],
-  clientRequestId?: string
+  clientRequestId?: string,
+  occurredAtIso?: string,
+  visitArrivedAtIso?: string
 ): Promise<any> {
   const apiStatus = normalizeTaskStatus(status);
   const twentyStatus = toTwentyTaskStatus(status);
@@ -531,6 +535,10 @@ export async function updateTaskStatus(
     const body = node?.bodyV2?.markdown || "";
     if (hasSyncDoneMarker(body, clientRequestId)) {
       return { id: taskId, success: true, idempotent: true };
+    }
+    const statusConflict = offlineStatusConflict(node?.status, status);
+    if (statusConflict) {
+      throw new Error(statusConflict);
     }
   }
 
@@ -565,6 +573,21 @@ export async function updateTaskStatus(
   `;
 
   let mergedBody = await mergeTaskBodyWithObservations(taskId, observations);
+  const eventIso = occurredAtIso?.trim() || new Date().toISOString();
+  if (apiStatus === CRM_TASK_STATUS.EM_CURSO) {
+    mergedBody = recordVisitArrival(mergedBody || "", eventIso);
+  }
+  const closesVisitOnSite =
+    apiStatus === CRM_TASK_STATUS.CONCLUIDO ||
+    apiStatus === CRM_TASK_STATUS.DONE ||
+    apiStatus === CRM_TASK_STATUS.INCOMPLETO ||
+    apiStatus === CRM_TASK_STATUS.CANCELADO;
+  if (closesVisitOnSite) {
+    if (visitArrivedAtIso?.trim()) {
+      mergedBody = recordVisitArrival(mergedBody || "", visitArrivedAtIso.trim());
+    }
+    mergedBody = recordVisitDeparture(mergedBody || "", eventIso);
+  }
   if (clientRequestId && mergedBody) {
     mergedBody = appendSyncDoneMarker(mergedBody, clientRequestId);
   } else if (clientRequestId) {

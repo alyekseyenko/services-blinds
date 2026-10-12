@@ -43,13 +43,13 @@ export function AdminPrimaryNav({ view, setView }: AdminPrimaryNavProps) {
             aria-current={isActive ? "page" : undefined}
             title={item.label}
             className={cn(
-              "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold transition-all active:scale-[0.99]",
+              "flex min-h-12 w-full items-center gap-3 rounded-xl border-2 px-3 text-sm font-bold transition-all active:scale-[0.99]",
               isActive
-                ? "border-2 border-border-strong bg-neon text-neon-foreground"
-                : "text-foreground hover:bg-muted"
+                ? "border-border-strong bg-neon text-neon-foreground"
+                : "border-border bg-card text-foreground hover:border-border-strong hover:bg-muted"
             )}
           >
-            <Icon className="h-5 w-5 shrink-0" aria-hidden />
+            <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             <span>{item.label}</span>
           </button>
         );

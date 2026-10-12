@@ -134,34 +134,30 @@ input, textarea, select {
 
 @keyframes tech-view-enter-from-end {
   from {
-    opacity: 0.88;
-    transform: translate3d(5%, 0, 0);
+    transform: translate3d(4%, 0, 0);
   }
   to {
-    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes tech-view-enter-from-start {
   from {
-    opacity: 0.88;
-    transform: translate3d(-5%, 0, 0);
+    transform: translate3d(-4%, 0, 0);
   }
   to {
-    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
 
 .tech-view-enter-next {
-  animation: tech-view-enter-from-end 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform, opacity;
+  animation: tech-view-enter-from-end 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
 }
 
 .tech-view-enter-prev {
-  animation: tech-view-enter-from-start 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform, opacity;
+  animation: tech-view-enter-from-start 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
 }
 
 .safe-x {
@@ -169,36 +165,155 @@ input, textarea, select {
   padding-right: max(1rem, var(--safe-right));
 }
 
-@keyframes login-orb-float {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
+/* Login — field measurement sketches */
+@keyframes login-scene-measure-draw {
+  0% {
+    stroke-dashoffset: 1;
   }
-  50% {
-    transform: translate(4%, -3%) scale(1.06);
+  40% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
   }
 }
 
-@keyframes login-glow-pulse {
+@keyframes login-scene-tape-extend {
   0%,
   100% {
-    opacity: 0.3;
+    stroke-dashoffset: 1;
+    opacity: 0.35;
   }
   50% {
+    stroke-dashoffset: 0.15;
     opacity: 0.55;
   }
 }
 
-.login-bg-orb {
-  animation: login-orb-float 22s ease-in-out infinite;
+@keyframes login-scene-grid-shift {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 24px 24px, 24px 24px;
+  }
 }
 
-.login-bg-orb--alt {
-  animation: login-orb-float 28s ease-in-out infinite reverse;
+.login-scene-grid-lines {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: login-scene-grid-shift 48s linear infinite;
 }
 
-.login-bg-glow {
-  animation: login-glow-pulse 7s ease-in-out infinite;
+.login-scene-sketch {
+  opacity: 0.22;
+}
+
+.login-scene-sketch--small {
+  opacity: 0.2;
+}
+
+.login-scene-window {
+  fill: color-mix(in srgb, var(--foreground) 4%, transparent);
+  stroke: currentColor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-window--small {
+  stroke-width: 1.25;
+}
+
+.login-scene-cross {
+  stroke: var(--primary);
+  stroke-width: 1.25;
+  opacity: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-ext {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  opacity: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-measure {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-measure--draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: login-scene-measure-draw 10s ease-out infinite;
+}
+
+.login-scene-label {
+  fill: currentColor;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+}
+
+.login-scene-note {
+  fill: color-mix(in srgb, var(--card) 55%, transparent);
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-note-title {
+  fill: currentColor;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+.login-scene-tape-body {
+  fill: color-mix(in srgb, var(--foreground) 10%, transparent);
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.login-scene-tape-hole {
+  fill: var(--background);
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.login-scene-tape-blade {
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-scene-tape-blade--extend {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: login-scene-tape-extend 6s ease-in-out infinite;
+}
+
+.login-scene-laser-dot {
+  fill: var(--primary);
+  opacity: 0.85;
+}
+
+.login-scene-laser-dot--tape {
+  opacity: 0.9;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -218,10 +333,19 @@ input, textarea, select {
     animation: none !important;
   }
 
-  .login-bg-orb,
-  .login-bg-orb--alt,
-  .login-bg-glow {
+  .login-scene-grid-lines,
+  .login-scene-measure--draw,
+  .login-scene-tape-blade--extend {
     animation: none !important;
+  }
+
+  .login-scene-laser-dot {
+    display: none;
+  }
+
+  .login-scene-measure--draw,
+  .login-scene-tape-blade--extend {
+    stroke-dashoffset: 0 !important;
   }
 }
 

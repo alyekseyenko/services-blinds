@@ -25,11 +25,14 @@ export const TWENTY_ADDRESS_COUNTRY_OPTIONS: { value: string; label: string }[] 
 const inputClass =
   "min-h-11 w-full rounded-lg border border-border bg-muted/40 px-3 text-sm font-semibold text-foreground outline-none transition-colors focus:border-border-strong focus:bg-card";
 
+type AddressFieldErrorKey = "addressStreet1" | "addressCity";
+
 type Props = {
   value: TwentyAddressFieldValues;
   onChange: (next: TwentyAddressFieldValues) => void;
   className?: string;
   disabled?: boolean;
+  fieldErrors?: Partial<Record<AddressFieldErrorKey, string>>;
 };
 
 function FieldLabel({ children }: { children: string }) {
@@ -38,7 +41,22 @@ function FieldLabel({ children }: { children: string }) {
   );
 }
 
-export function TwentyAddressFields({ value, onChange, className, disabled }: Props) {
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-xs font-semibold text-danger-fg" role="alert">
+      {message}
+    </p>
+  );
+}
+
+export function TwentyAddressFields({
+  value,
+  onChange,
+  className,
+  disabled,
+  fieldErrors,
+}: Props) {
   const patch = (partial: Partial<TwentyAddressFieldValues>) =>
     onChange({ ...value, ...partial });
 
@@ -54,9 +72,15 @@ export function TwentyAddressFields({ value, onChange, className, disabled }: Pr
           disabled={disabled}
           value={value.addressStreet1}
           onChange={(e) => patch({ addressStreet1: e.target.value })}
-          className={inputClass}
+          className={cn(
+            inputClass,
+            fieldErrors?.addressStreet1 && "border-danger-border bg-danger-surface/30"
+          )}
           autoComplete="address-line1"
+          aria-invalid={Boolean(fieldErrors?.addressStreet1)}
+          aria-describedby={fieldErrors?.addressStreet1 ? "morada-street-error" : undefined}
         />
+        <FieldError id="morada-street-error" message={fieldErrors?.addressStreet1} />
       </div>
 
       <div className="space-y-1">
@@ -79,9 +103,15 @@ export function TwentyAddressFields({ value, onChange, className, disabled }: Pr
             disabled={disabled}
             value={value.addressCity}
             onChange={(e) => patch({ addressCity: e.target.value })}
-            className={inputClass}
+            className={cn(
+              inputClass,
+              fieldErrors?.addressCity && "border-danger-border bg-danger-surface/30"
+            )}
             autoComplete="address-level2"
+            aria-invalid={Boolean(fieldErrors?.addressCity)}
+            aria-describedby={fieldErrors?.addressCity ? "morada-city-error" : undefined}
           />
+          <FieldError id="morada-city-error" message={fieldErrors?.addressCity} />
         </div>
         <div className="space-y-1">
           <FieldLabel>Estado</FieldLabel>

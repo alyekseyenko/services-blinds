@@ -134,6 +134,7 @@ Supporting docs: [README.md](./README.md), [ARCHITECTURE_MASTER_BLUEPRINT.md](./
 ### Do
 
 - Read surrounding code before editing; match existing patterns.
+- **Modular domains:** follow [.cursor/rules/modular-domains.mdc](./.cursor/rules/modular-domains.mdc) — new logic goes in `src/lib/agenda/`, `visits/`, `measurements/`, etc.; extract from god files instead of growing them; one-line reexports at legacy paths until imports are gone.
 - **When adding a new automation, webhook, portal, or external integration**, register an E2E check in `src/lib/observability/e2eRegistry.ts` with `covers` (`system:`, `event:`, `api:`) — `npm run validate` runs `coverage.test.ts` and fails if a system, outbox event, or API route is uncovered (see [docs/E2E_OBSERVABILITY_SUITE.md](./docs/E2E_OBSERVABILITY_SUITE.md)). New **outbox event types** get routing/HMAC checks via `checks/generated.ts`. For full business-flow coverage, add a phase or scenario in `src/lib/observability/luxury/luxuryRegistry.ts`.
 - Keep diffs minimal and focused on the requested change.
 - Use `credentials: "include"` on client `fetch` calls that need the session cookie.

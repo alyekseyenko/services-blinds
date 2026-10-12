@@ -3,6 +3,7 @@ import { env } from '@/lib/env';
 import {
   probeAppDataDir,
   probeGraphql,
+  probeMeasurementsDb,
   probeMetadata,
   probeRedis,
 } from '@/lib/server/healthProbes';
@@ -31,21 +32,27 @@ export async function GET(request: Request) {
       return NextResponse.json(publicHealthCache.body, { status: publicHealthCache.status });
     }
 
-    const graphql = await probeGraphql();
-    const healthy = graphql.status === 'connected';
+    const [graphql, measurements] = await Promise.all([
+      probeGraphql(),
+      probeMeasurementsDb(),
+    ]);
+    const healthy =
+      graphql.status === 'connected' && measurements.status === 'connected';
     const body = { status: healthy ? 'healthy' : 'unhealthy' };
     const status = healthy ? 200 : 503;
     publicHealthCache = { at: now, body, status };
     return NextResponse.json(body, { status });
   }
 
-  const [graphql, metadata, redis, appData] = await Promise.all([
+  const [graphql, metadata, redis, measurements, appData] = await Promise.all([
     probeGraphql(),
     probeMetadata(),
     probeRedis(),
+    probeMeasurementsDb(),
     probeAppDataDir(),
   ]);
-  const healthy = graphql.status === 'connected';
+  const healthy =
+    graphql.status === 'connected' && measurements.status === 'connected';
 
   return NextResponse.json(
     {
@@ -58,6 +65,7 @@ export async function GET(request: Request) {
         authOriginConfigured: Boolean(env.TWENTY_AUTH_ORIGIN),
       },
       redis,
+      measurements,
       appData,
     },
     { status: healthy ? 200 : 503 }

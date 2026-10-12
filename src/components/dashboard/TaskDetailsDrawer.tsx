@@ -48,6 +48,7 @@ import AddVisitServiceSheet from "@/components/dashboard/AddVisitServiceSheet";
 import type { VisitService } from "@/lib/schemas";
 import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
 import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
+import { VoiceSummarizeButton, VoiceTextarea } from "@/components/ui/VoiceTextarea";
 import {
   buildTechVisitDrawerHeader,
   formatVisitServiceSupplementaryName,
@@ -1232,12 +1233,14 @@ export default function TaskDetailsDrawer({
 
                 {/* Nova Nota */}
                 <div className="mt-3 flex items-end gap-2">
-                  <textarea
+                  <VoiceTextarea
                     value={newNoteText}
-                    onChange={(e) => setNewNoteText(e.target.value)}
+                    onChange={setNewNoteText}
                     placeholder="Nota para o CRM…"
                     rows={2}
-                    className={`${TECH_DRAWER_TEXTAREA} min-h-12 flex-1`}
+                    dataTour="tech-voice-note"
+                    className="min-h-12 flex-1"
+                    textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-12 flex-1`}
                   />
                   <Button
                     variant="inverse"
@@ -1339,12 +1342,14 @@ export default function TaskDetailsDrawer({
                               ))}
                             </div>
                             {(reasonPreset === "outro" || reasonPreset) && (
-                              <textarea
+                              <VoiceTextarea
                                 value={reason}
                                 disabled={isUploading}
-                                onChange={(e) => setReason(e.target.value)}
+                                onChange={setReason}
                                 placeholder={reasonPreset === "outro" ? "Descreva o motivo…" : "Detalhes (opcional)"}
-                                className={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem]`}
+                                rows={3}
+                                textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem] flex-1`}
+                                className="w-full"
                               />
                             )}
                           </div>
@@ -1355,15 +1360,31 @@ export default function TaskDetailsDrawer({
                             <label className={`block px-1 ${TECH_DRAWER_KICKER}`}>
                               Motivo do cancelamento (obrigatório)
                             </label>
-                            <textarea
+                            <VoiceTextarea
                               value={reason}
-                              onChange={(e) => setReason(e.target.value)}
+                              onChange={setReason}
                               placeholder="Motivo do cancelamento…"
-                              className={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem]`}
+                              rows={3}
                               disabled={isUploading}
+                              textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem] flex-1`}
+                              className="w-full"
                             />
                           </div>
                         )}
+
+                        {(statusAction === "Incompleto" || statusAction === "Cancelado") &&
+                        (reason.trim() || (statusAction === "Incompleto" && reasonPreset)) ? (
+                          <VoiceSummarizeButton
+                            text={
+                              statusAction === "Incompleto" && reasonPreset
+                                ? formatIncompleteReason(reasonPreset, reason)
+                                : reason
+                            }
+                            onSummarized={setReason}
+                            disabled={isUploading}
+                            className="w-full"
+                          />
+                        ) : null}
 
                         {!showStatusSubmitBar ? (
                           <Button

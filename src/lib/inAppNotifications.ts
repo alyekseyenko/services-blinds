@@ -49,7 +49,8 @@ export function agendaNotificationThreadKey(entry: {
 export const IN_APP_NOTIFICATION_OPEN_TASK_EVENT = "app:inapp-notification-open-task";
 
 export type InAppNotificationOpenTaskDetail = {
-  taskId: string;
+  taskId?: string;
+  opportunityId?: string;
   dueAtIso?: string;
 };
 

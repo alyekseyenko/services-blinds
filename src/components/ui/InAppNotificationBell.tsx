@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/hooks/useAppRouter";
 import { cn } from "@/lib/cn";
 import { Bell, X } from "lucide-react";
 import { useBackToClose } from "@/hooks/useBackToClose";
@@ -44,7 +44,7 @@ const FILTER_CHIPS: { id: AgendaNotificationFilter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "active", label: "Ativas" },
   { id: "done", label: "Concluídas" },
-  { id: "problems", label: "Com problemas" },
+  { id: "problems", label: "Problemas" },
 ];
 
 export default function InAppNotificationBell({
@@ -55,7 +55,7 @@ export default function InAppNotificationBell({
   iconButtonSize = "md",
   iconButtonClassName,
 }: InAppNotificationBellProps) {
-  const router = useRouter();
+  const router = useAppRouter();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<InAppNotification[]>([]);
@@ -136,10 +136,17 @@ export default function InAppNotificationBell({
 
   useBackToClose(open, () => dismissPanel(true), "in-app-notifications-panel");
 
-  const runAfterOverlayDismiss = (action: () => void) => {
-    pendingActivateRef.current = action;
-    dismissPanel(false);
-  };
+  const runAfterOverlayDismiss = useCallback(
+    (action: () => void) => {
+      if (open) {
+        pendingActivateRef.current = action;
+        dismissPanel(false);
+        return;
+      }
+      action();
+    },
+    [open]
+  );
 
   const handleActivate = useCallback(
     (n: InAppNotification) => {
@@ -155,19 +162,20 @@ export default function InAppNotificationBell({
           onInvestigate(n);
           return;
         }
-        if (n.taskId && onOpenTaskOnMap) {
+        if (onOpenTaskOnMap && (n.taskId || n.opportunityId)) {
           onOpenTaskOnMap(n);
           return;
         }
-        if (n.taskId) {
+        if (n.taskId || n.opportunityId) {
           dispatchOpenTaskFromNotification({
             taskId: n.taskId,
+            opportunityId: n.opportunityId,
             dueAtIso: n.dueAtIso,
           });
         }
       });
     },
-    [scope, router, onInvestigate, onOpenTaskOnMap]
+    [scope, router, onInvestigate, onOpenTaskOnMap, runAfterOverlayDismiss]
   );
 
   useEffect(() => {
@@ -318,6 +326,7 @@ export default function InAppNotificationBell({
 
                 <SegmentedControl
                   aria-label="Filtrar avisos"
+                  layout={useAdminSidebar ? "grid" : "inline"}
                   value={filter}
                   onChange={setFilter}
                   options={FILTER_CHIPS.map((chip) => ({
@@ -360,7 +369,7 @@ export default function InAppNotificationBell({
                   {dayGroups.map((group) => (
                     <li key={group.id} className="list-none space-y-3">
                       <p
-                        className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground dark:text-muted-foreground"
+                        className="text-xs font-bold uppercase tracking-wide text-muted-foreground dark:text-muted-foreground"
                         role="presentation"
                       >
                         {group.label}

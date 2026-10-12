@@ -14,6 +14,11 @@ export const TwentyPhonesSchema = z.object({
 
 export type TwentyPhones = z.infer<typeof TwentyPhonesSchema>;
 
+/** Digits only (search and deduplication). */
+export function normalizePhoneDigits(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
 export function formatPhoneEntry(
   number?: string | null,
   callingCode?: string | null

@@ -26,6 +26,10 @@ const PT_BUSINESS_PATTERNS: { test: (m: string) => boolean; message: string }[] 
     test: (m) => m.includes("pipeline") && m.includes("conflito"),
     message: "O CRM recusou a alteração de fase. Verifique o estado no painel.",
   },
+  {
+    test: (m) => m.includes("cancelada pelo escritório"),
+    message: "A visita foi cancelada pelo escritório. Actualize a agenda.",
+  },
 ];
 
 function extractMessage(error: unknown): string {
@@ -50,6 +54,13 @@ export function toUserMessage(error: unknown, fallback = "Não foi possível con
 
   if (isStaleServerActionError(raw)) {
     return STALE_CLIENT_USER_MESSAGE;
+  }
+
+  if (lower.includes("limit reached") || lower.includes("tokens per")) {
+    return (
+      "O Twenty CRM está a limitar pedidos (muita utilização ao mesmo tempo). " +
+      "Aguarde cerca de 1 minuto e toque em sincronizar no armazém."
+    );
   }
 
   if (

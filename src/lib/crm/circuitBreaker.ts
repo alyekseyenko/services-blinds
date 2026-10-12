@@ -1,5 +1,5 @@
 import { logger } from '../logger';
-import { CRMError } from './client';
+import { CRMError } from './errors';
 
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
@@ -99,7 +99,10 @@ export class CircuitBreaker {
         message.includes('timeout') ||
         message.includes('falha de ligação') ||
         message.includes('failed to fetch') ||
+        message.includes('fetch failed') ||
         message.includes('econnrefused') ||
+        message.includes('econnreset') ||
+        message.includes('etimedout') ||
         message.includes('após múltiplas')
       ) {
         return true;

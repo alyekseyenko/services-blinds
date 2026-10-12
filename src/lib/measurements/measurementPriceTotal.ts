@@ -1,4 +1,4 @@
-import { formatMeasurementPriceDisplay } from "@/lib/measurementSheetDisplay";
+import { formatMeasurementPriceDisplay } from "@/lib/measurements/sheetDisplay";
 
 /** Valor numérico a partir de preço de linha (texto livre, vírgula ou €). */
 export function parseMeasurementPriceEuro(value: string | null | undefined): number | null {

@@ -8,13 +8,15 @@ import { createOpportunityNoteAction } from '@/actions/notes-actions';
 import { createVisitServiceAction } from '@/actions/visit-services-actions';
 import type { SyncFailedItem } from '@/lib/schemas/syncTelemetry';
 import {
-  isPermanentBusinessSyncError,
-  isTransientSyncError,
+  isPermanentSyncFailure,
+  isTransientSyncFailure,
   isSessionExpiredSyncError,
   syncRetryBackoffMs,
   SYNC_MAX_BUSINESS_RETRIES,
   FIELDOPS_STALE_CLIENT_EVENT,
 } from '@/lib/sync/syncQueuePolicy';
+import type { ActionErrorCode } from '@/lib/types/action-response';
+import { resolveVisitArrivedAtMs } from '@/lib/visits/offlineStatusSync';
 import { isStaleServerActionError, STALE_CLIENT_USER_MESSAGE } from '@/lib/staleClientError';
 
 const JITTER_MIN_MS = 50;
@@ -180,17 +182,27 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         : undefined;
 
     if (item.action === 'UPDATE_STATUS') {
+      const visitArrivedAt =
+        typeof item.payload.visitArrivedAt === 'number'
+          ? item.payload.visitArrivedAt
+          : undefined;
       const statusResult = await withServerActionTimeout(
         syncUpdateTaskStatusAction(
         item.payload.taskId,
         item.payload.status,
         item.payload.reason,
         item.payload.photos || [],
-        clientRequestId
+        clientRequestId,
+        item.timestamp,
+        visitArrivedAt
         )
       );
       if (!statusResult.success) {
-        throw new Error(statusResult.error || 'Falha ao sincronizar o estado da visita.');
+        const err = new Error(statusResult.error || 'Falha ao sincronizar o estado da visita.');
+        if (statusResult.errorCode) {
+          (err as Error & { errorCode?: ActionErrorCode }).errorCode = statusResult.errorCode;
+        }
+        throw err;
       }
       return;
     }
@@ -255,7 +267,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
   );
 
   const handleQueueItemFailure = useCallback(
-    async (item: SyncQueueItem, message: string) => {
+    async (item: SyncQueueItem, message: string, errorCode?: ActionErrorCode) => {
       if (!item.id) return;
 
       if (isStaleServerActionError(message)) {
@@ -284,7 +296,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return;
       }
 
-      if (isPermanentBusinessSyncError(message)) {
+      if (isPermanentSyncFailure(message, errorCode)) {
         await db.syncQueue.update(item.id, {
           retries: (item.retries || 0) + 1,
           lastError: message,
@@ -294,7 +306,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return;
       }
 
-      if (isTransientSyncError(message)) {
+      if (isTransientSyncFailure(message, errorCode)) {
         const attempts = getTransientAttempts(item) + 1;
         const backoff = syncRetryBackoffMs(attempts);
         await db.syncQueue.update(item.id, {
@@ -397,9 +409,16 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
             }
           } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Erro desconhecido';
+            const errorCode =
+              error instanceof Error
+                ? (error as Error & { errorCode?: ActionErrorCode }).errorCode
+                : undefined;
             console.error(`[SyncQueue] Falha ao sincronizar ação ${item.id}:`, error);
-            await handleQueueItemFailure(item, message);
-            if (isTransientSyncError(message) && !isBrowserOnline()) {
+            await handleQueueItemFailure(item, message, errorCode);
+            if (item.taskId) {
+              tasksWaitingBackoff.add(item.taskId);
+            }
+            if (isTransientSyncFailure(message, errorCode) && !isBrowserOnline()) {
               break;
             }
           }
@@ -549,18 +568,21 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     };
 
     const clientRequestId = newClientRequestId();
-    const buildItem = (): SyncQueueItem => ({
+    const buildPayload = (occurredAt: number, visitArrivedAt?: number) => ({
+      taskId,
+      status,
+      reason,
+      photos,
+      opportunityId,
+      clientRequestId,
+      occurredAt,
+      ...(visitArrivedAt !== undefined ? { visitArrivedAt } : {}),
+    });
+    const buildItem = (occurredAt: number, visitArrivedAt?: number): SyncQueueItem => ({
       taskId,
       action: 'UPDATE_STATUS',
-      payload: {
-        taskId,
-        status,
-        reason,
-        photos,
-        opportunityId,
-        clientRequestId,
-      },
-      timestamp: Date.now(),
+      payload: buildPayload(occurredAt, visitArrivedAt),
+      timestamp: occurredAt,
       status: 'pending',
       retries: 0,
     });
@@ -571,7 +593,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           syncUpdateTaskStatusAction(taskId, status, reason, photos, clientRequestId)
         );
         if (!direct.success) {
-          if (isPermanentBusinessSyncError(direct.error || '')) {
+          if (isPermanentSyncFailure(direct.error || '', direct.errorCode)) {
             return { success: false, queued: false, error: direct.error };
           }
           throw new Error(direct.error || 'Falha ao atualizar o estado da visita.');
@@ -581,7 +603,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return { success: true, queued: false };
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        if (isPermanentBusinessSyncError(message)) {
+        if (isPermanentSyncFailure(message)) {
           return { success: false, queued: false, error: message };
         }
         console.warn("[SyncQueue] Falha direta na rede, a colocar na fila offline...", error);
@@ -593,10 +615,17 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       .filter((i) => i.action === 'UPDATE_STATUS' && i.status === 'pending')
       .first();
 
+    const occurredAt = Date.now();
+    const visitArrivedAt = resolveVisitArrivedAtMs(
+      existing?.payload as Record<string, unknown> | undefined,
+      status,
+      occurredAt
+    );
+
     if (existing?.id) {
       await db.syncQueue.delete(existing.id);
     }
-    await db.syncQueue.add(buildItem());
+    await db.syncQueue.add(buildItem(occurredAt, visitArrivedAt));
     markOwnAgendaChange();
 
     await refreshCounts();
@@ -620,7 +649,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           submitMeasurementsAction(taskId, opportunityId, data, clientRequestId)
         );
         if (!result.success) {
-          if (isPermanentBusinessSyncError(result.error || '')) {
+          if (isPermanentSyncFailure(result.error || '')) {
             return { success: false, queued: false, error: result.error };
           }
           throw new Error(result.error || 'Falha ao guardar medições.');
@@ -637,7 +666,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return { success: true, queued: false };
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        if (isPermanentBusinessSyncError(message)) {
+        if (isPermanentSyncFailure(message)) {
           return { success: false, queued: false, error: message };
         }
         console.warn("[SyncQueue] Falha direta na rede para medições, a colocar na fila offline...", error);
@@ -693,7 +722,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           createVisitServiceAction(enrichedPayload)
         );
         if (!result.success) {
-          if (isPermanentBusinessSyncError(result.error || '')) {
+          if (isPermanentSyncFailure(result.error || '')) {
             return { success: false, queued: false, error: result.error };
           }
           throw new Error(result.error || "Falha ao criar o serviço no local.");
@@ -709,7 +738,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return { success: true, queued: false, opportunityId: result.data?.opportunityId };
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        if (isPermanentBusinessSyncError(message)) {
+        if (isPermanentSyncFailure(message)) {
           return { success: false, queued: false, error: message };
         }
         console.warn('[SyncQueue] On-site service failed online, queueing offline...', error);
@@ -775,7 +804,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           )
         );
         if (!result.success) {
-          if (isPermanentBusinessSyncError(result.error || '')) {
+          if (isPermanentSyncFailure(result.error || '')) {
             return { success: false, queued: false, error: result.error };
           }
           throw new Error(result.error || 'Falha ao criar nota.');
@@ -784,7 +813,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         return { success: true, queued: false };
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        if (isPermanentBusinessSyncError(message)) {
+        if (isPermanentSyncFailure(message)) {
           return { success: false, queued: false, error: message };
         }
         console.warn("[SyncQueue] Falha direta na rede para nota, a colocar na fila offline...", error);

@@ -6,6 +6,8 @@ import { SyncPhotosSchema, parseSyncTaskStatus } from "@/lib/schemas/syncQueue";
 import { assertCanMutateTask } from "@/lib/auth/taskAccess";
 import { updateTaskStatus } from "@/lib/crm/tasks";
 import { toUserMessage } from "@/lib/userMessages";
+import { resolveActionErrorCode } from "@/lib/sync/syncQueuePolicy";
+import { toOccurredAtIso } from "@/lib/visits/offlineStatusSync";
 
 export async function completeTaskAction(
   taskId: string,
@@ -46,10 +48,12 @@ export async function completeTaskAction(
   } catch (error: unknown) {
     console.error("[completeTaskAction] Error:", error);
 
+    const raw = error instanceof Error ? error.message : String(error);
     const message = toUserMessage(error, "Erro ao atualizar a tarefa.");
     return {
       success: false,
       error: message,
+      errorCode: resolveActionErrorCode(raw) ?? resolveActionErrorCode(message),
     };
   }
 }
@@ -60,7 +64,9 @@ export async function syncUpdateTaskStatusAction(
   status: string,
   observations?: string,
   photos: string[] = [],
-  clientRequestId?: string
+  clientRequestId?: string,
+  occurredAtMs?: number,
+  visitArrivedAtMs?: number
 ): Promise<ActionResponse<void>> {
   try {
     const access = await assertCanMutateTask(taskId);
@@ -78,16 +84,32 @@ export async function syncUpdateTaskStatusAction(
       return { success: false, error: `Estado de visita inválido: "${status}".` };
     }
 
+    const occurredAtIso =
+      typeof occurredAtMs === "number" && Number.isFinite(occurredAtMs)
+        ? toOccurredAtIso(occurredAtMs)
+        : undefined;
+    const visitArrivedAtIso =
+      typeof visitArrivedAtMs === "number" && Number.isFinite(visitArrivedAtMs)
+        ? toOccurredAtIso(visitArrivedAtMs)
+        : undefined;
+
     await updateTaskStatus(
       taskId,
       status,
       observations,
       photosResult.data,
-      clientRequestId
+      clientRequestId,
+      occurredAtIso,
+      visitArrivedAtIso
     );
     return { success: true };
   } catch (error: unknown) {
+    const raw = error instanceof Error ? error.message : String(error);
     const message = toUserMessage(error, "Erro ao sincronizar o estado da visita.");
-    return { success: false, error: message };
+    return {
+      success: false,
+      error: message,
+      errorCode: resolveActionErrorCode(raw) ?? resolveActionErrorCode(message),
+    };
   }
 }

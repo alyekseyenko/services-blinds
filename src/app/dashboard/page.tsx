@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useViewSwitchCover } from "@/hooks/useViewSwitchCover";
+import { viewPanelStackClass } from "@/lib/ui/viewPanel";
 import { Calendar as CalendarIcon, History, Loader2, MapPin, RefreshCw, X } from "lucide-react";
 import { resolveTaskOverdue } from "@/lib/taskUtils";
 import {
@@ -131,7 +132,6 @@ function formatPtDate(
 }
 
 export default function Dashboard() {
-  const router = useRouter();
   const toast = useToast();
   const clientHydrated = useClientHydrated();
   const authorizeTechnician = useCallback((s: Session) => {
@@ -161,6 +161,7 @@ export default function Dashboard() {
   const [view, setView] = useState(() =>
     typeof window !== "undefined" ? readMainViewFromUrl(TECH_MAIN_VIEWS, "map") : "map"
   );
+  const viewSwitchCover = useViewSwitchCover(view);
   const [viewSlideDir, setViewSlideDir] = useState<0 | 1 | -1>(0);
   const [edgeSwipeHint, setEdgeSwipeHint] = useState<EdgeViewSwipeHint>({ phase: "idle" });
   const [userName, setUserName] = useState("");
@@ -478,7 +479,7 @@ export default function Dashboard() {
 
   const openAgendaNotificationOnMap = useCallback(
     (notification: InAppNotification) => {
-      if (!notification.taskId) return;
+      if (!notification.taskId && !notification.opportunityId) return;
 
       if (notification.dueAtIso) {
         const due = new Date(notification.dueAtIso);
@@ -491,7 +492,14 @@ export default function Dashboard() {
       setMapAutoFitScope("all");
       setMapFitNonce((n) => n + 1);
 
-      const task = allTasks.find((t) => t.id === notification.taskId);
+      const task =
+        (notification.taskId
+          ? allTasks.find((t) => t.id === notification.taskId)
+          : undefined) ??
+        (notification.opportunityId
+          ? allTasks.find((t) => t.opportunityId === notification.opportunityId)
+          : undefined);
+
       if (task) {
         setSelectedTask({ ...task, dueDate: new Date(task.dueDate) });
         return;
@@ -509,7 +517,7 @@ export default function Dashboard() {
   useEffect(() => {
     const onOpenFromNotification = (event: Event) => {
       const detail = (event as CustomEvent<InAppNotificationOpenTaskDetail>).detail;
-      if (!detail?.taskId) return;
+      if (!detail?.taskId && !detail?.opportunityId) return;
       openAgendaNotificationOnMap({
         id: "",
         title: "",
@@ -517,6 +525,7 @@ export default function Dashboard() {
         createdAt: Date.now(),
         read: true,
         taskId: detail.taskId,
+        opportunityId: detail.opportunityId,
         dueAtIso: detail.dueAtIso,
       });
     };
@@ -705,7 +714,7 @@ export default function Dashboard() {
       className="relative flex h-[100dvh] flex-col overflow-hidden bg-background font-sans text-foreground"
     >
       
-      <div className="safe-top z-50 shrink-0">
+      <div className="z-50 shrink-0">
       {/* Banner de Consentimento de Localização (RGPD) */}
       {showLocationConsent && (
         <div className="bg-ink text-ink-foreground px-4 py-3 flex items-center gap-3 shadow-lg animate-in slide-in-from-top duration-300">
@@ -912,6 +921,12 @@ export default function Dashboard() {
         )}
         {!showAgendaLoadFailure && (
           <div className="relative h-full min-h-0 w-full">
+            {viewSwitchCover ? (
+              <div
+                className="pointer-events-none absolute inset-0 z-40 bg-background"
+                aria-hidden
+              />
+            ) : null}
             {loading && (
               <div className="absolute inset-0 z-30 bg-background">
                 {view === "map" ? <MapSkeleton /> : <TaskListSkeleton />}
@@ -919,9 +934,9 @@ export default function Dashboard() {
             )}
             <div
               ref={mapViewRef}
-              className={cn(
-                "absolute inset-0 flex min-h-0 flex-col",
-                view !== "map" && "invisible pointer-events-none"
+              className={viewPanelStackClass(
+                view === "map",
+                "absolute inset-0 flex min-h-0 flex-col"
               )}
               aria-hidden={view !== "map"}
             >
@@ -1013,10 +1028,7 @@ export default function Dashboard() {
             </div>
 
             <div
-              className={cn(
-                "absolute inset-0 min-h-0",
-                view !== "calendar" && "invisible pointer-events-none"
-              )}
+              className={viewPanelStackClass(view === "calendar", "absolute inset-0 min-h-0")}
               aria-hidden={view !== "calendar"}
             >
               <TechCalendarView
@@ -1035,9 +1047,9 @@ export default function Dashboard() {
 
             <div
               data-tour="tech-history"
-              className={cn(
-                "absolute inset-0 overflow-y-auto custom-scrollbar p-4 pb-8 md:p-6 lg:px-8",
-                view !== "history" && "invisible pointer-events-none"
+              className={viewPanelStackClass(
+                view === "history",
+                "absolute inset-0 overflow-y-auto custom-scrollbar p-4 pb-8 md:p-6 lg:px-8"
               )}
               aria-hidden={view !== "history"}
             >
@@ -1144,9 +1156,9 @@ export default function Dashboard() {
                 setListScrollEl(node);
               }}
               data-tour="tech-list-agenda"
-              className={cn(
-                "absolute inset-0 overflow-y-auto overscroll-contain custom-scrollbar p-4 pb-8 md:p-6 lg:px-8 touch-manipulation",
-                view !== "list" && "invisible pointer-events-none"
+              className={viewPanelStackClass(
+                view === "list",
+                "absolute inset-0 overflow-y-auto overscroll-contain custom-scrollbar p-4 pb-8 md:p-6 lg:px-8 touch-manipulation"
               )}
               aria-hidden={view !== "list"}
             >

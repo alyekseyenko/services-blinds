@@ -78,6 +78,8 @@ foto_gostosa.jpg
 
 # local migration / dedupe logs
 dedupe-live.log
+deploy-*.log
+/deploy-*.log
 
 # client-specific logo assets (keep locally, never publish)
 /logo/

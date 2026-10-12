@@ -41,7 +41,12 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}", "src/hooks/**/*.{ts,tsx}"],
+    files: [
+      "src/components/**/*.{ts,tsx}",
+      "src/hooks/**/*.{ts,tsx}",
+      "src/app/**/*.{ts,tsx}",
+    ],
+    ignores: ["src/app/api/**"],
     rules: {
       "no-restricted-imports": ["error", restrictedCrmImports],
     },

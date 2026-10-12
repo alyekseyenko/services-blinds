@@ -1,4 +1,5 @@
 import { isStaleServerActionError } from "@/lib/staleClientError";
+import type { ActionErrorCode } from "@/lib/types/action-response";
 
 export const FIELDOPS_STALE_CLIENT_EVENT = "fieldops-stale-client";
 
@@ -14,6 +15,47 @@ export function isSessionExpiredSyncError(message: string): boolean {
 }
 
 /** Erros que não devem consumir tentativas permanentes da fila offline. */
+const PT_USER_TRANSIENT_HINTS = [
+  "o pedido expirou",
+  "muitos pedidos seguidos",
+  "falha de ligação",
+  "temporariamente indisponível",
+  "tente novamente mais tarde",
+  "verifique a internet",
+  "servidor está indisponível",
+];
+
+export function isTransientUserMessage(message: string): boolean {
+  const m = message.toLowerCase();
+  return PT_USER_TRANSIENT_HINTS.some((hint) => m.includes(hint));
+}
+
+export function resolveActionErrorCode(message: string): ActionErrorCode | undefined {
+  if (isStaleServerActionError(message)) return undefined;
+  if (isSessionExpiredSyncError(message)) return "session";
+  if (isPermanentBusinessSyncError(message)) return "business";
+  if (isTransientSyncError(message) || isTransientUserMessage(message)) return "transient";
+  return undefined;
+}
+
+export function isTransientSyncFailure(
+  message: string,
+  errorCode?: ActionErrorCode
+): boolean {
+  if (errorCode === "transient") return true;
+  if (errorCode === "business" || errorCode === "session") return false;
+  return isTransientSyncError(message) || isTransientUserMessage(message);
+}
+
+export function isPermanentSyncFailure(
+  message: string,
+  errorCode?: ActionErrorCode
+): boolean {
+  if (errorCode === "business") return true;
+  if (errorCode === "transient" || errorCode === "session") return false;
+  return isPermanentBusinessSyncError(message);
+}
+
 export function isTransientSyncError(message: string): boolean {
   if (isStaleServerActionError(message)) return false;
   if (isSessionExpiredSyncError(message)) return false;
@@ -28,6 +70,8 @@ export function isTransientSyncError(message: string): boolean {
     m.includes("http error: 5") ||
     m.includes("http error: 429") ||
     m.includes("too many requests") ||
+    m.includes("limit reached") ||
+    m.includes("tokens per") ||
     m.includes("network") ||
     m.includes("networkerror") ||
     m.includes("fetch failed") ||
@@ -48,7 +92,8 @@ export function isPermanentBusinessSyncError(message: string): boolean {
     m.includes("visita não encontrada") ||
     m.includes("estado de tarefa inválido") ||
     m.includes("dados de medidas inválidos") ||
-    m.includes("oportunidade") && m.includes("não")
+    m.includes("cancelada pelo escritório") ||
+    (m.includes("oportunidade") && m.includes("não"))
   );
 }
 

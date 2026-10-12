@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
@@ -11,13 +12,26 @@ import { buildN8nWebhookHeaders } from '../n8nPost';
 import { resolveAppDataFile } from '../server/scratchPath';
 
 describe('Transactional Outbox Pattern & Idempotency', () => {
+  let tempAppDataDir: string;
+  const previousAppDataDir = process.env.APP_DATA_DIR;
+
   beforeEach(() => {
     delete process.env.N8N_WEBHOOK_SECRET;
+    tempAppDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outbox-test-'));
+    process.env.APP_DATA_DIR = tempAppDataDir;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.N8N_WEBHOOK_SECRET;
+    if (tempAppDataDir) {
+      fs.rmSync(tempAppDataDir, { recursive: true, force: true });
+    }
+    if (previousAppDataDir !== undefined) {
+      process.env.APP_DATA_DIR = previousAppDataDir;
+    } else {
+      delete process.env.APP_DATA_DIR;
+    }
   });
 
   it('should enqueue without waiting for webhook delivery', async () => {
@@ -100,11 +114,13 @@ describe('Transactional Outbox Pattern & Idempotency', () => {
     await outboxQueue.processEvent(eventId);
 
     const events = JSON.parse(fs.readFileSync(outboxFile, 'utf8')) as Array<{
+      id: string;
       retryCount: number;
       nextAttemptAt?: string;
       status: string;
     }>;
-    const stored = events.find((e) => e.status === 'PENDING');
+    const stored = events.find((e) => e.id === eventId);
+    expect(stored?.status).toBe('PENDING');
     expect(stored?.retryCount).toBe(1);
     expect(stored?.nextAttemptAt).toBeDefined();
     const expectedMin = Date.now() + OUTBOX_BACKOFF_MS[0] - 2000;

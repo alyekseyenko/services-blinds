@@ -15,6 +15,8 @@ export interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   options: SegmentedOption<T>[];
   className?: string;
+  /** Grelha 2 colunas — útil para filtros com etiquetas longas (ex. centro de avisos). */
+  layout?: "inline" | "grid";
   "aria-label"?: string;
 }
 
@@ -23,14 +25,19 @@ export function SegmentedControl<T extends string>({
   onChange,
   options,
   className,
+  layout = "inline",
   "aria-label": ariaLabel,
 }: SegmentedControlProps<T>) {
+  const isGrid = layout === "grid";
   return (
     <div
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        "flex gap-1 overflow-x-auto rounded-xl border-2 border-border-strong bg-muted p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "rounded-xl border-2 border-border-strong bg-muted p-1",
+        isGrid
+          ? "grid grid-cols-2 gap-1"
+          : "flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
     >
@@ -45,7 +52,8 @@ export function SegmentedControl<T extends string>({
             disabled={opt.disabled}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "flex min-h-12 min-w-[3rem] shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "flex min-h-11 w-full min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-bold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isGrid ? "normal-case tracking-normal" : "min-h-12 min-w-[3rem] font-black uppercase tracking-wider",
               active
                 ? "bg-neon text-neon-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground active:bg-secondary",

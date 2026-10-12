@@ -25,4 +25,10 @@ export const OBSERVABILITY_API_EXEMPTIONS: Record<string, string> = {
     "Lista de membros Twenty — dependência do CRM GraphQL.",
   "/api/location":
     "POST de GPS coberto por `location-store-roundtrip`; GET exige sessão admin.",
+  "/api/voice/transcribe":
+    "Ditada opcional (OPENAI_API_KEY / VOICE_PROVIDER) — sessão técnico; sem chave devolve 503.",
+  "/api/voice/status":
+    "Indicador de ditada disponível — leitura leve com sessão técnico.",
+  "/api/voice/stream":
+    "Ditada Google em streaming (VOICE_PROVIDER=google) — sessão técnico; iOS usa batch no /transcribe.",
 };

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { OPERATIONS_MAP_STYLES } from "@/lib/map/googleMapStyles";
+import {
+  OPERATIONS_MAP_CANVAS,
+  OPERATIONS_MAP_STYLES,
+} from "@/lib/map/googleMapStyles";
 
 describe("OPERATIONS_MAP_STYLES", () => {
   it("usa fundo alinhado ao token background da app", () => {
     const bg = OPERATIONS_MAP_STYLES.find(
       (rule) => rule.elementType === "geometry" && !rule.featureType
     );
-    expect(bg?.stylers?.[0]).toEqual({ color: "#ebebe8" });
+    expect(bg?.stylers?.[0]).toEqual({ color: OPERATIONS_MAP_CANVAS });
   });
 
   it("esconde POI e trânsito para focar nos pedidos", () => {

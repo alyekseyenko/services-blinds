@@ -15,6 +15,8 @@ import {
   Ruler,
   LayoutDashboard,
   ClipboardPlus,
+  UserPlus,
+  type LucideIcon,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { signOutToAppLogin } from "@/lib/clientSignOut";
@@ -53,6 +55,7 @@ interface AdminHeaderProps {
   onRefresh: () => void;
   onOpenSearch?: () => void;
   onOpenCreateService?: () => void;
+  onOpenCreateClient?: () => void;
   userName: string;
   view: string;
   setView: (v: string) => void;
@@ -62,7 +65,7 @@ interface AdminHeaderProps {
 }
 
 const ADMIN_MENU_ITEM_CLASS =
-  "mb-2 flex min-h-12 w-full items-center gap-3 rounded-xl border-2 border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-muted active:scale-[0.99]";
+  "flex min-h-12 w-full items-center gap-3 rounded-xl border-2 border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-muted active:scale-[0.99]";
 
 /** Ícones do topo: mesmo alvo de toque e glyph (h-5) em todas as vistas. */
 const ADMIN_TOOLBAR_ICON_SIZE = "sm" as const;
@@ -77,7 +80,7 @@ function AdminPanelMenuItem({
   dataTour,
   tone = "default",
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   label: string;
   detail?: string;
   onClick: () => void;
@@ -96,12 +99,13 @@ function AdminPanelMenuItem({
     >
       <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center border-2 border-border bg-muted",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-muted",
           tone === "danger" && "border-danger-border bg-card"
         )}
       >
         <Icon
-          className={cn("h-5 w-5", tone === "danger" ? "text-danger-fg" : "text-primary-ink")}
+          className={cn(ADMIN_TOOLBAR_GLYPH, tone === "danger" ? "text-danger-fg" : "text-primary-ink")}
+          strokeWidth={2}
           aria-hidden
         />
       </span>
@@ -179,6 +183,7 @@ export default function AdminHeader({
   onRefresh,
   onOpenSearch,
   onOpenCreateService,
+  onOpenCreateClient,
   userName,
   view,
   setView,
@@ -270,8 +275,8 @@ export default function AdminHeader({
   const accountMenuItems = (
     <>
       <div className={cn(ADMIN_MENU_ITEM_CLASS, "cursor-default hover:bg-card")}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-border bg-muted">
-          <LayoutDashboard className="h-5 w-5 text-primary-ink" aria-hidden />
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-border bg-muted">
+          <LayoutDashboard className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
         </span>
         <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
           <span className="text-sm font-bold text-foreground">Tema</span>
@@ -313,86 +318,74 @@ export default function AdminHeader({
     navMenuOpen && mounted
       ? createPortal(
           <div
-            className="admin-header-mobile-sheet fixed inset-0 z-[200] flex bg-scrim md:justify-end"
+            className="admin-header-mobile-sheet fixed inset-0 z-[200] flex items-stretch bg-scrim md:justify-end"
             role="presentation"
             onClick={closeNavMenu}
           >
             <div
               ref={navMenuRef}
               data-tour="admin-mobile-menu-sheet"
-              className="safe-bottom flex max-h-[92dvh] w-full flex-col overflow-y-auto border-2 border-border-strong bg-card p-5 md:max-h-none md:max-w-sm md:rounded-none md:rounded-l-2xl md:border-r-0"
+              className="safe-top safe-bottom flex h-full max-h-dvh w-full flex-col gap-4 overflow-y-auto border-2 border-border-strong bg-card p-4 md:max-w-sm md:rounded-none md:rounded-l-2xl md:border-r-0 md:p-5"
               role="dialog"
               aria-label="Menu do painel"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex shrink-0 items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-foreground">Menu do painel</p>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Vistas, medições, pesquisa, sincronização e conta.
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Vistas, operações e conta. Pesquisa e sync no topo do ecrã.
                   </p>
                 </div>
                 <IconButton aria-label="Fechar menu" variant="ghost" onClick={closeNavMenu}>
-                  <X className="h-5 w-5" />
+                  <X className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
                 </IconButton>
               </div>
 
-              <p className="px-1 pb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Vistas
-              </p>
-              <div className="mb-4" data-tour="admin-views-mobile">
-                <AdminPrimaryNav view={view} setView={selectViewFromMenu} />
-              </div>
+              <section className="space-y-2 rounded-xl border-2 border-border bg-muted/30 p-3">
+                <p className="ds-kicker px-0.5">Vistas</p>
+                <div data-tour="admin-views-mobile">
+                  <AdminPrimaryNav view={view} setView={selectViewFromMenu} />
+                </div>
+              </section>
 
-              <p className="px-1 pb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Operações
-              </p>
-              {onOpenCreateService && (
-                <AdminPanelMenuItem
-                  icon={ClipboardPlus}
-                  label="Novo serviço"
-                  detail="Cliente já no Twenty CRM"
-                  dataTour="admin-menu-novo-servico"
-                  onClick={() => openOverlayFromMenu(onOpenCreateService)}
-                />
-              )}
-              {onOpenSearch && (
-                <AdminPanelMenuItem
-                  icon={Search}
-                  label="Pesquisar serviços"
-                  detail="Cliente, morada, serviço"
-                  dataTour="admin-search"
-                  onClick={() => openOverlayFromMenu(onOpenSearch)}
-                />
-              )}
-              {session && userRole && canAccessAdminPanel(userRole) && (
-                <AdminPanelMenuItem
-                  icon={Ruler}
-                  label="Lista de medições"
-                  detail="Fichas e exportações"
-                  dataTour="admin-menu-medicoes"
-                  onClick={() => navigateFromAdminMenu("/admin/medicoes")}
-                />
-              )}
-              <div className="mb-4 mt-1 rounded-xl border-2 border-border bg-card p-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Sincronização
-                </p>
-                <SyncChip
-                  isSyncing={isSyncing}
-                  syncDataStale={syncDataStale}
-                  syncLabel={syncLabel}
-                  onRefresh={onRefresh}
-                  loading={loading}
-                  dataTour="admin-refresh"
-                  className="w-full max-w-none justify-start border-2 border-border"
-                />
-              </div>
+              <section className="space-y-2">
+                <p className="ds-kicker px-0.5">Operações</p>
+                <div className="flex flex-col gap-2">
+                  {onOpenCreateClient && (
+                    <AdminPanelMenuItem
+                      icon={UserPlus}
+                      label="Novo cliente"
+                      detail="Grava o contacto no Twenty CRM"
+                      dataTour="admin-menu-novo-cliente"
+                      onClick={() => openOverlayFromMenu(onOpenCreateClient)}
+                    />
+                  )}
+                  {onOpenCreateService && (
+                    <AdminPanelMenuItem
+                      icon={ClipboardPlus}
+                      label="Novo serviço"
+                      detail="Medição, instalação ou reparação"
+                      dataTour="admin-menu-novo-servico"
+                      onClick={() => openOverlayFromMenu(onOpenCreateService)}
+                    />
+                  )}
+                  {session && userRole && canAccessAdminPanel(userRole) && (
+                    <AdminPanelMenuItem
+                      icon={Ruler}
+                      label="Lista de medições"
+                      detail="Fichas e exportações"
+                      dataTour="admin-menu-medicoes"
+                      onClick={() => navigateFromAdminMenu("/admin/medicoes")}
+                    />
+                  )}
+                </div>
+              </section>
 
-              <p className="px-1 pb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Conta
-              </p>
-              {accountMenuItems}
+              <section className="space-y-2">
+                <p className="ds-kicker px-0.5">Conta</p>
+                <div className="flex flex-col gap-2">{accountMenuItems}</div>
+              </section>
             </div>
           </div>,
           document.body

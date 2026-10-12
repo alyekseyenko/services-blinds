@@ -18,6 +18,7 @@ import {
   getAdminClientServiceAddressAction,
   searchAdminClientsAction,
 } from "@/actions/admin-commercial-service-actions";
+import AdminCreateClientForm from "@/components/admin/AdminCreateClientForm";
 import type { Opportunity } from "@/types/admin";
 
 const emptyAddress = (): AdminServiceAddress => ({
@@ -55,8 +56,10 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
   const [titleSuffix, setTitleSuffix] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [clientCreateOpen, setClientCreateOpen] = useState(false);
 
   const resetForm = useCallback(() => {
+    setClientCreateOpen(false);
     setClientQuery("");
     setClientHits([]);
     setSelectedClient(null);
@@ -114,12 +117,19 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
   const clearClient = () => {
     setSelectedClient(null);
     setClientQuery("");
+    setClientCreateOpen(false);
     setAddress(emptyAddress());
+  };
+
+  const guessFirstNameFromQuery = (query: string): string => {
+    const q = query.trim();
+    if (!q || q.includes("@")) return "";
+    return q.split(/\s+/)[0] || "";
   };
 
   const handleSubmit = async (openScheduleAfter: boolean) => {
     if (!selectedClient) {
-      toast.error("Selecione um cliente do Twenty CRM.");
+      toast.error("Selecione ou crie um cliente.");
       return;
     }
     if (!serviceType) {
@@ -203,6 +213,16 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                 Alterar
               </button>
             </div>
+          ) : clientCreateOpen ? (
+            <AdminCreateClientForm
+              initialFirstName={guessFirstNameFromQuery(clientQuery)}
+              onCreated={(client) => {
+                setClientCreateOpen(false);
+                void pickClient(client);
+              }}
+              onCancel={() => setClientCreateOpen(false)}
+              submitLabel="Criar e continuar"
+            />
           ) : (
             <>
               <div className="relative">
@@ -244,9 +264,29 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                 </ul>
               ) : null}
               {clientQuery.trim().length >= 2 && !clientLoading && clientHits.length === 0 ? (
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Nenhum cliente encontrado. Crie o contacto no Twenty CRM primeiro.
-                </p>
+                <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Nenhum cliente encontrado com esta pesquisa.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-12 w-full"
+                    data-tour="admin-create-service-new-client"
+                    onClick={() => setClientCreateOpen(true)}
+                  >
+                    Criar cliente
+                  </Button>
+                </div>
+              ) : null}
+              {clientQuery.trim().length >= 2 && clientHits.length > 0 ? (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-primary-ink underline"
+                  onClick={() => setClientCreateOpen(true)}
+                >
+                  Criar cliente novo
+                </button>
               ) : null}
             </>
           )}

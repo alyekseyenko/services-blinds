@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchTechnicianTasks } from '@/lib/crm/tasks';
 import { isAdminRole, technicianIdMatchesSession } from '@/lib/auth/session';
 import { getAppSession } from '@/lib/auth/session.server';
-import { CRMError } from '@/lib/crm/client';
+import { CRMError } from '@/lib/crm/errors';
 import { CircuitBreakerOpenException } from '@/lib/crm/circuitBreaker';
 import type { AppTask } from '@/lib/crm/schemas';
 

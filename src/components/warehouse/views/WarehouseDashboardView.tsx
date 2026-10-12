@@ -7,6 +7,8 @@ import type { WarehouseService, WarehouseStats } from "@/lib/warehouse/types";
 
 export interface WarehouseDashboardViewProps {
   loading: boolean;
+  /** When true, hide the “Tudo em Dia!” empty state (e.g. failed CRM load). */
+  loadFailed?: boolean;
   isSyncing: boolean;
   syncTime: Date | null;
   searchQuery: string;
@@ -19,6 +21,7 @@ export interface WarehouseDashboardViewProps {
 
 export default function WarehouseDashboardView({
   loading,
+  loadFailed = false,
   isSyncing,
   syncTime,
   searchQuery,
@@ -122,7 +125,7 @@ export default function WarehouseDashboardView({
             <PreparationCard key={service.id} service={service} onComplete={onComplete} />
           ))}
         </div>
-      ) : (
+      ) : loadFailed ? null : (
         <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-[3rem] shadow-sm">
           <div className="w-20 h-20 bg-surface-card-dark rounded-3xl flex items-center justify-center mb-6 shadow-md">
             <CheckCircle className="w-10 h-10 text-primary-ink" />

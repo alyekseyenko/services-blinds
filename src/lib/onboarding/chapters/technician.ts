@@ -189,6 +189,15 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         prepareOnHighlight: ["closeAddServiceSheet", "drawerTabInfo"],
       },
       {
+        element: '[data-tour="tech-voice-note"]',
+        title: "Ditada na nota",
+        description:
+          "Com ditada activa no servidor, use o microfone para preencher a nota ao CRM. Pode editar o texto antes de guardar.",
+        side: "bottom",
+        drawerStep: true,
+        prepareOnHighlight: ["closeAddServiceSheet", "drawerTabInfo"],
+      },
+      {
         element: '[data-tour="tech-drawer-finalize"]',
         title: "Estados de fecho",
         description: "Concluído, Incompleto ou Cancelado — escolha o que reflecte o que aconteceu no local.",
@@ -256,6 +265,15 @@ export const TECHNICIAN_CHAPTERS: TourChapter[] = [
         title: "Preencher medições",
         description:
           "Em 3 passos: 1) tipo de produto; 2) material e detalhes (só abre se faltar algo); 3) janelas — largura e altura em mm primeiro, depois divisão. Fixação e vão ficam em «Mais nesta janela».",
+        side: "bottom",
+        drawerStep: true,
+        prepareOnHighlight: "drawerTabMeasurements",
+      },
+      {
+        element: '[data-tour="tech-voice-product-observations"]',
+        title: "Observações por voz",
+        description:
+          "Em «Observações do Produto», o microfone preenche pormenores de instalação — o texto grava-se na ficha como sempre.",
         side: "bottom",
         drawerStep: true,
         prepareOnHighlight: "drawerTabMeasurements",

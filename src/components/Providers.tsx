@@ -6,6 +6,7 @@ import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import type { AppColorTheme } from "@/lib/theme/colorTheme";
 import HapticGestureBridge from "@/components/HapticGestureBridge";
+import RouteNavigationOverlay from "@/components/ui/RouteNavigationOverlay";
 
 type ProvidersProps = {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ export default function Providers({ children, initialTheme = "light" }: Provider
         <ToastProvider>
           <ConfirmProvider>
             <HapticGestureBridge />
+            <RouteNavigationOverlay />
             {children}
           </ConfirmProvider>
         </ToastProvider>

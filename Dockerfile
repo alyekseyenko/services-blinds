@@ -47,6 +47,12 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
+# Retry apk on transient DNS failures (common on VPS Docker builds)
+RUN for i in 1 2 3 4 5; do \
+  apk add --no-cache ffmpeg && exit 0; \
+  echo "apk retry $i..."; sleep 5; \
+  done; exit 1
+
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 # Uncomment the following line in case you want to disable telemetry during runtime.

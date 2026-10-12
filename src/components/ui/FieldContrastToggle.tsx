@@ -1,6 +1,6 @@
 "use client";
 
-import { SunMedium } from "lucide-react";
+import { Contrast } from "lucide-react";
 import { useColorTheme } from "@/components/ThemeProvider";
 import { useClientHydrated } from "@/hooks/useClientHydrated";
 import { cn } from "@/lib/cn";
@@ -28,7 +28,7 @@ export function FieldContrastToggle({ className, showLabel = false }: FieldContr
       aria-label={isHigh ? "Desactivar modo sol" : "Activar modo sol (alto contraste)"}
       title={isHigh ? "Modo sol activo" : "Modo sol"}
     >
-      <SunMedium className={cn("h-4 w-4", isHigh ? "text-primary-ink" : "text-muted-foreground")} />
+      <Contrast className={cn("h-4 w-4", isHigh ? "text-primary-ink" : "text-muted-foreground")} />
       {showLabel && (
         <span className="text-xs font-black uppercase tracking-wide" suppressHydrationWarning>
           {!hydrated ? "\u00a0" : isHigh ? "Modo sol activo" : "Modo sol"}

@@ -20,6 +20,13 @@ export type ResilientSessionGuardOptions = {
   skipRedirectIf?: () => boolean;
 };
 
+function sessionAuthorizedKey(session: Session): string {
+  const user = session.user;
+  if (!user) return "anonymous";
+  const role = (user as { role?: string }).role ?? "";
+  return `${user.id ?? user.email ?? "user"}:${role}`;
+}
+
 export function useResilientSessionGuard(options: ResilientSessionGuardOptions) {
   const {
     isAuthorized,
@@ -32,17 +39,31 @@ export function useResilientSessionGuard(options: ResilientSessionGuardOptions) 
   const [serverUnreachable, setServerUnreachable] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const probingRef = useRef(false);
+  const isAuthorizedRef = useRef(isAuthorized);
+  const onAuthorizedRef = useRef(onAuthorized);
+  const skipRedirectIfRef = useRef(skipRedirectIf);
+  const lastOnAuthorizedKeyRef = useRef<string | null>(null);
+
+  isAuthorizedRef.current = isAuthorized;
+  onAuthorizedRef.current = onAuthorized;
+  skipRedirectIfRef.current = skipRedirectIf;
 
   useEffect(() => {
     if (status === "loading") return;
 
-    if (session && isAuthorized(session)) {
+    if (session && isAuthorizedRef.current(session)) {
       setServerUnreachable(false);
-      onAuthorized?.(session);
+      const key = sessionAuthorizedKey(session);
+      if (lastOnAuthorizedKeyRef.current !== key) {
+        lastOnAuthorizedKeyRef.current = key;
+        onAuthorizedRef.current?.(session);
+      }
       return;
     }
 
-    if (session && !isAuthorized(session)) {
+    lastOnAuthorizedKeyRef.current = null;
+
+    if (session && !isAuthorizedRef.current(session)) {
       router.replace("/");
       return;
     }
@@ -68,7 +89,7 @@ export function useResilientSessionGuard(options: ResilientSessionGuardOptions) 
             void update();
             return;
           }
-          if (skipRedirectIf?.()) {
+          if (skipRedirectIfRef.current?.()) {
             return;
           }
           router.replace("/");
@@ -81,7 +102,7 @@ export function useResilientSessionGuard(options: ResilientSessionGuardOptions) 
     return () => {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
     };
-  }, [session, status, isAuthorized, onAuthorized, redirectWhenUnauthenticated, skipRedirectIf, router, update]);
+  }, [session, status, redirectWhenUnauthenticated, router, update]);
 
   useEffect(() => {
     if (!serverUnreachable) return;

@@ -75,6 +75,26 @@ Then open `/admin/observabilidade` → reprocess failed outbox events, or run **
 
 Full catalog: [N8N_SETUP.md](../N8N_SETUP.md).
 
+## Voice (ditada / resumo)
+
+Runtime only — **do not** put `GOOGLE_SPEECH_API_KEY` or `OPENAI_API_KEY` in Docker build args or Git.
+
+```env
+VOICE_PROVIDER=google
+GOOGLE_SPEECH_API_KEY=...
+# Optional — resumo no fecho da visita
+OPENAI_API_KEY=...
+```
+
+**Google Cloud (recommended restrictions for server-side STT):**
+
+1. Enable **Cloud Speech-to-Text API** only on the key.
+2. Restrict the key by **server IP** (VPS egress), not only HTTP referrer — the app transcribes on the server, not in the browser.
+3. Optionally add referrer `https://tecnicos.estoresrainha.com/*` only if you later call Google from the client (current design does not).
+4. Rotate or delete test keys when finished.
+
+After changing voice vars, `docker compose --env-file .env.local up -d --build` (no `NEXT_PUBLIC_*` needed for voice).
+
 ## Deploy on the server
 
 After editing `.env.local` on the VPS:
@@ -149,3 +169,26 @@ docker exec technician-app printenv REDIS_URL
 docker exec technician-app getent hosts technician-cache
 curl -sS http://127.0.0.1:3005/api/health
 ```
+
+### Security rotation (manual, after leaks)
+
+If VPS root password or API keys were exposed in chat, logs, or screen shares:
+
+1. **SSH:** change root password (`passwd`), add your SSH public key to `~/.ssh/authorized_keys`, set `PasswordAuthentication no` in `/etc/ssh/sshd_config`, restart `sshd`.
+2. **Google Speech:** revoke the old key in Google Cloud Console, create a new one restricted to Speech-to-Text API, update `GOOGLE_SPEECH_API_KEY` in server `.env.local`, rebuild the app container.
+3. **Never commit** terminal capture logs (`deploy-*.log`); they are gitignored. Delete any copies on disk.
+
+## Monitorização externa
+
+Configurar fora da VPS (UptimeRobot ou Better Stack, plano gratuito):
+
+- URL: `https://<NEXT_PUBLIC_APP_URL>/api/health`
+- Intervalo: 1–5 minutos
+- Alerta após 2 falhas consecutivas (email + Telegram)
+- Alerta de expiração do certificado HTTPS
+
+O endpoint público devolve `503` se o Twenty ou a base de medições falharem.
+
+## Backups
+
+Ver [SERVER_BACKUPS.md](./SERVER_BACKUPS.md) para cron de `measurements-db` e volume `technician-app-data`.

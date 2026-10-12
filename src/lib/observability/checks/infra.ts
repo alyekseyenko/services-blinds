@@ -167,13 +167,14 @@ export const appHealthProbesCheck = defineE2ECheck({
     if (!probes.healthy) {
       return {
         status: "FAIL",
-        message: "GraphQL CRM indisponível.",
+        message: "GraphQL CRM ou base de medições indisponível.",
         details: { ...probes },
       };
     }
     const degraded =
       probes.redis.status === "disconnected" ||
-      probes.appData.status === "disconnected";
+      probes.appData.status === "disconnected" ||
+      probes.measurements.status === "disconnected";
     return {
       status: degraded ? "WARN" : "PASS",
       message: degraded

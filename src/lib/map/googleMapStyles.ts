@@ -1,12 +1,15 @@
+/** Fundo do mapa (cinza frio, alinhado ao chrome da app — não branco puro). */
+export const OPERATIONS_MAP_CANVAS = "#e8eaef";
+
 /**
- * Operations map — fundo alinhado a `--background`, estradas chapadas, POI ocultos.
+ * Operations map — fundo cinza claro, estradas chapadas, POI ocultos.
  * Partilhado por admin e técnico.
  */
 export const OPERATIONS_MAP_STYLES = [
-  { elementType: "geometry", stylers: [{ color: "#ebebe8" }] },
+  { elementType: "geometry", stylers: [{ color: OPERATIONS_MAP_CANVAS }] },
   { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#525252" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ebebe8" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: OPERATIONS_MAP_CANVAS }] },
 
   {
     featureType: "administrative.neighborhood",
@@ -36,18 +39,18 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#d4d4cf" }, { visibility: "simplified" }],
+    stylers: [{ color: "#cfd2d8" }, { visibility: "simplified" }],
   },
 
   {
     featureType: "landscape",
     elementType: "geometry",
-    stylers: [{ color: "#e4e4e0" }],
+    stylers: [{ color: "#e2e4e9" }],
   },
   {
     featureType: "landscape.man_made",
     elementType: "geometry",
-    stylers: [{ color: "#e0e0dc" }],
+    stylers: [{ color: "#dde0e6" }],
   },
 
   { featureType: "poi", stylers: [{ visibility: "off" }] },
@@ -63,12 +66,12 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#ffffff" }],
+    stylers: [{ color: "#f2f3f6" }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#d4d4cf" }],
+    stylers: [{ color: "#cfd2d8" }],
   },
   {
     featureType: "road",
@@ -78,7 +81,7 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#fafafa" }],
+    stylers: [{ color: "#eceef2" }],
   },
   {
     featureType: "road.highway",
@@ -93,12 +96,12 @@ export const OPERATIONS_MAP_STYLES = [
   {
     featureType: "road.highway",
     elementType: "labels.text.stroke",
-    stylers: [{ color: "#ebebe8" }],
+    stylers: [{ color: OPERATIONS_MAP_CANVAS }],
   },
   {
     featureType: "road.arterial",
     elementType: "geometry",
-    stylers: [{ color: "#f5f5f2" }],
+    stylers: [{ color: "#eef0f4" }],
   },
   {
     featureType: "road.arterial",

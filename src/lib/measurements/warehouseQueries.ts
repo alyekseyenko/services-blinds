@@ -1,7 +1,7 @@
 import "server-only";
 import { WAREHOUSE_STATUS } from "@/lib/crm/contract";
 import type { WarehouseGroup, WarehouseService } from "@/lib/warehouse/types";
-import { getProductTypeLabel } from "@/lib/measurementLabels";
+import { getProductTypeLabel } from "@/lib/measurements/labels";
 import { isMeasurementsDbConfigured, measurementsQuery } from "./db/client";
 
 type CrmPrepOpportunity = {

@@ -2,7 +2,9 @@
 import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { flushSync } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/hooks/useAppRouter";
+import { viewPanelStackClass } from "@/lib/ui/viewPanel";
+import { useViewSwitchCover } from "@/hooks/useViewSwitchCover";
 import type { Session } from "next-auth";
 import { canAccessAdminPanel } from "@/lib/auth/session";
 import { useResilientSessionGuard } from "@/hooks/useResilientSessionGuard";
@@ -114,12 +116,16 @@ import {
   type OnboardingTourActionDetail,
 } from "@/lib/onboarding/tourActions";
 import { dispatchOnboardingAdminScheduleModalOpened } from "@/lib/onboarding/events";
-import type { ScheduleForm } from "@/components/admin/ScheduleModal";
+import type { ScheduleForm } from "@/lib/admin/scheduleForm";
 const ScheduleModal = dynamic(() => import("@/components/admin/ScheduleModal"), {
   ssr: false,
 });
 const CreateCommercialServiceSheet = dynamic(
   () => import("@/components/admin/CreateCommercialServiceSheet"),
+  { ssr: false }
+);
+const CreateAdminClientSheet = dynamic(
+  () => import("@/components/admin/CreateAdminClientSheet"),
   { ssr: false }
 );
 const MassScheduleModal = dynamic(() => import("@/components/admin/MassScheduleModal"), {
@@ -131,7 +137,7 @@ import { cn } from "@/lib/cn";
 const HQ_LOCATION = getHqLocation();
 
 export default function Admin() {
-  const router = useRouter();
+  const router = useAppRouter();
   const toast = useToast();
   const confirm = useConfirm();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -139,6 +145,7 @@ export default function Admin() {
   const [view, setView] = useState(() =>
     typeof window !== "undefined" ? readMainViewFromUrl(ADMIN_VIEW_IDS, "home") : "home"
   );
+  const viewSwitchCover = useViewSwitchCover(view);
 
   const changeAdminView = useCallback((next: string) => {
     if (!ADMIN_VIEW_IDS.includes(next as (typeof ADMIN_VIEW_IDS)[number])) return;
@@ -165,6 +172,7 @@ export default function Admin() {
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCreateServiceSheet, setShowCreateServiceSheet] = useState(false);
+  const [showCreateClientSheet, setShowCreateClientSheet] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [userName, setUserName] = useState("");
@@ -1258,9 +1266,7 @@ export default function Admin() {
         view !== "home" && "brutal-grid-bg"
       )}
     >
-      <div className="safe-top shrink-0">
-        <ServerConnectionBanner visible={serverUnreachable} />
-      </div>
+      <ServerConnectionBanner visible={serverUnreachable} />
       <AdminCommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
@@ -1270,6 +1276,7 @@ export default function Admin() {
         opportunities={opportunities}
         technicians={technicians}
         onSelectTechnician={handlePaletteSelectTechnician}
+        onOpenCreateClient={() => setShowCreateClientSheet(true)}
         onOpenCreateService={() => setShowCreateServiceSheet(true)}
       />
       <AdminHeader
@@ -1282,6 +1289,7 @@ export default function Admin() {
         router={router}
         onRefresh={handleRefresh}
         onOpenSearch={() => setCommandPaletteOpen(true)}
+        onOpenCreateClient={() => setShowCreateClientSheet(true)}
         onOpenCreateService={() => setShowCreateServiceSheet(true)}
         userName={userName}
         view={view}
@@ -1311,11 +1319,16 @@ export default function Admin() {
           </div>
         ) : (
           <div className="relative h-full min-h-0 w-full">
+            {viewSwitchCover ? (
+              <div
+                className="pointer-events-none absolute inset-0 z-50 bg-background"
+                aria-hidden
+              />
+            ) : null}
             <div
-              className={cn(
-                view === "home"
-                  ? "absolute inset-0 flex min-h-0 flex-col"
-                  : "absolute inset-0 min-h-0 invisible pointer-events-none"
+              className={viewPanelStackClass(
+                view === "home",
+                "absolute inset-0 flex min-h-0 flex-col"
               )}
               aria-hidden={view !== "home"}
             >
@@ -1327,14 +1340,12 @@ export default function Admin() {
                 onOpenMapFilter={openMapWithHomeFilter}
                 onOpenSearch={() => setCommandPaletteOpen(true)}
                 onOpenMedicoes={() => router.push("/admin/medicoes")}
-                onOpenCreateService={() => setShowCreateServiceSheet(true)}
+                onOpenCreateClient={() => setShowCreateClientSheet(true)}
+        onOpenCreateService={() => setShowCreateServiceSheet(true)}
               />
             </div>
             <div
-              className={cn(
-                "absolute inset-0 min-h-0",
-                view !== "map" && "invisible pointer-events-none"
-              )}
+              className={viewPanelStackClass(view === "map", "absolute inset-0 min-h-0")}
               aria-hidden={view !== "map"}
             >
           <AdminMapView
@@ -1403,10 +1414,7 @@ export default function Admin() {
           />
             </div>
             <div
-              className={cn(
-                "absolute inset-0 min-h-0",
-                view !== "calendar" && "invisible pointer-events-none"
-              )}
+              className={viewPanelStackClass(view === "calendar", "absolute inset-0 min-h-0")}
               aria-hidden={view !== "calendar"}
             >
           <AdminCalendarView
@@ -1423,9 +1431,9 @@ export default function Admin() {
           />
             </div>
             <div
-              className={cn(
-                "absolute inset-0 min-h-0 overflow-hidden",
-                view !== "history" && "invisible pointer-events-none"
+              className={viewPanelStackClass(
+                view === "history",
+                "absolute inset-0 min-h-0 overflow-hidden"
               )}
               aria-hidden={view !== "history"}
             >
@@ -1473,6 +1481,11 @@ export default function Admin() {
         open={showCreateServiceSheet}
         onClose={() => setShowCreateServiceSheet(false)}
         onCreated={(opp, options) => void handleCommercialServiceCreated(opp, options)}
+      />
+
+      <CreateAdminClientSheet
+        open={showCreateClientSheet}
+        onClose={() => setShowCreateClientSheet(false)}
       />
 
     </div>

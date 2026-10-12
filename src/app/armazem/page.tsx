@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { signOutToAppLogin } from "@/lib/clientSignOut";
 import type { Session } from "next-auth";
@@ -37,30 +37,52 @@ export default function WarehouseDashboard() {
   const [loadFailed, setLoadFailed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const loadInFlightRef = useRef(false);
+  const lastLoadToastAtRef = useRef(0);
 
-  const loadData = async (showSync = false) => {
-    if (showSync) setIsSyncing(true);
-    else setLoading(true);
+  const showLoadErrorToast = useCallback(
+    (title: string, message: string) => {
+      const now = Date.now();
+      if (now - lastLoadToastAtRef.current < 8_000) return;
+      lastLoadToastAtRef.current = now;
+      toast.error(title, message);
+    },
+    [toast]
+  );
 
-    try {
-      const result = await fetchWarehousePreparationListAction();
-      if (!result.success) {
+  const loadData = useCallback(
+    async (showSync = false) => {
+      if (loadInFlightRef.current) return;
+      loadInFlightRef.current = true;
+
+      if (showSync) setIsSyncing(true);
+      else setLoading(true);
+
+      try {
+        const result = await fetchWarehousePreparationListAction();
+        if (!result.success) {
+          setLoadFailed(true);
+          showLoadErrorToast(
+            "Erro ao carregar",
+            result.error || "Não foi possível obter a lista de preparação."
+          );
+          return;
+        }
+        setLoadFailed(false);
+        setServices(result.data ?? []);
+        setSyncTime(new Date());
+      } catch (e) {
+        console.error("Error loading warehouse data:", e);
         setLoadFailed(true);
-        toast.error("Erro ao carregar", result.error || "Não foi possível obter a lista de preparação.");
-        return;
+        showLoadErrorToast("Erro de ligação", "Falha ao sincronizar com o CRM.");
+      } finally {
+        setLoading(false);
+        setIsSyncing(false);
+        loadInFlightRef.current = false;
       }
-      setLoadFailed(false);
-      setServices(result.data ?? []);
-      setSyncTime(new Date());
-    } catch (e) {
-      console.error("Error loading warehouse data:", e);
-      setLoadFailed(true);
-      toast.error("Erro de ligação", "Falha ao sincronizar com o CRM.");
-    } finally {
-      setLoading(false);
-      setIsSyncing(false);
-    }
-  };
+    },
+    [showLoadErrorToast]
+  );
 
   const { status: sessionStatus, serverUnreachable } = useResilientSessionGuard({
     isAuthorized: (s: Session) => {
@@ -130,6 +152,7 @@ export default function WarehouseDashboard() {
 
       <WarehouseDashboardView
         loading={loading}
+        loadFailed={loadFailed}
         isSyncing={isSyncing}
         syncTime={syncTime}
         searchQuery={searchQuery}

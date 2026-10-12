@@ -17,8 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import SyncQueueSheet from "@/components/dashboard/SyncQueueSheet";
 import { APP_LOGO_PATH, APP_SHORT_NAME } from "@/lib/branding";
 import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { FieldContrastToggle } from "@/components/ui/FieldContrastToggle";
+import { AppearanceMenu } from "@/components/ui/AppearanceMenu";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastContext";
@@ -280,7 +279,7 @@ function Header({
               </button>
             )}
 
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="hidden items-center gap-1.5 md:flex lg:gap-2">
               {onToggleLocationConsent && (
                 <IconButton
                   onClick={onToggleLocationConsent}
@@ -320,9 +319,7 @@ function Header({
                 onOpenTaskOnMap={onOpenAgendaNotificationOnMap}
               />
 
-              <FieldContrastToggle />
-
-              <ThemeToggle />
+              <AppearanceMenu layout="toolbar" />
 
               <IconButton
                 onClick={handleLogout}
@@ -358,12 +355,12 @@ function Header({
 
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col bg-card safe-top safe-bottom md:hidden"
+          className="fixed inset-0 z-[80] flex flex-col bg-card safe-bottom md:hidden"
           role="dialog"
           aria-label="Menu do técnico"
           data-tour="tech-mobile-menu-sheet"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+          <div className="safe-top flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-sm font-bold text-foreground">Menu</p>
               <p className="text-xs font-semibold text-muted-foreground">Sincronização, GPS e sessão</p>
@@ -471,12 +468,7 @@ function Header({
                   </button>
                 </li>
               )}
-              <li className="flex min-h-14 items-center rounded-2xl border border-border bg-card px-4 py-2">
-                <FieldContrastToggle showLabel className="w-full border-0 bg-transparent shadow-none" />
-              </li>
-              <li className="flex min-h-14 items-center rounded-2xl border border-border bg-card px-4 py-2">
-                <ThemeToggle showLabel className="w-full border-0 bg-transparent shadow-none" />
-              </li>
+              <AppearanceMenu layout="sheet-rows" />
             </ul>
 
           </div>

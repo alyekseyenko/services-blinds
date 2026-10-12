@@ -5,7 +5,7 @@ import { pt } from "date-fns/locale";
 import type { PoolClient } from "pg";
 import type { MeasurementsPayload } from "@/lib/schemas";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
-import { sanitizeGroupDetailsForType } from "@/lib/measurementProductDetails";
+import { sanitizeGroupDetailsForType } from "@/lib/measurements/productDetails";
 import { pickGroupExtras, pickLineExtras } from "@/lib/measurements/extendedFields";
 import { syncMeasurementRowLegacyFields } from "@/lib/measurements/rowPayload";
 import type { MeasurementRow } from "@/types";

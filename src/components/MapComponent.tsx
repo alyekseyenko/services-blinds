@@ -6,7 +6,7 @@ import { resolveTaskOverdue } from '@/lib/taskUtils';
 import { HQ_LAT, HQ_LNG } from '@/lib/hq';
 import { APP_LOGO_PATH, MAP_HQ_TITLE } from '@/lib/branding';
 import { isNeedsSchedulingStage, isTaskCompleted } from '@/lib/crm/contract';
-import { MapMarkerInfoWindow } from '@/components/admin/MapMarkerInfoWindow';
+import { MapMarkerInfoWindow } from '@/components/map/MapMarkerInfoWindow';
 import { MapOverlayControls } from '@/components/map/MapOverlayControls';
 import { useMapClusteringEnabled } from '@/hooks/useMapClustering';
 import { MapLegend, useMapLegendOpen } from '@/components/map/MapLegend';
@@ -21,7 +21,7 @@ import {
   MAP_PIN_VIEW_WIDTH,
 } from '@/lib/map/serviceMarkerArt';
 import { buildTaskMarkerIcon } from '@/components/map/taskMarkerIcon';
-import { OPERATIONS_MAP_STYLES } from '@/lib/map/googleMapStyles';
+import { OPERATIONS_MAP_CANVAS, OPERATIONS_MAP_STYLES } from '@/lib/map/googleMapStyles';
 import { useMediaMinWidth } from '@/hooks/useMediaMinWidth';
 import {
   getHqLogoPixelSize,
@@ -170,7 +170,7 @@ export default function MapComponent({
       keyboardShortcuts: false,
       gestureHandling: "greedy" as const,
       clickableIcons: false,
-      backgroundColor: "#e8eaef",
+      backgroundColor: OPERATIONS_MAP_CANVAS,
       styles: OPERATIONS_MAP_STYLES,
     }),
     [hideNativeMapChrome]

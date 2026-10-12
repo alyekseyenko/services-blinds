@@ -37,7 +37,7 @@ services:
       - TWENTY_API_URL=http://twenty-server-1:3000
       - REDIS_URL=redis://technician-cache:6379
       - APP_DATA_DIR=/app/data
-      - MEASUREMENTS_DATABASE_URL=postgresql://measurements:${MEASUREMENTS_DB_PASSWORD:-changeme}@measurements-db:5432/measurements
+      - MEASUREMENTS_DATABASE_URL=postgresql://measurements:${MEASUREMENTS_DB_PASSWORD:?set MEASUREMENTS_DB_PASSWORD in .env.local}@measurements-db:5432/measurements
     volumes:
       - technician-app-data:/app/data
     networks:
@@ -60,7 +60,7 @@ services:
         max-file: "5"
     environment:
       POSTGRES_USER: measurements
-      POSTGRES_PASSWORD: ${MEASUREMENTS_DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${MEASUREMENTS_DB_PASSWORD:?set MEASUREMENTS_DB_PASSWORD in .env.local}
       POSTGRES_DB: measurements
     expose:
       - "5432"

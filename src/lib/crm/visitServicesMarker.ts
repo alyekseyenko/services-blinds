@@ -1,3 +1,4 @@
+import { stripVisitSiteTimesMarker } from "@/lib/visitSiteTimes";
 import { deriveWorkflowMarkerKey } from "./contract";
 import type { ExtraServiceType, VisitService, VisitServiceMode } from "@/lib/schemas";
 
@@ -31,7 +32,9 @@ export function stripVisitServicesMarker(markdown: string): string {
 
 /** Remove injected marker blocks from free-text (e.g. technician observations). */
 export function sanitizeUserMarkdown(markdown: string): string {
-  return markdown.replace(VISIT_SERVICES_REGEX_GLOBAL, "").trim();
+  return stripVisitSiteTimesMarker(
+    markdown.replace(VISIT_SERVICES_REGEX_GLOBAL, "").trim()
+  );
 }
 
 export function writeVisitServicesMarker(markdown: string, records: VisitServiceMarkerRecord[]): string {

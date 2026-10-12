@@ -69,6 +69,12 @@ export interface Opportunity {
   technicianReport?: string;
   clientRating?: number;
   clientFeedback?: string;
+  /** ISO — «Cheguei ao local» na app. */
+  visitArrivedAt?: string | null;
+  /** ISO — encerramento (concluída / incompleta / cancelada). */
+  visitClosedAt?: string | null;
+  visitOnSiteDurationMs?: number | null;
+  visitOnSiteDurationLabel?: string | null;
 }
 
 export interface WorkspaceMember {

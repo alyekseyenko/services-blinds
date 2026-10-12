@@ -31,6 +31,7 @@ import {
 import { MeasurementExteriorPartialPartsPicker } from "./MeasurementFieldPickers";
 import { MeasurementTable } from "./MeasurementTable";
 import { MeasurementGroupSpecExtras } from "./MeasurementGroupSpecExtras";
+import { VoiceTextarea } from "@/components/ui/VoiceTextarea";
 
 interface ProductGroupCardProps {
   group: ProductGroup;
@@ -46,6 +47,8 @@ interface ProductGroupCardProps {
   onCloneRow: (id: number, row: any) => void;
   onAddRow: (id: number) => void;
   onRemoveRow: (id: number, rowIndex: number) => void;
+  /** Primeiro grupo editável — âncora do guia de ditada nas observações. */
+  voiceObservationsTourAnchor?: boolean;
 }
 
 function ProductGroupCardComponent({
@@ -61,7 +64,8 @@ function ProductGroupCardComponent({
   onUpdateMeasurement,
   onCloneRow,
   onAddRow,
-  onRemoveRow
+  onRemoveRow,
+  voiceObservationsTourAnchor = false,
 }: ProductGroupCardProps) {
   const confirm = useConfirm();
   const isDesktop = useMediaMinWidth(768);
@@ -623,13 +627,19 @@ function ProductGroupCardComponent({
                 </div>
               ) : (
                 <>
-                  <textarea 
+                  <VoiceTextarea
                     placeholder="Ex: Pormenores de instalação..."
-                    className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                    textareaClassName="w-full min-h-12 flex-1 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                    className="w-full"
                     rows={2}
-                    value={group.details.observations}
+                    value={group.details.observations ?? ""}
                     disabled={specLocked}
-                    onChange={(e) => onUpdateGroupDetails(group.id, 'observations', e.target.value)}
+                    onChange={(v) => onUpdateGroupDetails(group.id, "observations", v)}
+                    dataTour={
+                      voiceObservationsTourAnchor
+                        ? "tech-voice-product-observations"
+                        : undefined
+                    }
                   />
                 </>
               )}

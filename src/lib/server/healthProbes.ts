@@ -4,6 +4,7 @@ import { access, constants } from "fs/promises";
 import { crmFetch } from "@/lib/crm/client";
 import { env } from "@/lib/env";
 import { getSharedRedisClient } from "@/lib/crmCache";
+import { isMeasurementsDbConfigured, pingMeasurementsDb } from "@/lib/measurements/db/client";
 
 export interface HealthProbe {
   status: "connected" | "disconnected";
@@ -88,6 +89,30 @@ export async function probeRedis(): Promise<HealthProbe> {
   }
 }
 
+export async function probeMeasurementsDb(): Promise<HealthProbe> {
+  const start = Date.now();
+  if (!isMeasurementsDbConfigured()) {
+    return {
+      status: "disconnected",
+      latencyMs: Date.now() - start,
+      error: "MEASUREMENTS_DATABASE_URL não configurado",
+    };
+  }
+  try {
+    const ok = await pingMeasurementsDb();
+    if (!ok) {
+      throw new Error("SELECT 1 falhou");
+    }
+    return { status: "connected", latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      status: "disconnected",
+      latencyMs: Date.now() - start,
+      error: error instanceof Error ? error.message : "Base de medições indisponível",
+    };
+  }
+}
+
 export async function probeAppDataDir(): Promise<HealthProbe> {
   const start = Date.now();
   const dir = process.env.APP_DATA_DIR?.trim() || "/app/data";
@@ -104,18 +129,21 @@ export async function probeAppDataDir(): Promise<HealthProbe> {
 }
 
 export async function runAppHealthProbes() {
-  const [graphql, metadata, redis, appData] = await Promise.all([
+  const [graphql, metadata, redis, measurements, appData] = await Promise.all([
     probeGraphql(),
     probeMetadata(),
     probeRedis(),
+    probeMeasurementsDb(),
     probeAppDataDir(),
   ]);
-  const healthy = graphql.status === "connected";
+  const healthy =
+    graphql.status === "connected" && measurements.status === "connected";
   return {
     healthy,
     graphql,
     metadata,
     redis,
+    measurements,
     appData,
     authOriginConfigured: Boolean(env.TWENTY_AUTH_ORIGIN),
   };

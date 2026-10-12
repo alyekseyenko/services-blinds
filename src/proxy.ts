@@ -8,6 +8,7 @@ import {
   isStrictAdminRole,
   isWarehouseRole,
 } from "@/lib/auth/rbac";
+import { allowsAnonymousServerAction } from "@/lib/auth/publicPortalPaths";
 
 function roleFromToken(tokenRole: unknown): AppRole | null {
   return typeof tokenRole === "string" ? (tokenRole as AppRole) : null;
@@ -16,15 +17,15 @@ function roleFromToken(tokenRole: unknown): AppRole | null {
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
+    const pathname = req.nextUrl.pathname;
     const nextAction = req.headers.get("next-action");
-    if (nextAction && !token) {
+    if (nextAction && !token && !allowsAnonymousServerAction(pathname)) {
       return new NextResponse("Não autenticado.", {
         status: 401,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
-    const pathname = req.nextUrl.pathname;
     const isApiRoute = pathname.startsWith("/api/");
     const role = roleFromToken(token?.role);
 

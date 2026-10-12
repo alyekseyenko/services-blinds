@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['@react-pdf/renderer'],
+  serverExternalPackages: ['@react-pdf/renderer', '@google-cloud/speech'],
   poweredByHeader: false,
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || 'fieldops_production',
   outputFileTracingExcludes: {
@@ -57,7 +57,7 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(self), geolocation=(self), microphone=()',
+            value: 'camera=(self), geolocation=(self), microphone=(self)',
           },
         ],
       },

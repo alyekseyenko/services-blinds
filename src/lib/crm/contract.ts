@@ -118,6 +118,20 @@ export const CRM_FIELDS = {
     active: 'ativo',
     name: 'name',
   },
+  person: {
+    morada: 'morada',
+    nif: 'nif',
+    quickNotes: 'observacoesRapidas',
+    companyId: 'companyId',
+    /** Twenty `PersonTipoDeClienteEnum` (MULTI_SELECT → lista com um valor). */
+    clientType: 'tipoDeCliente',
+  },
+} as const;
+
+/** Values for `CRM_FIELDS.person.clientType` / `PersonTipoDeClienteEnum`. */
+export const CRM_PERSON_CLIENT_TYPES = {
+  EMPRESA: 'EMPRESA',
+  PARTICULAR: 'PARTICULAR',
 } as const;
 
 /** GraphQL sub-selection for Twenty `Address` composite fields. */

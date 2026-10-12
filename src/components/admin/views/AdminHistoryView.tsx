@@ -11,6 +11,7 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import { useSync } from "@/hooks/useSync";
 import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
@@ -24,7 +25,14 @@ interface HistoryPageData {
   page: number;
   pageSize: number;
   totalPages: number;
-  summary: { completed: number; incomplete: number; cancelled: number };
+  summary: {
+    completed: number;
+    incomplete: number;
+    cancelled: number;
+    onSiteDurationSampleCount: number;
+    onSiteDurationAvgMinutes: number | null;
+    onSiteDurationFormattedAvg: string | null;
+  };
 }
 
 export interface AdminHistoryViewProps {
@@ -76,6 +84,14 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
               {historyData?.summary.cancelled ?? 0} Cancelados
             </span>
           </div>
+          {(historyData?.summary.onSiteDurationSampleCount ?? 0) > 0 ? (
+            <div className="px-4 py-2 bg-info-surface rounded-2xl border border-info-border flex items-center gap-2.5">
+              <Clock className="h-3.5 w-3.5 text-info-solid" aria-hidden />
+              <span className="text-xs font-black uppercase text-info-fg">
+                Média no local: {historyData?.summary.onSiteDurationFormattedAvg}
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -138,6 +154,12 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
                     <span className="flex items-center gap-1.5">
                       <MapPin className="w-3 h-3" /> {opp.addressCity || NOT_AVAILABLE_LABEL}
                     </span>
+                    {opp.visitOnSiteDurationLabel ? (
+                      <span className="flex items-center gap-1.5 text-info-fg">
+                        <Clock className="w-3 h-3" aria-hidden />
+                        {opp.visitOnSiteDurationLabel} no local
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>

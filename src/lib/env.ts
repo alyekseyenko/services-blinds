@@ -22,6 +22,14 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().min(10).optional(),
   PUBLIC_LINK_SECRET: z.string().min(16).optional(),
   PUBLIC_LINK_TTL_DAYS: z.coerce.number().int().positive().optional(),
+  VOICE_PROVIDER: z.preprocess((value) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === '' || (trimmed !== 'openai' && trimmed !== 'google')) return undefined;
+    return trimmed;
+  }, z.enum(['openai', 'google']).optional()),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  GOOGLE_SPEECH_API_KEY: z.string().min(1).optional(),
 });
 
 const isServer = typeof window === 'undefined';
@@ -41,6 +49,9 @@ export const env = envSchema.parse({
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
   PUBLIC_LINK_SECRET: process.env.PUBLIC_LINK_SECRET,
   PUBLIC_LINK_TTL_DAYS: process.env.PUBLIC_LINK_TTL_DAYS,
+  VOICE_PROVIDER: isServer ? process.env.VOICE_PROVIDER : undefined,
+  OPENAI_API_KEY: isServer ? process.env.OPENAI_API_KEY : undefined,
+  GOOGLE_SPEECH_API_KEY: isServer ? process.env.GOOGLE_SPEECH_API_KEY : undefined,
 });
 
 export type Env = z.infer<typeof envSchema>;

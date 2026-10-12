@@ -4,7 +4,7 @@
 ![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![React 19](https://img.shields.io/badge/React-19-61dafb?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)
-![Tests](https://img.shields.io/badge/unit%20tests-177%2B-brightgreen)
+![Tests](https://img.shields.io/badge/unit%20tests-450%2B-brightgreen)
 
 **Production-grade PWA** for field-service teams (scheduling, measurements, warehouse prep, executive analytics, customer self-service). Syncs with **Twenty CRM** over GraphQL. Built **offline-first** for technicians on unreliable mobile networks.
 
@@ -35,7 +35,7 @@
 | **Architecture** | Layered design: UI → Server Actions → `lib/crm` (infra only), Zod at boundaries |
 | **Security** | JWT + RBAC, HMAC public portals, session-scoped APIs, no CRM mutations from client bundles |
 | **Ops** | Docker production deploy, SRE dashboard, extensible E2E health registry, CI on every push |
-| **Quality** | 177+ Vitest unit tests, Playwright smoke E2E, TypeScript strict, GitHub Actions pipeline |
+| **Quality** | 450+ Vitest unit tests, Playwright smoke E2E, TypeScript strict, GitHub Actions pipeline |
 
 ---
 
@@ -44,7 +44,7 @@
 **Frontend & mobile**
 
 - Next.js 16 App Router, React 19, Server Actions, route-level auth (`src/proxy.ts`)
-- PWA: service worker, install prompts, push opt-in
+- PWA: service worker, install prompts, in-app agenda notification bell (no browser push for ops)
 - Tailwind CSS v4, responsive / touch-first UI (48px targets, field workflows)
 - Google Maps: clustering, geocoding, live technician map (admin)
 
@@ -64,7 +64,7 @@
 **Testing & delivery**
 
 - Vitest (domain + integration-style unit tests), Playwright (smoke + task flows)
-- `npm run validate` = type-check + tests; CI: lint (advisory), build, E2E smoke
+- `npm run validate` = type-check + unit tests + UI boundary lint; CI: lint (advisory), build, E2E smoke
 - Docker multi-stage image, Compose stack, host nginx TLS (documented, not tied to one vendor)
 
 **Architecture & process**
@@ -199,8 +199,8 @@ Impact themes: single source of truth in CRM, fewer status calls, measurable rou
 
 ## Feature map (engineering view)
 
-- **Technician PWA** — `useSyncQueue`, measurement forms, visit state machine, sync telemetry  
-- **Admin** — map filters, clustering, calendar, mass schedule, opportunity drawer, geocoding  
+- **Technician PWA** — `useSyncQueue`, measurement forms (optional server-side voice dictation), visit state machine, sync telemetry, map **Legenda** help (no guided tour)  
+- **Admin** — map filters, clustering, calendar, mass schedule, opportunity drawer, geocoding, map legend  
 - **CEO** — aggregated CRM metrics with server-side date filters  
 - **Warehouse** — preparation workflow tied to opportunities  
 - **Observability** — pluggable E2E health registry (`src/lib/observability/`), optional full business-path simulator (admin-only, env-gated)  
@@ -222,13 +222,13 @@ Impact themes: single source of truth in CRM, fewer status calls, measurable rou
 | Automation | n8n (HTTP webhooks) |
 | Tests | Vitest, Playwright |
 | CI/CD | GitHub Actions |
-| Runtime | Node 20, Docker Compose |
+| Runtime | Node 22, Docker Compose |
 
 ---
 
 ## Getting started (local)
 
-**Prerequisites:** Node 20+, a Twenty CRM instance (or mock URL for UI-only exploration).
+**Prerequisites:** Node 22 (see `package.json` engines), a Twenty CRM instance (or mock URL for UI-only exploration).
 
 ```bash
 git clone https://github.com/alyekseyenko/services-blinds.git
@@ -240,7 +240,7 @@ npm run dev
 
 | Command | Purpose |
 |---------|---------|
-| `npm run validate` | Type-check + unit tests |
+| `npm run validate` | Type-check + unit tests + `lint:boundaries` |
 | `npm run test:e2e:smoke` | Playwright smoke (login path) |
 | `npm run build` | Production build |
 

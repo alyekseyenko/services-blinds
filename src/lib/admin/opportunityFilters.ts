@@ -13,7 +13,6 @@ import {
   matchesStallFilter,
   matchesTechnicianFilter,
 } from "@/lib/admin/mapFilterConfig";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
 import { isOpportunityPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
@@ -140,18 +139,7 @@ export function filterMapOpportunities(
     historyOutcomes,
   });
 
-  const result = dedupeOpportunities([...filtered, ...historyPins]);
-
-  for (const demo of opportunities.filter(isOnboardingDemoEntity)) {
-    if (result.some(isOnboardingDemoEntity)) break;
-    result.push({
-      ...demo,
-      delayDays: 0,
-      delayAlert: null,
-    });
-  }
-
-  return result;
+  return dedupeOpportunities([...filtered, ...historyPins]);
 }
 
 export function filterCalendarOpportunities(

@@ -119,7 +119,7 @@ src/
 │   ├── auth/          # Session + RBAC helpers
 │   ├── crm/           # GraphQL client, contract, domain fetchers
 │   ├── schemas/       # Zod schemas (auth, CEO metrics, etc.)
-│   ├── onboarding/    # Guided tours (driver.js), demo visit, tour actions
+│   ├── demo/          # Legacy demo entity IDs (sync guards only)
 │   ├── branding.ts    # Env-driven app name / company labels
 │   └── hq.ts          # HQ coordinates (env-driven NEXT_PUBLIC_HQ_*)
 └── proxy.ts           # Auth middleware + route RBAC
@@ -140,7 +140,6 @@ Supporting docs: [README.md](./README.md), [ARCHITECTURE_MASTER_BLUEPRINT.md](./
 - Use `credentials: "include"` on client `fetch` calls that need the session cookie.
 - Use env-driven branding (`src/lib/branding.ts`, `src/lib/hq.ts`) — never hardcode production domains or IPs in committed code.
 - Prefer `getAppSession()` in API routes over ad-hoc session parsing.
-- **When changing layout, navigation, or primary UI flows** (especially `/dashboard`, `/admin`, `/armazem`, `/ceo`), keep the **onboarding guide** in sync — see [Onboarding guided tours](#onboarding-guided-tours) below.
 - **When a change affects the field agenda or visit lifecycle** (new status, reschedule/cancel paths, mass schedule, on-site services, assignments), **extend in-app notifications in the same change** — see [Agenda & in-app notifications](#agenda--in-app-notifications) below. Do not wait for the user to ask.
 
 ### Agenda & in-app notifications
@@ -178,54 +177,11 @@ Technician (`/dashboard`) and admin (`/admin`) get **toasts + sininho** when the
 - All user-visible strings **pt-PT**.
 - **Browser push / n8n push webhook** are not used for field ops — operators use the **sininho** only. Do not add `N8N_WEBHOOK_URL_PUSH` or push opt-in flows for agenda changes. (n8n may still handle other CRM/outbox events elsewhere in the stack.)
 
-### Onboarding guided tours
+### Map legend & legacy demo IDs
 
-Each role gets a **driver.js** tour (`?` button + first-login autostart). **Technician** and **admin** use **capítulos**: autostart só em `essentials` (≤15 passos); o **?** abre um picker com capítulos temáticos. Warehouse e CEO têm um único capítulo (`default`).
+There is **no** in-app guided tour. Map help lives in **Legenda** (`src/components/map/MapLegend.tsx`, copy in `src/lib/map/mapLegendCopy.ts`) — technician variant includes GPS, sync queue, lista/calendário; admin variant mentions filtros e rotas.
 
-Regra Cursor dedicada: [.cursor/rules/onboarding-tours.mdc](./.cursor/rules/onboarding-tours.mdc) — actualizar o guia **na mesma alteração** quando mudar UI importante.
-
-Two flows use **demo entities** that must never sync to the CRM:
-
-| Role(s) | Route | Demo entity |
-|---------|-------|-------------|
-| **Technician** | `/dashboard` | Fake visit (`TaskDetailsDrawer`, measurements, add-service sheet) |
-| **Member / admin / CEO** | `/admin` | Fake map pin + opportunity (`OpportunityDrawer`; same demo ID as map pin helpers) |
-
-Warehouse and CEO panels have shorter tours; **technician** and **admin** tours are the longest — treat both as first-class when changing those screens.
-
-**Update the guide in the same PR (or immediately after) when you:**
-
-- Move, rename, hide, or split UI regions (headers, bottom nav, drawers, sheets, tabs).
-- Add or remove **technician** views (map / list / calendar / history) or **admin** views (map / calendar / history, map status tabs, filters, route sidebar).
-- Change map pins, info windows, or opportunity drawer layout on `/admin`.
-- Change z-index, overlays, or scroll containers that affect what the tour can highlight.
-
-**Where things live:**
-
-| Concern | Location |
-|--------|----------|
-| Capítulos e passos (pt-PT) | `src/lib/onboarding/chapters/{technician,admin,warehouse,ceo}.ts`, re-export em `tours.ts` |
-| Picker do ? | `src/components/onboarding/TourHelpButton.tsx` |
-| Role → tour id (CEO em `/admin` → guia admin) | `getTourIdForSession` em `src/lib/onboarding/roleTour.ts` |
-| Visibilidade lazy / `roles` / `viewport` | `src/lib/onboarding/tourStepVisibility.ts` |
-| Orchestration (next/prev, waits) | `src/components/onboarding/OnboardingTour.tsx` |
-| DOM anchors | `data-tour="…"` on stable, visible targets (prefer inner panels over full-screen wrappers) |
-| Tour actions (shared) | `src/lib/onboarding/tourActions.ts` |
-| **Technician** demo / view switches | `src/hooks/useOnboardingTechnicianTour.ts`, `TaskDetailsDrawer`, `AddVisitServiceSheet`, `src/app/dashboard/page.tsx` |
-| **Admin** demo pin / opp / views | `src/hooks/useOnboardingAdminTour.ts`, `src/lib/onboarding/demoMapPin.ts`, `src/app/admin/page.tsx`, `MapComponent`, `OpportunityDrawer`, `AdminHeader`, calendar & history views |
-| Visibility / z-index during tour | `src/app/globals.css` (`html[data-onboarding-tour="…"]`) |
-| Wait for anchors | `src/lib/onboarding/waitForTourAnchors.ts` |
-
-**Conventions:**
-
-- Anchor names: role prefix + feature, e.g. `tech-nav-list`, `tech-drawer-tab-measurements`, `admin-map-filters`, `admin-opp-drawer-header`.
-- Drawer/sheet steps: use `drawerStep` / `sheetStep` in chapter definitions — do **not** fall back to the invisible modal anchor for those steps.
-- Optional step fields: `roles?: AppRole[]`, `viewport?: "mobile" | "desktop"`.
-- If a step needs UI state (open drawer, tab, sheet, map tab, or main view), add or reuse a **`tourAction`** and handle it in the matching hook — do not rely on the user clicking ahead of the tour.
-- **Technician:** leaving the demo visit block must **`closeDemoVisit`**; steps that show the main app behind the drawer must not keep the demo drawer open.
-- **Admin:** use **`showAdminViewMap|Calendar|History`** before highlighting those views; open/close the demo opportunity with **`openAdminDemoOpportunity`** / **`closeAdminDemoOpportunity`**; map status steps may need **`setAdminMapTabScheduled`** / **`setAdminMapTabUnscheduled`**. If a target lives inside a collapsed panel (e.g. filtros), add a prepare action to open it — do not point the tour at hidden DOM.
-- All **user-visible** tour strings stay **pt-PT**; keep demo IDs guarded in sync queue / actions (see existing `isOnboardingDemoEntity` patterns).
-- After edits: run `npm run validate`, smoke-test with **?** on mobile width and desktop for **each affected role** (`/dashboard` for technician, `/admin` for member/admin/ceo).
+Legacy tour demo IDs (`onboarding-demo-*`) remain in `src/lib/demo/demoIds.ts` — use `isOnboardingDemoEntity` / `isOnboardingDemoId` in sync, actions, and exports so old drafts never hit the CRM.
 
 ### Do not
 

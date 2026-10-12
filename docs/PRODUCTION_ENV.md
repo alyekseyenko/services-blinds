@@ -90,7 +90,7 @@ OPENAI_API_KEY=...
 
 1. Enable **Cloud Speech-to-Text API** only on the key.
 2. Restrict the key by **server IP** (VPS egress), not only HTTP referrer — the app transcribes on the server, not in the browser.
-3. Optionally add referrer `https://tecnicos.estoresrainha.com/*` only if you later call Google from the client (current design does not).
+3. Optionally add referrer `https://your-field-app.example.com/*` only if you later call Google from the client (current design does not).
 4. Rotate or delete test keys when finished.
 
 After changing voice vars, `docker compose --env-file .env.local up -d --build` (no `NEXT_PUBLIC_*` needed for voice).

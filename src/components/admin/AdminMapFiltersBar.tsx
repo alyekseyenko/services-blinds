@@ -2,10 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from "@/lib/onboarding/tourActions";
-import {
   Filter,
   X,
   Sparkles,
@@ -238,31 +234,6 @@ export default function AdminMapFiltersBar({
     setZoneMethod(null);
     setPickedZone(cityFilter);
   };
-
-  useEffect(() => {
-    const onTourAction = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-      switch (action) {
-        case "openAdminMapFiltersPanel":
-          setPanel("filters");
-          break;
-        case "closeAdminMapFiltersPanel":
-          setPanel((current) => (current === "filters" ? null : current));
-          break;
-        case "openAdminMapZonesPanel":
-          openZones();
-          break;
-        case "closeAdminMapZonesPanel":
-          closeAll();
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-  }, [panel, cityFilter]);
 
   useEffect(() => {
     if (!panel) return;

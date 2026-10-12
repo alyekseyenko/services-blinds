@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, SyncQueueItem } from '@/lib/db';
 import { isBrowserOnline } from '@/lib/networkOnline';
-import { isOnboardingDemoEntity } from '@/lib/onboarding/demoMapPin';
+import { isOnboardingDemoEntity } from '@/lib/demo/demoIds';
 import { syncUpdateTaskStatusAction } from '@/actions/tasks-actions';
 import { submitMeasurementsAction } from '@/actions/measurements-actions';
 import { createOpportunityNoteAction } from '@/actions/notes-actions';

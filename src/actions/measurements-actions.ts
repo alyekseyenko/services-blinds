@@ -14,8 +14,8 @@ import { isWarehouseRole } from "@/lib/auth/rbac";
 import type { AppRole } from "@/lib/schemas/auth";
 import { getAppSession } from "@/lib/auth/session.server";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
-import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
-import { isOnboardingDemoId } from "@/lib/onboarding/demoMapPin";
+import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
+import { isOnboardingDemoId } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import {
   getSheetById,

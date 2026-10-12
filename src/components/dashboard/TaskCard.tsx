@@ -5,7 +5,7 @@ import { MapPin, Info, Phone, ChevronRight, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { hapticLight } from "@/lib/haptics";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 
 interface TaskCardProps {
   task: any;

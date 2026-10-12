@@ -10,8 +10,8 @@ import {
   listMeasurementVersionsAction,
 } from "@/actions/measurements-actions";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
-import { isOnboardingDemoId } from "@/lib/onboarding/demoMapPin";
-import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
+import { isOnboardingDemoId } from "@/lib/demo/demoIds";
+import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import {
   measurementSheetBackHref,
   measurementSheetBackLabel,

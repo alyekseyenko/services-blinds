@@ -5,9 +5,6 @@ import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { MapInfoWindowShell } from "@/components/map/MapInfoWindowShell";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import { resolveTaskOverdue } from "@/lib/taskUtils";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
-import { dispatchOnboardingDemoOpenFromMap } from "@/lib/onboarding/events";
-import { dispatchOnboardingTourAction } from "@/lib/onboarding/tourActions";
 
 export interface TaskMapOpportunity {
   id?: string;
@@ -27,11 +24,9 @@ interface TaskMapInfoWindowProps {
   task: TaskMapOpportunity;
   onClose: () => void;
   onOpenVisit: () => void;
-  /** Durante o guia, permite abrir a visita fictícia. */
-  allowOpenOnboardingDemo?: boolean;
 }
 
-export function TaskMapInfoWindow({ task, onClose, onOpenVisit, allowOpenOnboardingDemo = false }: TaskMapInfoWindowProps) {
+export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWindowProps) {
   const serviceType = resolveServiceType(task);
   const typeColors = getServiceTypeColor(serviceType || "GERAL");
   const isLate = resolveTaskOverdue({
@@ -50,14 +45,8 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit, allowOpenOnboard
       minute: "2-digit",
     });
 
-  const isDemo = isOnboardingDemoEntity(task);
-  const demoOpenBlocked = isDemo && !allowOpenOnboardingDemo;
-
   return (
-    <MapInfoWindowShell
-      onClose={onClose}
-      dataTour={isDemo ? "onboarding-demo-pin" : undefined}
-    >
+    <MapInfoWindowShell onClose={onClose}>
       <div className="mb-2 flex flex-wrap items-center justify-start gap-1.5">
         <span
           className="rounded-md border px-2 py-0.5 text-xs font-bold uppercase"
@@ -69,11 +58,6 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit, allowOpenOnboard
         >
           {typeColors.label}
         </span>
-        {isDemo && (
-          <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-bold uppercase text-primary">
-            Exemplo do guia
-          </span>
-        )}
         {isLate && (
           <span className="inline-flex items-center gap-1 rounded-md bg-warning-surface px-2 py-0.5 text-xs font-bold uppercase text-warning-fg dark:bg-ink/60 dark:text-warning-fg">
             <AlertTriangle className="h-3 w-3" aria-hidden />
@@ -101,20 +85,8 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit, allowOpenOnboard
       <div className="mt-3 grid grid-cols-1 gap-2">
         <button
           type="button"
-          data-tour={isDemo ? "tech-demo-open-visit" : undefined}
-          onClick={
-            demoOpenBlocked
-              ? undefined
-              : () => {
-                  if (isDemo && allowOpenOnboardingDemo) {
-                    dispatchOnboardingTourAction("openDemoVisit");
-                    dispatchOnboardingDemoOpenFromMap();
-                  }
-                  onOpenVisit();
-                }
-          }
-          disabled={demoOpenBlocked}
-          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-primary px-2 text-xs font-bold uppercase tracking-wide text-primary-foreground hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onOpenVisit}
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-primary px-2 text-xs font-bold uppercase tracking-wide text-primary-foreground hover:opacity-95"
         >
           <PanelRightOpen className="h-4 w-4 shrink-0" aria-hidden />
           Abrir visita

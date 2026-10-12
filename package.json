@@ -35,7 +35,6 @@
     "@react-pdf/renderer": "^4.9.0",
     "date-fns": "^4.4.0",
     "dexie": "^4.4.4",
-    "driver.js": "^1.8.0",
     "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",
     "lucide-react": "^1.21.0",

@@ -2,7 +2,6 @@ import "./globals.css";
 import { cookies } from "next/headers";
 import PWARegistration from "@/components/PWARegistration";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
-import PushOptInPrompt from "@/components/PushOptInPrompt";
 import AppUpdatePrompt from "@/components/AppUpdatePrompt";
 import { APP_NAME, APP_SHORT_NAME, APP_LOGO_PATH } from "@/lib/branding";
 import Providers from "@/components/Providers";
@@ -13,7 +12,7 @@ import {
 } from "@/lib/theme/colorTheme";
 export const viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ebebe8" },
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
   width: "device-width",
@@ -61,7 +60,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
           <PWARegistration />
           <PWAInstallPrompt />
-          <PushOptInPrompt />
           <AppUpdatePrompt />
         </Providers>
       </body>

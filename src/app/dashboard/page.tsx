@@ -70,11 +70,6 @@ import { useCalendarMidnightRollover } from "@/hooks/useCalendarMidnightRollover
 import { MapSkeleton, TaskListSkeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/button";
 import { CLIENT_PREF_KEYS } from "@/lib/clientPreferences";
-import { useOnboardingMapDemo } from "@/hooks/useOnboardingMapDemo";
-import {
-  appendDemoTaskToDayList,
-  useOnboardingTechnicianTour,
-} from "@/hooks/useOnboardingTechnicianTour";
 import { buildAgendaSnapshotItem, toSafeIso } from "@/lib/agendaDiff";
 import { resolveServiceType } from "@/lib/techniciansConfig";
 import {
@@ -85,7 +80,7 @@ import {
 } from "@/lib/inAppNotifications";
 import { useAgendaNotifications } from "@/hooks/useAgendaNotifications";
 import { useClientHydrated } from "@/hooks/useClientHydrated";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 
 const MapComponent = dynamic(() => import('@/components/MapComponent'), {
   ssr: false,
@@ -462,19 +457,6 @@ export default function Dashboard() {
   const dayOverdueCount = useMemo(
     () => dayTasks.filter((t) => resolveTaskOverdue(t)).length,
     [dayTasks]
-  );
-
-  const { demoActive: onboardingMapDemoActive } = useOnboardingMapDemo(dayTasks, "technician");
-
-  useOnboardingTechnicianTour({
-    demoActive: onboardingMapDemoActive,
-    setSelectedTask,
-    setView,
-  });
-
-  const dayTasksForDisplay = useMemo(
-    () => appendDemoTaskToDayList(dayTasks, onboardingMapDemoActive),
-    [dayTasks, onboardingMapDemoActive]
   );
 
   const openAgendaNotificationOnMap = useCallback(
@@ -961,7 +943,7 @@ export default function Dashboard() {
                       })}
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground">
-                      · {dayTasksForDisplay.length}
+                      · {dayTasks.length}
                     </span>
                     {dayOverdueCount > 0 && (
                       <button
@@ -1003,10 +985,10 @@ export default function Dashboard() {
                 data-tour="tech-map-canvas"
               >
               <MapComponent
-                tasks={dayTasksForDisplay}
+                tasks={dayTasks}
                 onTaskSelect={setSelectedTask}
                 markerInteraction="popup"
-                autoFitKey={`${calendarDate.toDateString()}-${mapFitNonce}${onboardingMapDemoActive ? "-demo" : ""}`}
+                autoFitKey={`${calendarDate.toDateString()}-${mapFitNonce}`}
                 autoFitScope={mapAutoFitScope}
                 userLocation={userLocation}
                 hqLocation={HQ_LOCATION}
@@ -1014,11 +996,10 @@ export default function Dashboard() {
                 isOnline={isOnline}
                 locationSharingEnabled={locationSharingActive}
                 onToggleLocationSharing={handleToggleLocationConsent}
-                onboardingMapTourId="technician"
               />
               </div>
 
-              {dayTasksForDisplay.length === 0 && !onboardingMapDemoActive && isOnline && (
+              {dayTasks.length === 0 && isOnline && (
                 <div className="pointer-events-none absolute inset-x-4 top-20 z-10 flex justify-center">
                   <p className="rounded-2xl border border-border bg-card/95 px-4 py-2 text-center text-xs font-bold text-muted-foreground shadow-lg">
                     Sem visitas neste dia — use as setas para mudar o dia.
@@ -1181,7 +1162,7 @@ export default function Dashboard() {
                         month: "long",
                       })}
                       {" · "}
-                      {dayTasksForDisplay.length} visita{dayTasksForDisplay.length === 1 ? "" : "s"}
+                      {dayTasks.length} visita{dayTasks.length === 1 ? "" : "s"}
                     </p>
                  </div>
                  
@@ -1220,7 +1201,7 @@ export default function Dashboard() {
                 />
               )}
               
-              {dayTasksForDisplay.length === 0 ? (
+              {dayTasks.length === 0 ? (
                 <div className="overflow-hidden rounded-2xl border-2 border-border-strong bg-card py-12 text-center">
                   <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-xl border-2 border-border-strong bg-muted">
                     <CalendarIcon className="h-10 w-10 text-muted-foreground" />
@@ -1240,7 +1221,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-5 md:grid md:grid-cols-2 lg:gap-5 lg:space-y-0">
-                  {dayTasksForDisplay.map((task) => (
+                  {dayTasks.map((task) => (
                       <TaskCard 
                         key={task.id} 
                         task={task} 

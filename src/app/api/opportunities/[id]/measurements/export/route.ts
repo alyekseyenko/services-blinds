@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAppSession } from "@/lib/auth/session.server";
 import { isAdminRole } from "@/lib/auth/session";
 import { fetchMeasurementSheet } from "@/lib/crm/measurements";
-import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
-import { isOnboardingDemoId } from "@/lib/onboarding/demoMapPin";
+import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
+import { isOnboardingDemoId } from "@/lib/demo/demoIds";
 import {
   buildMeasurementsExportFilename,
   buildMeasurementsPdf,

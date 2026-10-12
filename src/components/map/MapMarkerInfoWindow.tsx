@@ -8,9 +8,6 @@ import {
   isTaskCompleted,
   isTaskInProgress,
 } from "@/lib/crm/contract";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
-import { dispatchOnboardingDemoOpenFromMap } from "@/lib/onboarding/events";
-import { dispatchOnboardingTourAction } from "@/lib/onboarding/tourActions";
 
 export interface MapMarkerOpportunity {
   id?: string;
@@ -39,8 +36,6 @@ interface MapMarkerInfoWindowProps {
   routeSelectionMode?: boolean;
   isInRoute?: boolean;
   onToggleRoute?: () => void;
-  /** Durante o guia admin, permite abrir oportunidade fictícia. */
-  allowOpenOnboardingDemo?: boolean;
 }
 
 export function MapMarkerInfoWindow({
@@ -51,7 +46,6 @@ export function MapMarkerInfoWindow({
   routeSelectionMode = false,
   isInRoute = false,
   onToggleRoute,
-  allowOpenOnboardingDemo = false,
 }: MapMarkerInfoWindowProps) {
   const serviceType = resolveServiceType(marker);
   const typeColors = getServiceTypeColor(serviceType || "GERAL");
@@ -71,14 +65,9 @@ export function MapMarkerInfoWindow({
 
   const showSchedule = canSchedule && Boolean(onSchedule) && !routeSelectionMode;
   const showRouteToggle = routeSelectionMode && Boolean(onToggleRoute);
-  const isDemo = isOnboardingDemoEntity(marker);
-  const demoOpenBlocked = isDemo && !allowOpenOnboardingDemo;
 
   return (
-    <MapInfoWindowShell
-      onClose={onClose}
-      dataTour={isDemo ? "onboarding-demo-pin" : undefined}
-    >
+    <MapInfoWindowShell onClose={onClose}>
       <div className="mb-2 flex flex-wrap items-center justify-start gap-1.5">
         <span
           className="rounded-md border px-2 py-0.5 text-xs font-bold uppercase"
@@ -90,21 +79,13 @@ export function MapMarkerInfoWindow({
         >
           {typeColors.label}
         </span>
-        {isDemo && (
-          <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-bold uppercase text-primary">
-            Exemplo do guia
-          </span>
-        )}
         {marker.stage && (
           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold uppercase text-muted-foreground">
             {marker.stage}
           </span>
         )}
         {isTaskInProgress(marker.taskStatus) && (
-          <span
-            className="rounded-md border border-warning-border/60 bg-warning-surface px-2 py-0.5 text-xs font-black uppercase text-warning-fg dark:bg-ink/60 dark:text-warning-fg"
-            data-tour="admin-opp-in-progress"
-          >
+          <span className="rounded-md border border-warning-border/60 bg-warning-surface px-2 py-0.5 text-xs font-black uppercase text-warning-fg dark:bg-ink/60 dark:text-warning-fg">
             Em curso
           </span>
         )}
@@ -194,23 +175,11 @@ export function MapMarkerInfoWindow({
         )}
         <button
           type="button"
-          data-tour={isDemo ? "admin-demo-open-opportunity" : undefined}
-          onClick={
-            demoOpenBlocked
-              ? undefined
-              : () => {
-                  if (isDemo && allowOpenOnboardingDemo) {
-                    dispatchOnboardingTourAction("openAdminDemoOpportunity");
-                    dispatchOnboardingDemoOpenFromMap();
-                  }
-                  onOpenDetails();
-                }
-          }
-          disabled={demoOpenBlocked}
-          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 text-xs font-bold uppercase text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onOpenDetails}
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 text-xs font-bold uppercase text-foreground hover:bg-muted"
         >
           <PanelRightOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {isDemo ? "Abrir painel" : "Detalhes"}
+          Detalhes
         </button>
       </div>
     </MapInfoWindowShell>

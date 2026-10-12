@@ -304,7 +304,6 @@ export default function AdminMapView({
                   data && savingRatio > 1 ? data.distanceKm * savingRatio : null
                 );
               }}
-              onboardingMapTourId="admin"
             />
 
             {mapDisplayMode === "map" ? (

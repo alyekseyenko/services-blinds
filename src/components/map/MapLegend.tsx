@@ -7,6 +7,11 @@ import { getServiceTypeLegendHint } from "@/lib/map/serviceMarkerArt";
 import { MapLegendMarkerPreview } from "@/components/map/MapLegendMarkerPreview";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { MAP_BRUTAL_PANEL } from "@/lib/map/mapBrutalChrome";
+import {
+  MAP_LEGEND_STATUS_ITEMS,
+  mapLegendHowToRead,
+  type MapLegendVariant,
+} from "@/lib/map/mapLegendCopy";
 
 const STORAGE_KEY = "map_legend_open";
 const HELP_STORAGE_KEY = "map_legend_help_open";
@@ -14,16 +19,10 @@ const HELP_STORAGE_KEY = "map_legend_help_open";
 interface MapLegendProps {
   open: boolean;
   onClose: () => void;
-  variant: "admin" | "technician";
+  variant: MapLegendVariant;
 }
 
-const STATUS_ITEMS: { label: string; status: "late" | "done" | "unscheduled" }[] = [
-  { label: "Atrasada", status: "late" },
-  { label: "Concluída", status: "done" },
-  { label: "Por agendar", status: "unscheduled" },
-];
-
-export function useMapLegendOpen(variant: "admin" | "technician") {
+export function useMapLegendOpen(variant: MapLegendVariant) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -56,11 +55,11 @@ export function useMapLegendOpen(variant: "admin" | "technician") {
 
 export function MapLegend({ open, onClose, variant }: MapLegendProps) {
   const isDesktop = useMediaMinWidth(768);
-  const compact = variant === "technician" && !isDesktop;
-  const previewSize = compact ? 36 : 48;
+  const isWide = useMediaMinWidth(1024);
+  const previewSize = isDesktop ? 48 : 40;
   const [helpOpen, setHelpOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(!compact);
-  const [extrasOpen, setExtrasOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(true);
+  const [extrasOpen, setExtrasOpen] = useState(variant === "technician");
 
   useEffect(() => {
     try {
@@ -87,26 +86,31 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
 
   const bottomClass =
     variant === "technician"
-      ? compact
-        ? "bottom-[max(10rem,calc(env(safe-area-inset-bottom)+8rem))]"
-        : "bottom-[max(11rem,calc(env(safe-area-inset-bottom)+9rem))]"
+      ? "bottom-[max(9.5rem,calc(env(safe-area-inset-bottom)+7.5rem))] sm:bottom-[max(10.5rem,calc(env(safe-area-inset-bottom)+8.5rem))]"
       : "bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] lg:bottom-20";
+
+  const panelMaxHeight =
+    variant === "technician"
+      ? isWide
+        ? "max-h-[min(70dvh,32rem)]"
+        : "max-h-[min(78dvh,36rem)]"
+      : isWide
+        ? "max-h-[min(65dvh,30rem)] md:max-h-[min(55vh,28rem)]"
+        : "max-h-[min(75dvh,34rem)]";
 
   const types = Object.entries(serviceTypeConfig).filter(
     ([key]) => key !== "GERAL" && key !== "REAGENDAR"
   );
 
+  const helpLines = mapLegendHowToRead(variant);
+
   return (
     <div
-      className={`pointer-events-auto absolute left-3 right-3 z-20 overflow-y-auto custom-scrollbar md:left-auto md:right-4 md:w-80 ${MAP_BRUTAL_PANEL} ${
-        compact
-          ? "max-h-[min(36dvh,16.5rem)] p-3"
-          : "max-h-[min(60dvh,28rem)] p-4 md:max-h-[50vh]"
-      } ${bottomClass}`}
+      className={`pointer-events-auto absolute inset-x-2 z-20 flex max-w-lg flex-col overflow-hidden ${MAP_BRUTAL_PANEL} ${panelMaxHeight} sm:inset-x-auto sm:right-4 sm:w-[min(100%,22rem)] md:w-80 ${bottomClass}`}
       role="dialog"
       aria-label="Legenda do mapa"
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2.5 sm:px-4 sm:py-3">
         <p className="text-xs font-black uppercase tracking-wider text-foreground">Legenda</p>
         <button
           type="button"
@@ -118,121 +122,119 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
         </button>
       </div>
 
-      <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Tipos de serviço
-      </p>
-      <ul className={compact ? "space-y-1.5" : "space-y-2.5"}>
-        {types.map(([key, cfg]) => (
-          <li key={key} className="flex items-center gap-2.5">
-            <MapLegendMarkerPreview typeKey={key} label={cfg.label} size={previewSize} />
-            <div className="min-w-0 text-xs leading-snug">
-              <p className="font-black text-foreground">{cfg.label}</p>
-              {!compact ? (
+      <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 py-3 sm:px-4 sm:py-4">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Tipos de serviço
+        </p>
+        <ul className="space-y-2.5">
+          {types.map(([key, cfg]) => (
+            <li key={key} className="flex items-start gap-2.5">
+              <MapLegendMarkerPreview typeKey={key} label={cfg.label} size={previewSize} />
+              <div className="min-w-0 flex-1 text-xs leading-snug">
+                <p className="font-black text-foreground">{cfg.label}</p>
                 <p className="font-semibold text-muted-foreground">{getServiceTypeLegendHint(key)}</p>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
+              </div>
+            </li>
+          ))}
+        </ul>
 
-      <div className={compact ? "mt-2 border-t border-border pt-2" : "mt-4 border-t border-border pt-3"}>
-        <button
-          type="button"
-          onClick={() => setStatusOpen((v) => !v)}
-          className="flex w-full min-h-10 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
-          aria-expanded={statusOpen}
-        >
-          Estados no pino
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 transition-transform ${statusOpen ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </button>
-        {statusOpen ? (
-          <ul className="mt-1 space-y-1.5">
-            {STATUS_ITEMS.map((item) => (
-              <li key={item.label} className="flex items-center gap-2.5">
-                <MapLegendMarkerPreview
-                  typeKey="INSTALACAO"
-                  label={item.label}
-                  status={item.status}
-                  size={previewSize}
-                />
-                <span className="text-xs font-semibold text-foreground">{item.label}</span>
+        <div className="mt-4 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() => setStatusOpen((v) => !v)}
+            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+            aria-expanded={statusOpen}
+          >
+            Estados no pino
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform ${statusOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {statusOpen ? (
+            <ul className="mt-2 space-y-2">
+              {MAP_LEGEND_STATUS_ITEMS.map((item) => (
+                <li key={item.label} className="flex items-center gap-2.5">
+                  <MapLegendMarkerPreview
+                    typeKey="INSTALACAO"
+                    label={item.label}
+                    status={item.status}
+                    size={previewSize}
+                  />
+                  <span className="text-xs font-semibold text-foreground">{item.label}</span>
+                </li>
+              ))}
+              <li className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-success-solid" />
+                Agendada (sem emblema)
               </li>
-            ))}
-            <li className="flex items-center gap-2 text-xs font-semibold text-foreground">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-success-solid" />
-              Agendada (sem emblema)
-            </li>
-          </ul>
-        ) : null}
-      </div>
+            </ul>
+          ) : null}
+        </div>
 
-      <div className={compact ? "mt-2 border-t border-border pt-2" : "mt-4"}>
-        <button
-          type="button"
-          onClick={() => setExtrasOpen((v) => !v)}
-          className="flex w-full min-h-10 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
-          aria-expanded={extrasOpen}
-        >
-          Outros pinos
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 transition-transform ${extrasOpen ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </button>
-        {extrasOpen ? (
-          <ul className="mt-1 space-y-1.5 text-xs font-semibold text-foreground">
-            <li className="flex items-center gap-2">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-ink text-[10px] font-black text-neon"
-                aria-hidden
-              >
-                Carr.
-              </span>
-              Técnico em campo
-            </li>
-            <li className="flex items-center gap-2">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-[10px] font-black text-foreground"
-                aria-hidden
-              >
-                Sede
-              </span>
-              Sede / armazém
-            </li>
-          </ul>
-        ) : null}
-      </div>
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() => setExtrasOpen((v) => !v)}
+            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+            aria-expanded={extrasOpen}
+          >
+            Outros pinos
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform ${extrasOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {extrasOpen ? (
+            <ul className="mt-2 space-y-2 text-xs font-semibold text-foreground">
+              <li className="flex items-center gap-2">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-ink text-[10px] font-black text-neon"
+                  aria-hidden
+                >
+                  Carr.
+                </span>
+                Técnico em campo (última posição GPS)
+              </li>
+              <li className="flex items-center gap-2">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-[10px] font-black text-foreground"
+                  aria-hidden
+                >
+                  Sede
+                </span>
+                Sede / armazém
+              </li>
+              {variant === "technician" ? (
+                <li className="flex items-center gap-2 pl-10 text-muted-foreground">
+                  Ponto azul = sua posição (quando o GPS está activo)
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
 
-      <div className={`border-t border-border pt-2 ${compact ? "mt-2" : "mt-4"}`}>
-        <button
-          type="button"
-          onClick={toggleHelp}
-          className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-2 text-left text-xs font-black uppercase tracking-wider text-foreground hover:bg-muted"
-          aria-expanded={helpOpen}
-        >
-          Como ler o mapa
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${helpOpen ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </button>
-        {helpOpen && (
-          <p className="mt-2 text-xs leading-snug text-muted-foreground">
-            <span className="font-bold text-foreground">Cor do alfinete</span> = tipo;{" "}
-            <span className="font-bold text-foreground">letras no disco branco</span> (ex.{" "}
-            <span className="font-black text-info-fg">MD</span> = medidas,{" "}
-            <span className="font-black text-success-fg">IN</span> = instalação).{" "}
-            <span className="font-bold text-foreground">Emblema</span> = estado (ex.:{" "}
-            <span className="text-danger-solid">!</span> = atrasada).{" "}
-            <span className="font-bold text-foreground">Hora da visita</span> só ao tocar no pino.{" "}
-            Círculos com número = agrupamento (botão à direita do mapa). Filtros avançados: tipos
-            múltiplos, técnico e histórico no painel{" "}
-            <span className="font-bold text-foreground">Filtros</span>.
-          </p>
-        )}
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={toggleHelp}
+            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-2 text-left text-xs font-black uppercase tracking-wider text-foreground hover:bg-muted"
+            aria-expanded={helpOpen}
+          >
+            Como ler o mapa
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${helpOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {helpOpen ? (
+            <ul className="mt-2 list-disc space-y-2 pl-4 text-xs leading-relaxed text-muted-foreground marker:text-muted-foreground">
+              {helpLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </div>
     </div>
   );

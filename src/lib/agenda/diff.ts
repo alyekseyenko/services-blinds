@@ -10,7 +10,7 @@ import {
   normalizeString,
   normalizeTaskStatus,
 } from "@/lib/crm/contract";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { formatOnSiteServiceDetail } from "@/lib/agenda/onSiteServiceCopy";
 import { timelineDetailForDiffEvent } from "@/lib/agenda/timelineCopy";
 import type { VisitServiceMode } from "@/lib/schemas";

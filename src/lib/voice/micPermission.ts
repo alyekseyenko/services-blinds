@@ -34,7 +34,7 @@ export function microphoneBlockedInstructions(): string {
   if (isIos()) {
     return (
       "O microfone está bloqueado. Em Ajustes → Privacidade e segurança → Microfone, active para Safari/Chrome. " +
-      "Depois, em Ajustes → Apps → Safari → Microfone (ou no site: ícone «aA» na barra → Definições do website), permita para tecnicos.estoresrainha.com e recarregue a página."
+      "Depois, em Ajustes → Apps → Safari → Microfone (ou no site: ícone «aA» na barra → Definições do website), permita o microfone para este site e recarregue a página."
     );
   }
   if (isAndroid()) {

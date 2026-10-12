@@ -1,4 +1,4 @@
-import { ONBOARDING_DEMO_OPP_ID } from "@/lib/onboarding/demoMapPin";
+import { ONBOARDING_DEMO_OPP_ID } from "@/lib/demo/demoIds";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 
 export function createOnboardingDemoMeasurementSheet(): MeasurementSheet {

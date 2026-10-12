@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/ToastContext";
 import { updateVisitServiceAction } from "@/actions/visit-services-actions";
 import { EXTRA_SERVICE_TYPE_OPTIONS } from "@/lib/extraServiceTypeLabels";
 import { getServiceTypeColor } from "@/lib/techniciansConfig";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { getNotificationScope } from "@/lib/inAppNotifications";
 import { markLocalAgendaChange } from "@/lib/agendaLocalChanges";

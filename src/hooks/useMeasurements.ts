@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ProductGroup, ProductType, Task } from "@/types";
 import { parseMeasurementsFromReport } from "@/lib/measurementsUtils";
-import { isOnboardingDemoEntity, ONBOARDING_DEMO_OPP_ID } from "@/lib/onboarding/demoMapPin";
-import { ONBOARDING_SEED_MEASUREMENTS_EVENT } from "@/lib/onboarding/demoMeasurementsSeed";
+import { isOnboardingDemoEntity, ONBOARDING_DEMO_OPP_ID } from "@/lib/demo/demoIds";
 import { hapticMeasurementCaptured } from "@/lib/haptics";
 import { isBrowserOnline } from "@/lib/networkOnline";
 import { getMeasurementsPayloadForOpportunityAction } from "@/actions/measurements-actions";
@@ -139,21 +138,6 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
       cancelled = true;
     };
   }, [taskId, oppKey, opportunityId, DRAFT_KEY, reportForParse]);
-
-  useEffect(() => {
-    const reloadDraft = () => {
-      const savedDraft = localStorage.getItem(DRAFT_KEY);
-      if (!savedDraft) return;
-      try {
-        const draftData = JSON.parse(savedDraft) as { groups?: ProductGroup[] };
-        if (draftData.groups) setProductGroups(draftData.groups);
-      } catch {
-        /* ignore */
-      }
-    };
-    window.addEventListener(ONBOARDING_SEED_MEASUREMENTS_EVENT, reloadDraft);
-    return () => window.removeEventListener(ONBOARDING_SEED_MEASUREMENTS_EVENT, reloadDraft);
-  }, [DRAFT_KEY]);
 
   useEffect(() => {
     if (!userEditedRef.current || productGroups.length === 0) return;

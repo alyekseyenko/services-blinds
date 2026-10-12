@@ -1,7 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { flushSync } from "react-dom";
 import { useAppRouter } from "@/hooks/useAppRouter";
 import { viewPanelStackClass } from "@/lib/ui/viewPanel";
 import { useViewSwitchCover } from "@/hooks/useViewSwitchCover";
@@ -104,18 +103,7 @@ const AdminHistoryView = dynamic(
 const OpportunityDrawer = dynamic(() => import("@/components/admin/OpportunityDrawer"), {
   ssr: false,
 });
-import { useOnboardingMapDemo } from "@/hooks/useOnboardingMapDemo";
-import { useOnboardingAdminTour } from "@/hooks/useOnboardingAdminTour";
-import {
-  createAdminOnboardingDemoOpportunity,
-  isOnboardingDemoEntity,
-} from "@/lib/onboarding/demoMapPin";
-import { buildAdminDemoScheduleFormSeed } from "@/lib/onboarding/demoAdminScheduleSeed";
-import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from "@/lib/onboarding/tourActions";
-import { dispatchOnboardingAdminScheduleModalOpened } from "@/lib/onboarding/events";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import type { ScheduleForm } from "@/lib/admin/scheduleForm";
 const ScheduleModal = dynamic(() => import("@/components/admin/ScheduleModal"), {
   ssr: false,
@@ -392,12 +380,9 @@ export default function Admin() {
     );
   };
 
-  const { mapTasks: opportunitiesForMap, demoActive: onboardingAdminDemoActive } =
-    useOnboardingMapDemo(opportunities, "admin");
-
   const mapOpportunities = useMemo(() => {
     const q = mapTextSearch?.trim();
-    const base = opportunitiesForMap;
+    const base = opportunities;
     if (q) {
       return searchOpportunities(base, q, 50);
     }
@@ -412,7 +397,7 @@ export default function Admin() {
       pendingClosureOnly,
     });
   }, [
-    opportunitiesForMap,
+    opportunities,
     mapTab,
     cityFilter,
     serviceTypeFilters,
@@ -425,8 +410,8 @@ export default function Admin() {
   ]);
 
   const pendingClosureCount = useMemo(
-    () => countOpportunitiesPendingTechnicianClosure(opportunitiesForMap),
-    [opportunitiesForMap]
+    () => countOpportunitiesPendingTechnicianClosure(opportunities),
+    [opportunities]
   );
 
   const openPendingClosureOnMap = useCallback(() => {
@@ -463,103 +448,6 @@ export default function Admin() {
     },
     [changeAdminView]
   );
-
-  useOnboardingAdminTour({
-    demoActive: onboardingAdminDemoActive,
-    setView: changeAdminView,
-    setSelectedOpportunity,
-    setMapTab,
-  });
-
-  useEffect(() => {
-    if (!onboardingAdminDemoActive) return;
-
-    const onScheduleTourAction = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-      const demoOpp = createAdminOnboardingDemoOpportunity() as Opportunity;
-
-      switch (action) {
-        case "openAdminDemoScheduleModal":
-          flushSync(() => {
-            setSelectedOpportunity(demoOpp);
-            setScheduleForm(buildAdminDemoScheduleFormSeed(demoOpp, workspaceMembers));
-            setShowScheduleModal(true);
-          });
-          window.setTimeout(() => dispatchOnboardingAdminScheduleModalOpened(), 50);
-          break;
-        case "seedAdminDemoScheduleForm":
-          setScheduleForm(buildAdminDemoScheduleFormSeed(demoOpp, workspaceMembers));
-          break;
-        case "closeAdminDemoScheduleModal":
-          setShowScheduleModal(false);
-          break;
-        case "startAdminDemoRouteSelection": {
-          const demo = createAdminOnboardingDemoOpportunity();
-          const stop: RouteStop = {
-            id: demo.id,
-            twentyId: demo.twentyId,
-            title: demo.title,
-            coordinates: demo.coordinates as [number, number],
-            address: demo.address,
-            client: demo.client,
-            rawAddress: demo.rawAddress,
-          };
-          flushSync(() => {
-            changeAdminView("map");
-            setMapTab("unscheduled");
-            setRouteSelectionMode(true);
-            setSelectedForRoute([stop]);
-          });
-          break;
-        }
-        case "openAdminDemoRouteSheet":
-          setShowRouteSheet(true);
-          break;
-        case "openAdminDemoMassSchedule": {
-          const demo = createAdminOnboardingDemoOpportunity();
-          const stop: RouteStop = {
-            id: demo.id,
-            twentyId: demo.twentyId,
-            title: demo.title,
-            coordinates: demo.coordinates as [number, number],
-            address: demo.address,
-            client: demo.client,
-            rawAddress: demo.rawAddress,
-          };
-          const demoRoute = buildRouteFromVisitOrder([stop], HQ_LOCATION.coordinates);
-          flushSync(() => {
-            changeAdminView("map");
-            setMapTab("unscheduled");
-            setRouteSelectionMode(true);
-            setSelectedForRoute([stop]);
-            setOptimizedRoute(demoRoute);
-            setShowMassScheduleModal(true);
-          });
-          break;
-        }
-        case "closeAdminDemoMassSchedule":
-          setShowMassScheduleModal(false);
-          break;
-        case "stopAdminDemoRouteSelection":
-          setSelectedForRoute([]);
-          setOptimizedRoute(null);
-          setRouteManuallyAdjusted(false);
-          setRealRouteData(null);
-          setUnoptimizedTotalDistance(null);
-          setAiAnalysis(null);
-          setRouteSelectionMode(false);
-          setShowRouteSheet(false);
-          setShowMassScheduleModal(false);
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onScheduleTourAction);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onScheduleTourAction);
-  }, [onboardingAdminDemoActive, workspaceMembers]);
 
   const calendarOpportunities = useMemo(
     () => filterCalendarOpportunities(opportunities, selectedTechnician),

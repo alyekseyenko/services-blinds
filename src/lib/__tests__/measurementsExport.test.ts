@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildMeasurementsXlsx } from "@/lib/measurementsExport/buildMeasurementsXlsx";
-import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
+import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 
 describe("buildMeasurementsXlsx", () => {
   it("gera workbook com cabeçalho e linhas de medição", async () => {

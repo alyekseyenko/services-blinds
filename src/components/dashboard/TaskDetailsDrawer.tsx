@@ -57,13 +57,7 @@ import {
   isUrgentSchedulingNote,
   isUrgentVisitMarkdown,
 } from "@/lib/crm/urgentSchedulingUi";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
-import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from "@/lib/onboarding/tourActions";
-import { dispatchOnboardingAddServiceSheetOpened } from "@/lib/onboarding/events";
-import { createDemoExtraMaintenanceService } from "@/lib/onboarding/demoVisitExtras";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { scrollFocusedFieldIntoView } from "@/lib/scrollFocusedField";
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
@@ -318,82 +312,6 @@ export default function TaskDetailsDrawer({
       cancelled = true;
     };
   }, [selectedTask?.id, selectedTask?.opportunityId, isOnline]);
-
-  useEffect(() => {
-    const onTourGlobal = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (action === "closeDemoVisit") {
-        setShowAddService(false);
-        setEditingService(null);
-      }
-      if (action === "closeAddServiceSheet") {
-        setShowAddService(false);
-        setEditingService(null);
-      }
-    };
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourGlobal);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourGlobal);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedTask || !isOnboardingDemoEntity(selectedTask)) return;
-
-    const onTour = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-      switch (action) {
-        case "drawerTabInfo":
-          setActiveTab("info");
-          break;
-        case "drawerTabMeasurements":
-          setShowAddService(false);
-          setEditingService(null);
-          setActiveTab("measurements");
-          break;
-        case "drawerMarkInProgress":
-          setSelectedTask({
-            ...selectedTask,
-            status: "EM_CURSO",
-            taskStatus: "EM_CURSO",
-          });
-          break;
-        case "drawerMarkScheduled":
-          setSelectedTask({
-            ...selectedTask,
-            status: "AGENDADO",
-            taskStatus: "AGENDADO",
-          });
-          break;
-        case "openAddServiceSheet":
-          setEditingService(null);
-          setShowAddService(true);
-          break;
-        case "closeAddServiceSheet":
-          setShowAddService(false);
-          setEditingService(null);
-          break;
-        case "selectDemoConcluido":
-          setStatusAction("Concluído");
-          setReason("");
-          break;
-        case "selectDemoIncompleto":
-          setStatusAction("Incompleto");
-          setReasonPreset("cliente_ausente");
-          setReason("");
-          break;
-        case "selectDemoCancelado":
-          setStatusAction("Cancelado");
-          setReasonPreset("outro");
-          setReason("Formação — visita não realizada");
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTour);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTour);
-  }, [selectedTask, setSelectedTask]);
 
   const handleAddNote = async () => {
     if (!newNoteText.trim() || !selectedTask?.opportunityId) return;
@@ -735,7 +653,7 @@ export default function TaskDetailsDrawer({
             : undefined
         }
         onKeyDown={(e) => {
-          if (e.key === "Escape" && !document.documentElement.hasAttribute("data-onboarding-tour")) {
+          if (e.key === "Escape") {
             if (measurementsFullscreen) {
               setActiveTab("info");
             } else {
@@ -1040,9 +958,6 @@ export default function TaskDetailsDrawer({
                         e.stopPropagation();
                         setEditingService(null);
                         setShowAddService(true);
-                        if (document.documentElement.dataset.onboardingTour === "technician") {
-                          dispatchOnboardingAddServiceSheetOpened();
-                        }
                       }}
                       className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm"
                       aria-label="Adicionar serviço extra no local"
@@ -1513,16 +1428,6 @@ export default function TaskDetailsDrawer({
             setEditingService(null);
           }}
           onSaved={() => {
-            if (isOnboardingDemoEntity(selectedTask)) {
-              const extra = createDemoExtraMaintenanceService();
-              const existing = selectedTask.services || visitServices;
-              if (!existing.some((s: VisitService) => s.opportunityId === extra.opportunityId)) {
-                setSelectedTask({
-                  ...selectedTask,
-                  services: [...existing, extra],
-                });
-              }
-            }
             refreshVisit();
           }}
           enqueueVisitService={enqueueVisitService}

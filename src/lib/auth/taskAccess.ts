@@ -4,7 +4,7 @@ import type { AppRole } from "@/lib/schemas/auth";
 import { getTaskAssigneeId } from "@/lib/crm/tasks";
 import { canAccessAdminPanel } from "@/lib/auth/session";
 import { getAppSession } from "@/lib/auth/session.server";
-import { isOnboardingDemoId } from "@/lib/onboarding/demoMapPin";
+import { isOnboardingDemoId } from "@/lib/demo/demoIds";
 
 export type TaskAccessSuccess = {
   ok: true;

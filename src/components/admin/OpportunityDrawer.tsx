@@ -35,8 +35,8 @@ import { fetchOpportunityNotesAction } from "@/actions/notes-actions";
 import { Opportunity } from '@/types/admin';
 import { isNeedsSchedulingStage, isTaskCompleted, isTaskInProgress } from "@/lib/crm/contract";
 import ContactPhoneList from "@/components/ui/ContactPhoneList";
-import { isOnboardingDemoEntity } from "@/lib/onboarding/demoMapPin";
-import { createOnboardingDemoMeasurementSheet } from "@/lib/onboarding/demoMeasurementSheet";
+import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
+import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import AdminOpportunityMeasurements from "@/components/admin/AdminOpportunityMeasurements";
 import {
   countSchedulingNotes,
@@ -241,7 +241,7 @@ export default function OpportunityDrawer({
             : undefined
         }
         onKeyDown={(e) => {
-          if (e.key === "Escape" && !document.documentElement.hasAttribute("data-onboarding-tour")) {
+          if (e.key === "Escape") {
             closeDrawer();
           }
         }}

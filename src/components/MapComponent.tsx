@@ -35,20 +35,6 @@ import {
 import { appendHqAndUser, collectPositionsFromTasks, taskCoordinatesToLatLng } from '@/lib/map/mapBounds';
 import { useMapAutoFit } from '@/hooks/useMapAutoFit';
 import { TechnicianOfflineMapPanel } from '@/components/map/TechnicianOfflineMapPanel';
-import { useOnboardingMapDemo, ONBOARDING_DEMO_TASK_ID } from '@/hooks/useOnboardingMapDemo';
-import { ONBOARDING_CLOSE_MAP_POPUP_EVENT } from '@/lib/onboarding/events';
-import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from '@/lib/onboarding/tourActions';
-import {
-  createAdminOnboardingDemoTechnicianLocation,
-  ONBOARDING_DEMO_TECH_ID,
-  ONBOARDING_DEMO_TECH_NAME,
-} from '@/lib/onboarding/demoAdminMapTech';
-import type { OnboardingTourId } from '@/lib/schemas/onboarding';
-import type { TechnicianLocation } from '@/hooks/useTechnicianLocations';
-
 const containerStyle = {
   width: '100%',
   height: '100%'
@@ -114,8 +100,6 @@ interface MapComponentProps {
   onToggleRouteFromMap?: (task: any) => void;
   /** When false, technician map shows offline panel instead of Google Maps (no tile requests). */
   isOnline?: boolean;
-  /** Injeta pin de formação durante o guia de onboarding (técnico / admin). */
-  onboardingMapTourId?: Extract<OnboardingTourId, 'technician' | 'admin'>;
 }
 
 export default function MapComponent({ 
@@ -143,16 +127,8 @@ export default function MapComponent({
   isTaskInRoute,
   onToggleRouteFromMap,
   isOnline = true,
-  onboardingMapTourId,
 }: MapComponentProps) {
   const useMarkerPopup = markerInteraction === 'popup';
-  const {
-    mapTasks: tasksForMap,
-    openDemoPin,
-    consumeOpenDemoPin,
-    demoActive: onboardingDemoActive,
-  } = useOnboardingMapDemo(tasks, onboardingMapTourId ?? 'technician');
-  const displayTasks = onboardingMapTourId ? tasksForMap : tasks;
   const overlayVariant = isTechnicianView ? 'technician' : 'admin';
   const isMapDesktop = useMediaMinWidth(768);
   const hideNativeMapChrome = isTechnicianView || !isMapDesktop;
@@ -186,9 +162,6 @@ export default function MapComponent({
   const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
   const [selectedTechMarker, setSelectedTechMarker] = useState<any | null>(null);
   const [technicianPinPanel, setTechnicianPinPanel] = useState<"hq" | "user" | null>(null);
-  const [adminHqPanelOpen, setAdminHqPanelOpen] = useState(false);
-  const [demoTechProgress, setDemoTechProgress] = useState(0.35);
-  const demoTechAnimateRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [techLiveRouteDirections, setTechLiveRouteDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral | null>(null);
@@ -208,103 +181,6 @@ export default function MapComponent({
   }, [onTaskSelect]);
 
   useEffect(() => {
-    const closePopup = () => setSelectedMarker(null);
-    window.addEventListener(ONBOARDING_CLOSE_MAP_POPUP_EVENT, closePopup);
-    return () => window.removeEventListener(ONBOARDING_CLOSE_MAP_POPUP_EVENT, closePopup);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (demoTechAnimateRef.current) clearInterval(demoTechAnimateRef.current);
-    };
-  }, []);
-
-  const adminOnboardingMap =
-    !isTechnicianView && onboardingMapTourId === "admin" && onboardingDemoActive;
-
-  const techniciansOnMap = useMemo((): TechnicianLocation[] => {
-    if (!adminOnboardingMap) return techniciansLocations;
-    const demoTech = createAdminOnboardingDemoTechnicianLocation(demoTechProgress);
-    const rest = techniciansLocations.filter((t) => t.technicianId !== ONBOARDING_DEMO_TECH_ID);
-    return [demoTech, ...rest];
-  }, [adminOnboardingMap, demoTechProgress, techniciansLocations]);
-
-  useEffect(() => {
-    if (!adminOnboardingMap) return;
-
-    const onTourAction = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-
-      if (action === "openAdminMapHqPanel") {
-        setSelectedMarker(null);
-        setSelectedTechMarker(null);
-        setAdminHqPanelOpen(true);
-        if (map && hqLocation?.coordinates) {
-          map.panTo({ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] });
-          const z = map.getZoom();
-          if (typeof z !== "number" || z < 13) map.setZoom(13);
-        }
-        return;
-      }
-
-      if (action === "selectAdminDemoTechnician") {
-        setAdminHqPanelOpen(false);
-        const tech = createAdminOnboardingDemoTechnicianLocation(demoTechProgress);
-        setSelectedTechMarker(tech);
-        if (map) {
-          map.panTo({ lat: tech.lat, lng: tech.lng });
-          const z = map.getZoom();
-          if (typeof z !== "number" || z < 14) map.setZoom(14);
-        }
-        return;
-      }
-
-      if (action === "stopAdminDemoTechnicianAnimation") {
-        if (demoTechAnimateRef.current) {
-          clearInterval(demoTechAnimateRef.current);
-          demoTechAnimateRef.current = null;
-        }
-        return;
-      }
-
-      if (action === "animateAdminDemoTechnician") {
-        if (demoTechAnimateRef.current) clearInterval(demoTechAnimateRef.current);
-        let step = 0;
-        const steps = 10;
-        demoTechAnimateRef.current = setInterval(() => {
-          step += 1;
-          const progress = Math.min(1, step / steps);
-          setDemoTechProgress(progress);
-          const pos = createAdminOnboardingDemoTechnicianLocation(progress);
-          setSelectedTechMarker(pos);
-          if (step >= steps && demoTechAnimateRef.current) {
-            clearInterval(demoTechAnimateRef.current);
-            demoTechAnimateRef.current = null;
-          }
-        }, 320);
-      }
-    };
-
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-  }, [adminOnboardingMap, demoTechProgress, hqLocation, map]);
-
-  useEffect(() => {
-    if (!onboardingMapTourId || !openDemoPin) return;
-    const demo = displayTasks.find((t) => t.id === ONBOARDING_DEMO_TASK_ID);
-    if (demo?.coordinates && map) {
-      map.panTo({ lat: demo.coordinates[0], lng: demo.coordinates[1] });
-      const z = map.getZoom();
-      if (typeof z !== "number" || z < 14) {
-        map.setZoom(14);
-      }
-    }
-    if (demo) setSelectedMarker(demo);
-    consumeOpenDemoPin();
-  }, [consumeOpenDemoPin, displayTasks, map, onboardingMapTourId, openDemoPin]);
-
-  useEffect(() => {
     const interval = setInterval(() => setRenderNow(Date.now()), 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -313,12 +189,12 @@ export default function MapComponent({
     if (hqLocation && hqLocation.coordinates) {
       return { lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] };
     }
-    const firstTask = displayTasks.find(t => t.coordinates && Array.isArray(t.coordinates));
+    const firstTask = tasks.find(t => t.coordinates && Array.isArray(t.coordinates));
     if (firstTask) {
       return { lat: firstTask.coordinates[0], lng: firstTask.coordinates[1] };
     }
     return { lat: HQ_LAT, lng: HQ_LNG };
-  }, [hqLocation, displayTasks]);
+  }, [hqLocation, tasks]);
 
   const hasCenteredOnUserRef = useRef(false);
 
@@ -366,8 +242,8 @@ export default function MapComponent({
   const fitPoints = useMemo(() => {
     const scopedTasks =
       autoFitScope === 'overdue'
-        ? displayTasks.filter((t) => resolveTaskOverdue(t))
-        : displayTasks;
+        ? tasks.filter((t) => resolveTaskOverdue(t))
+        : tasks;
     const taskPoints = collectPositionsFromTasks(scopedTasks);
     if (autoFitScope === 'overdue') return taskPoints;
     const hq =
@@ -376,7 +252,7 @@ export default function MapComponent({
         : null;
     const user = fitUserSnapshotRef.current;
     return appendHqAndUser(taskPoints, hq, user);
-  }, [displayTasks, hqLocation, autoFitScope, autoFitKey]);
+  }, [tasks, hqLocation, autoFitScope, autoFitKey]);
 
   const { fitNow, suspendAutoFit } = useMapAutoFit(map, fitPoints, autoFitKey);
 
@@ -415,15 +291,13 @@ export default function MapComponent({
   const closeAllMapPopups = useCallback(() => {
     setSelectedMarker(null);
     setSelectedTechMarker(null);
-    setAdminHqPanelOpen(false);
     closeTechnicianPanels();
   }, [closeTechnicianPanels]);
 
   const mapPopupOpen =
     Boolean(selectedMarker) ||
     Boolean(selectedTechMarker) ||
-    technicianPinPanel !== null ||
-    adminHqPanelOpen;
+    technicianPinPanel !== null;
 
   useEffect(() => {
     if (!mapPopupOpen) return;
@@ -479,23 +353,7 @@ export default function MapComponent({
   // Tarefas planeadas atribuídas ao técnico selecionado (apenas para o dia de hoje)
   const techAssignedTasks = useMemo(() => {
     if (!selectedTechMarker) return [];
-    const pool = allOpportunities && allOpportunities.length > 0 ? allOpportunities : displayTasks;
-
-    if (selectedTechMarker.technicianId === ONBOARDING_DEMO_TECH_ID) {
-      const demo = pool.find((t) => t.id === ONBOARDING_DEMO_TASK_ID);
-      if (!demo?.coordinates) return [];
-      const when = new Date();
-      when.setHours(11, 0, 0, 0);
-      return [
-        {
-          ...demo,
-          technician: ONBOARDING_DEMO_TECH_NAME,
-          scheduledAt: when,
-          dueDate: when,
-          hasScheduledTask: true,
-        },
-      ];
-    }
+    const pool = allOpportunities && allOpportunities.length > 0 ? allOpportunities : tasks;
 
     const norm = (s?: string) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const techNameNorm = norm(selectedTechMarker.technicianName);
@@ -524,10 +382,10 @@ export default function MapComponent({
       const timeB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : (b.dueDate ? new Date(b.dueDate).getTime() : 0);
       return timeA - timeB;
     });
-  }, [selectedTechMarker, allOpportunities, displayTasks]);
+  }, [selectedTechMarker, allOpportunities, tasks]);
 
   const clusterableTasks = useMemo(() => {
-    return displayTasks.filter((task) => {
+    return tasks.filter((task) => {
       if (!task.coordinates || !Array.isArray(task.coordinates)) return false;
       const isStopOfSelectedTech =
         selectedTechMarker &&
@@ -537,7 +395,7 @@ export default function MapComponent({
         );
       return !isStopOfSelectedTech;
     });
-  }, [displayTasks, selectedTechMarker, techAssignedTasks]);
+  }, [tasks, selectedTechMarker, techAssignedTasks]);
 
   const clusteringAvailable = !isTechnicianView && clusterableTasks.length >= 6;
   const useTaskClustering = clusteringAvailable && clusteringEnabled;
@@ -803,7 +661,7 @@ export default function MapComponent({
 
   if (isTechnicianView && !isOnline) {
     return (
-      <TechnicianOfflineMapPanel tasks={displayTasks} onTaskSelect={onTaskSelect} />
+      <TechnicianOfflineMapPanel tasks={tasks} onTaskSelect={onTaskSelect} />
     );
   }
 
@@ -841,37 +699,8 @@ export default function MapComponent({
               setSelectedMarker(null);
               setSelectedTechMarker(null);
               if (isTechnicianView) setTechnicianPinPanel("hq");
-              else if (adminOnboardingMap) setAdminHqPanelOpen(true);
             }}
           />
-        )}
-
-        {adminOnboardingMap && adminHqPanelOpen && hqLocation && (
-          <InfoWindow
-            position={{ lat: hqLocation.coordinates[0], lng: hqLocation.coordinates[1] }}
-            onCloseClick={() => setAdminHqPanelOpen(false)}
-          >
-            <MapInfoWindowShell onClose={() => setAdminHqPanelOpen(false)}>
-              <div data-tour="admin-map-hq-panel">
-                <div className="mb-3 flex items-center gap-3">
-                  <img src={APP_LOGO_PATH} alt="" className="h-10 w-10 rounded-xl object-contain" />
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-foreground">
-                      {hqLocation.name || MAP_HQ_TITLE}
-                    </p>
-                    <p className="mt-0.5 text-xs font-semibold text-primary-ink">Este é o ponto da sede (logo)</p>
-                  </div>
-                </div>
-                <p className="text-xs font-medium leading-relaxed text-muted-foreground">
-                  A equipa parte daqui. No mapa vê carrinhas (técnicos), pins de clientes e o pin de formação
-                  do guia — tudo fictício, nada vai ao CRM.
-                </p>
-                {hqLocation.address && (
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground">{hqLocation.address}</p>
-                )}
-              </div>
-            </MapInfoWindowShell>
-          </InfoWindow>
         )}
 
         {/* Localização do Utilizador (Técnico) */}
@@ -965,8 +794,7 @@ export default function MapComponent({
         )}
 
         {/* Marcadores dos Técnicos no Terreno (Visão Admin Premium) */}
-        {techniciansOnMap && techniciansOnMap.map((tech) => {
-          const isDemoTech = tech.technicianId === ONBOARDING_DEMO_TECH_ID;
+        {techniciansLocations && techniciansLocations.map((tech) => {
           const updateAgeMinutes = Math.round((renderNow - new Date(tech.lastUpdate).getTime()) / (60 * 1000));
           const timeLabel = updateAgeMinutes <= 1 ? "Agora mesmo" : `Há ${updateAgeMinutes} min`;
           const isSelectedTech = selectedTechMarker?.technicianId === tech.technicianId;
@@ -987,9 +815,7 @@ export default function MapComponent({
             <Marker
               key={`tech-${tech.technicianId}`}
               position={{ lat: tech.lat, lng: tech.lng }}
-              zIndex={isDemoTech ? 1200 : undefined}
               onClick={() => {
-                setAdminHqPanelOpen(false);
                 setSelectedTechMarker(tech);
                 if (onTechnicianSelect) onTechnicianSelect(tech);
               }}
@@ -1063,7 +889,7 @@ export default function MapComponent({
 
         {/* InfoWindow do Técnico Selecionado com Itinerário Planeado */}
         {selectedTechMarker && (() => {
-          const pool = allOpportunities && allOpportunities.length > 0 ? allOpportunities : displayTasks;
+          const pool = allOpportunities && allOpportunities.length > 0 ? allOpportunities : tasks;
           
           // Tarefas por agendar para sugestão se o técnico estiver livre
           const unscheduledTasks = pool.filter(t => {
@@ -1094,13 +920,7 @@ export default function MapComponent({
               onCloseClick={() => setSelectedTechMarker(null)}
             >
               <MapInfoWindowShell onClose={() => setSelectedTechMarker(null)} wide>
-                <div
-                  data-tour={
-                    selectedTechMarker.technicianId === ONBOARDING_DEMO_TECH_ID
-                      ? "admin-map-demo-tech-panel"
-                      : undefined
-                  }
-                >
+                <div>
                 {/* Header Técnico */}
                 <div className="flex items-center justify-between border-b border-border pb-1.5 mb-2">
                   <div>
@@ -1220,12 +1040,6 @@ export default function MapComponent({
                     )}
                   </div>
                 )}
-                {selectedTechMarker.technicianId === ONBOARDING_DEMO_TECH_ID && (
-                  <p className="mt-2 text-xs font-semibold leading-relaxed text-muted-foreground">
-                    No guia, a carrinha verde aproxima-se do pin de formação — como se o técnico estivesse a caminho
-                    do cliente exemplo.
-                  </p>
-                )}
                 </div>
               </MapInfoWindowShell>
             </InfoWindow>
@@ -1233,7 +1047,7 @@ export default function MapComponent({
         })()}
 
         {/* Marcadores das Tarefas Gerais */}
-        {!useTaskClustering && displayTasks.map((task) => {
+        {!useTaskClustering && tasks.map((task) => {
           // Se este técnico estiver selecionado e esta tarefa for uma das suas paragens numeradas,
           // não renderizar o marcador genérico para evitar duplicados ou confusão visual
           const isStopOfSelectedTech = selectedTechMarker && techAssignedTasks.some(st => (st.id && st.id === task.id) || (st.twentyId && st.twentyId === task.twentyId));
@@ -1303,9 +1117,6 @@ export default function MapComponent({
             <TaskMapInfoWindow
               task={selectedMarker}
               onClose={() => setSelectedMarker(null)}
-              allowOpenOnboardingDemo={
-                onboardingMapTourId === "technician" && onboardingDemoActive
-              }
               onOpenVisit={() => {
                 onTaskSelect(selectedMarker);
                 setSelectedMarker(null);
@@ -1324,9 +1135,6 @@ export default function MapComponent({
             <MapMarkerInfoWindow
               marker={selectedMarker}
               onClose={() => setSelectedMarker(null)}
-              allowOpenOnboardingDemo={
-                onboardingMapTourId === "admin" && onboardingDemoActive
-              }
               onOpenDetails={() => {
                 onTaskSelect(selectedMarker);
                 setSelectedMarker(null);

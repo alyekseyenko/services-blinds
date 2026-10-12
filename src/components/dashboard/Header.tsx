@@ -23,10 +23,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastContext";
 import InAppNotificationBell from "@/components/ui/InAppNotificationBell";
 import type { InAppNotification } from "@/lib/inAppNotifications";
-import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from "@/lib/onboarding/tourActions";
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
 
@@ -85,31 +81,6 @@ function Header({
     const openQueue = () => setQueueOpen(true);
     window.addEventListener("fieldops-open-sync-queue", openQueue);
     return () => window.removeEventListener("fieldops-open-sync-queue", openQueue);
-  }, []);
-
-  useEffect(() => {
-    const onTourAction = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-      switch (action) {
-        case "openTechMobileMenu":
-          setMobileMenuOpen(true);
-          break;
-        case "closeTechMobileMenu":
-          setMobileMenuOpen(false);
-          break;
-        case "openTechSyncQueue":
-          setQueueOpen(true);
-          break;
-        case "closeTechSyncQueue":
-          setQueueOpen(false);
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
   }, []);
 
   const pendingSyncTotal = pendingCount + failedCount;

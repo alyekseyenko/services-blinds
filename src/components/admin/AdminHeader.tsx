@@ -36,10 +36,6 @@ import { getNotificationScope, type InAppNotification } from "@/lib/inAppNotific
 import { AdminPrimaryNav } from "@/components/admin/AdminPrimaryNav";
 import { IconButton } from "@/components/ui/IconButton";
 import { cn } from "@/lib/cn";
-import {
-  ONBOARDING_TOUR_ACTION_EVENT,
-  type OnboardingTourActionDetail,
-} from "@/lib/onboarding/tourActions";
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
@@ -232,28 +228,6 @@ export default function AdminHeader({
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const onTourAction = (event: Event) => {
-      const action = (event as CustomEvent<OnboardingTourActionDetail>).detail?.action;
-      if (!action) return;
-      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
-      switch (action) {
-        case "openAdminMobileMenu":
-        case "openAdminDesktopMenu":
-          setNavMenuOpen(true);
-          break;
-        case "closeAdminMobileMenu":
-        case "closeAdminDesktopMenu":
-          setNavMenuOpen(false);
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(ONBOARDING_TOUR_ACTION_EVENT, onTourAction);
   }, []);
 
   useEffect(() => {

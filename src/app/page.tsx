@@ -98,17 +98,21 @@ export default function Login() {
 
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 font-sans text-foreground bg-background"
+      className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-x-hidden px-4 font-sans text-foreground"
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top))",
-        paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
+        paddingBottom: "max(3.25rem, calc(env(safe-area-inset-bottom) + 2.75rem))",
         paddingLeft: "max(1rem, env(safe-area-inset-left))",
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
       <LoginSceneBackdrop />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0" aria-hidden>
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        aria-hidden
+      >
         <Marquee segments={["Medir", "Instalar", "Sincronizar"]} />
       </div>
 

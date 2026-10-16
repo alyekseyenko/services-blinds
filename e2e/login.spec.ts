@@ -8,7 +8,7 @@ test('login page loads and has correct title', async ({ page }) => {
 test('shows login form', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByText(/Iniciar sessão/i)).toBeVisible();
+  await expect(page.getByLabel(/E-mail/i)).toBeVisible();
   await expect(page.locator('input[type="email"]')).toBeVisible();
   await expect(page.locator('input[type="password"]')).toBeVisible();
   await expect(page.locator('button[type="submit"]')).toBeVisible();

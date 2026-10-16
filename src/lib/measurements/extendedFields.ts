@@ -22,6 +22,13 @@ export const MeasurementGroupExtrasSchema = z.object({
   exteriorInstallType: z.enum(["COMPLETO", "PARCIAL"]).optional(),
   partialPartCodes: z.string().optional(),
   partialPartCustom: z.string().optional(),
+  /** Título livre no cartão: «Estore Exterior — …». */
+  customName: z.string().optional(),
+  /** Pergunta no início da ficha: SIM ou OUTROS. */
+  remeasureNeeded: z.string().optional(),
+  remeasureNote: z.string().optional(),
+  /** Parcial + esteiras: VAO ou ESTEIRA. */
+  esteiraMeasureTarget: z.string().optional(),
 });
 
 export type MeasurementGroupExtras = z.infer<typeof MeasurementGroupExtrasSchema>;
@@ -40,6 +47,15 @@ export const MeasurementLineExtrasSchema = z.object({
   lineCollapsed: z.string().optional(),
   /** Observações da linha (distinto da divisão). */
   lineNotes: z.string().optional(),
+  /** Skylight: medida exterior (a interior fica em width/height). */
+  skylightExteriorWidth: z.string().optional(),
+  skylightExteriorHeight: z.string().optional(),
+  /** Profundidade partilhada (skylight), mm. */
+  depth: z.string().optional(),
+  /** Canal do estore (Motor RTS), número. */
+  storeChannel: z.string().optional(),
+  /** Texto livre do canal quando escolhem Outros. */
+  storeChannelOther: z.string().optional(),
 });
 
 export type MeasurementLineExtras = z.infer<typeof MeasurementLineExtrasSchema>;
@@ -87,23 +103,55 @@ export function formatControlsDisplay(codes?: string, custom?: string): string {
   return parts.join(" · ");
 }
 
+const MOSQUITO_OPENING_LEGACY: Record<string, string> = {
+  ESQUERDA: "Esquerda",
+  DIREITA: "Direita",
+};
+
+export const MOSQUITO_OPENING_OPTIONS = ["A", "B", "C", "D"] as const;
+
 export function formatMosquitoOpeningDisplay(raw?: string): string {
   return parseCsvCodes(raw)
-    .map((c) => (c === "ESQUERDA" ? "Esquerda" : c === "DIREITA" ? "Direita" : c))
+    .map((c) => MOSQUITO_OPENING_LEGACY[c] || c)
     .join(" · ");
+}
+
+export function formatStoreChannelDisplay(channel?: string, other?: string): string {
+  const number = channel?.trim() ?? "";
+  const note = other?.trim() ?? "";
+  if (number && note) return `${number} · Outros: ${note}`;
+  if (note) return `Outros: ${note}`;
+  return number;
+}
+
+function omitBlankStrings(
+  source: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!source) return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      out[key] = trimmed;
+      continue;
+    }
+    if (value != null) out[key] = value;
+  }
+  return out;
 }
 
 export function pickGroupExtras(
   source: Record<string, unknown> | undefined
 ): MeasurementGroupExtras {
-  const parsed = MeasurementGroupExtrasSchema.safeParse(source ?? {});
+  const parsed = MeasurementGroupExtrasSchema.safeParse(omitBlankStrings(source));
   return parsed.success ? parsed.data : {};
 }
 
 export function pickLineExtras(
   source: Record<string, unknown> | undefined
 ): MeasurementLineExtras {
-  const parsed = MeasurementLineExtrasSchema.safeParse(source ?? {});
+  const parsed = MeasurementLineExtrasSchema.safeParse(omitBlankStrings(source));
   return parsed.success ? parsed.data : {};
 }
 

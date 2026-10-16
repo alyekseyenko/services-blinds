@@ -134,6 +134,22 @@ export function getProductTypeLabel(type: string): string {
   return PRODUCT_TYPE_LABELS[type] || type.replace(/_/g, " ");
 }
 
+/** Título do cartão e da ficha: «Estore Exterior — nome livre». */
+export function formatProductGroupHeading(type: string, customName?: string): string {
+  const base = getProductTypeLabel(type);
+  const name = customName?.trim();
+  return name ? `${base} — ${name}` : base;
+}
+
+export function formatRemeasureAnswer(needed?: string, note?: string): string {
+  if (needed === "SIM") return "Sim";
+  if (needed === "OUTROS") {
+    const extra = note?.trim();
+    return extra ? `Outros: ${extra}` : "Outros";
+  }
+  return "";
+}
+
 export function getMaterialLabel(material?: string, otherMaterial?: string): string {
   if (!material) return "";
   if (material === "OUTRO") return otherMaterial?.trim() || MATERIAL_LABELS.OUTRO;

@@ -31,6 +31,11 @@ export interface MeasurementRow {
   lineCollapsed?: string;
   /** Observações da linha (≠ divisão). */
   lineNotes?: string;
+  skylightExteriorWidth?: string;
+  skylightExteriorHeight?: string;
+  depth?: string;
+  storeChannel?: string;
+  storeChannelOther?: string;
 }
 
 export interface ProductGroupDetails {
@@ -58,6 +63,10 @@ export interface ProductGroupDetails {
   exteriorInstallType?: string;
   partialPartCodes?: string;
   partialPartCustom?: string;
+  customName?: string;
+  remeasureNeeded?: string;
+  remeasureNote?: string;
+  esteiraMeasureTarget?: string;
 }
 
 export interface ProductGroup {

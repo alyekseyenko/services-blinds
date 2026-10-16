@@ -11,7 +11,13 @@ import {
   getExteriorInstallTypeLabel,
   isExteriorParcialInstall,
 } from "@/lib/measurements/exteriorInstall";
-import { formatMosquitoOpeningDisplay } from "@/lib/measurements/extendedFields";
+import {
+  formatMosquitoOpeningDisplay,
+  formatStoreChannelDisplay,
+} from "@/lib/measurements/extendedFields";
+import { formatEsteiraMeasureTarget } from "@/lib/measurements/exteriorInstall";
+import { formatRemeasureAnswer } from "@/lib/measurements/labels";
+import { storedWidthHeightMm } from "@/lib/measurements/lineModes";
 import {
   COMPACT_PLACEMENT_OPTIONS,
   MANUAL_TYPE_OPTIONS,
@@ -47,6 +53,10 @@ type GroupDetails = {
   otherRtsMotorBrand?: string;
   mosquitoOpening?: string;
   otherActivation?: string;
+  customName?: string;
+  remeasureNeeded?: string;
+  remeasureNote?: string;
+  esteiraMeasureTarget?: string;
 };
 
 function resolveActivationForCrm(details: GroupDetails): string | undefined {
@@ -67,9 +77,16 @@ function labelFromOptions(
 
 function buildGroupExtraLocationBits(productType: string, details: GroupDetails): string[] {
   const bits: string[] = [];
+  if (details.customName?.trim()) {
+    bits.push(`Nome: ${details.customName.trim()}`);
+  }
+  const remeasure = formatRemeasureAnswer(details.remeasureNeeded, details.remeasureNote);
+  if (remeasure) bits.push(`Retificação: ${remeasure}`);
   if (productType === "ESTORE_EXTERIOR" && details.exteriorInstallType?.trim()) {
     bits.push(`Montagem: ${getExteriorInstallTypeLabel(details.exteriorInstallType)}`);
   }
+  const esteira = formatEsteiraMeasureTarget(details.esteiraMeasureTarget);
+  if (esteira) bits.push(esteira);
   if (
     productType === "ESTORE_EXTERIOR" &&
     isExteriorParcialInstall(details.exteriorInstallType)
@@ -133,6 +150,11 @@ type MeasurementRow = {
   price?: number | string;
   openingWidth?: string;
   openingHeight?: string;
+  skylightExteriorWidth?: string;
+  skylightExteriorHeight?: string;
+  depth?: string;
+  storeChannel?: string;
+  storeChannelOther?: string;
 };
 
 function resolveMaterialForCrm(details: GroupDetails): {
@@ -159,16 +181,20 @@ function buildLegacyLocation(
       ? details.otherMaterial || "Outro"
       : details.material;
 
-  const openingDim =
-    productType === "ESTORE_EXTERIOR" &&
-    !isExteriorParcialInstall(details.exteriorInstallType)
-      ? formatExteriorOpeningAndStoreDisplay(
-          row.openingWidth,
-          row.openingHeight,
-          row.width,
-          row.height
-        )
-      : "";
+  const openingDim = formatExteriorOpeningAndStoreDisplay(
+    row.openingWidth,
+    row.openingHeight,
+    row.width,
+    row.height
+  );
+  const channel = formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther);
+  const exteriorBits = [
+    row.skylightExteriorHeight || row.skylightExteriorWidth
+      ? `Ext. ${row.skylightExteriorHeight || "—"}×${row.skylightExteriorWidth || "—"} mm`
+      : "",
+    row.depth ? `Prof. ${row.depth} mm` : "",
+    channel ? `Canal: ${channel}` : "",
+  ].filter(Boolean);
 
   return [
     ...buildGroupExtraLocationBits(productType, details),
@@ -176,6 +202,7 @@ function buildLegacyLocation(
     row.fixation ? `Fixação: ${row.fixation}` : null,
     row.controls ? `Comandos: ${row.controls}` : null,
     openingDim ? `Dim. vão: ${openingDim}` : null,
+    exteriorBits.length ? exteriorBits.join(" · ") : null,
     productTypeUsesExteriorMaterial(productType) &&
     !isExteriorParcialInstall(details.exteriorInstallType) &&
     materialLabel
@@ -240,6 +267,7 @@ export function buildProdutoItemsFromMeasurements(
     return g.measurements.map((m) => {
       const row = m as MeasurementRow;
       const division = row.notes?.trim() || undefined;
+      const stored = storedWidthHeightMm(row);
       const location = buildLegacyLocation(g.type, details, row) || "Geral";
       const activation = productTypeUsesActivation(g.type)
         ? resolveActivationForCrm(details)
@@ -248,8 +276,8 @@ export function buildProdutoItemsFromMeasurements(
       return {
         opportunityId,
         product: g.type,
-        width: parseInt(String(row.width), 10) || 0,
-        height: parseInt(String(row.height), 10) || 0,
+        width: stored.width,
+        height: stored.height,
         qty: parseInt(String(row.qty), 10) || 0,
         color: legacyColor,
         location,

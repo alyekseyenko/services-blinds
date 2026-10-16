@@ -39,6 +39,17 @@ export function isExteriorParcialInstall(installType?: string): boolean {
   return installType === "PARCIAL";
 }
 
+export function partialPartsIncludeEsteiras(codes?: string): boolean {
+  const parts = parseCsvCodes(codes);
+  return parts.includes("ESTEIRAS") || parts.includes("PARTES_EXTERIORES");
+}
+
+export function formatEsteiraMeasureTarget(target?: string): string {
+  if (target === "VAO") return "Preciso do vão";
+  if (target === "ESTEIRA") return "Preciso da esteira";
+  return "";
+}
+
 /** Legado / export: tudo o que não é parcial conta como completo. */
 export function isExteriorCompletoForExport(installType?: string): boolean {
   return !isExteriorParcialInstall(installType);

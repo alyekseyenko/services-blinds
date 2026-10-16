@@ -9,6 +9,7 @@ import {
   formatMeasurementRowDimensionLabel,
   isMeasurementLineCollapsed,
 } from "@/lib/measurements/measurementRowUi";
+import { isPortaAmerica, lineDimensionMode, type LineDimensionMode } from "@/lib/measurements/lineModes";
 
 const MEASUREMENT_DIM_LABEL =
   "flex items-center justify-between px-1 text-sm font-bold text-foreground";
@@ -34,6 +35,103 @@ interface MeasurementTableProps {
   onCloneRow: (groupId: number, row: MeasurementRow) => void;
   onAddRow: (groupId: number) => void;
   onRemoveRow: (groupId: number, rowIndex: number) => void;
+}
+
+function DimField({
+  label,
+  value,
+  locked,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  locked: boolean;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className={MEASUREMENT_DIM_LABEL}>
+        <span>{label}</span> <span className="text-sm font-bold text-primary-ink">mm</span>
+      </label>
+      {locked ? (
+        <div className={MEASUREMENT_DIM_READ}>{value || "-"}</div>
+      ) : (
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          className={MEASUREMENT_DIM_INPUT}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChannelFields({
+  row,
+  locked,
+  onUpdate,
+}: {
+  row: MeasurementRow;
+  locked: boolean;
+  onUpdate: (field: string, value: string) => void;
+}) {
+  const [otherOpen, setOtherOpen] = useState(Boolean(row.storeChannelOther?.trim()));
+  return (
+    <div className="min-w-0 flex-1 space-y-1">
+      <label className="px-1 text-sm font-bold text-muted-foreground">Canal do estore</label>
+      <div className="flex items-center gap-2">
+        {locked ? (
+          <div className="min-h-12 flex-1 rounded-xl border border-border bg-card p-3 text-sm font-black text-foreground">
+            {row.storeChannel || "-"}
+          </div>
+        ) : (
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            className="h-12 w-20 rounded-xl border-2 border-border-strong bg-card px-2 text-center text-sm font-black text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+            value={row.storeChannel ?? ""}
+            placeholder="Nº"
+            aria-label="Canal do estore"
+            onChange={(e) => onUpdate("storeChannel", e.target.value.replace(/\D/g, ""))}
+          />
+        )}
+        <button
+          type="button"
+          className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase ${
+            otherOpen || row.storeChannelOther?.trim()
+              ? "border-primary bg-primary/15"
+              : "border-border bg-card"
+          }`}
+          onClick={() => setOtherOpen((v) => !v)}
+          disabled={locked && !row.storeChannelOther?.trim()}
+        >
+          Outros
+        </button>
+      </div>
+      {otherOpen || row.storeChannelOther?.trim() ? (
+        locked ? (
+          <div className="rounded-xl border border-border bg-card p-3 text-sm font-bold text-foreground">
+            {row.storeChannelOther || "—"}
+          </div>
+        ) : (
+          <input
+            type="text"
+            className="w-full min-h-12 rounded-xl border-2 border-border-strong bg-card p-3 text-sm font-bold text-foreground outline-none focus:border-primary"
+            value={row.storeChannelOther ?? ""}
+            placeholder="Mais informação sobre o canal"
+            onChange={(e) => onUpdate("storeChannelOther", e.target.value)}
+          />
+        )
+      ) : null}
+    </div>
+  );
 }
 
 function measurementRowMobileTitle(row: MeasurementRow, rIdx: number): string {
@@ -65,6 +163,9 @@ type MobileRowProps = {
   isAdmin: boolean;
   showPriceColumn: boolean;
   showExteriorOpeningDims: boolean;
+  dimensionMode: LineDimensionMode;
+  showChannel: boolean;
+  showHardware: boolean;
   onUpdateMeasurement: MeasurementTableProps["onUpdateMeasurement"];
   onCloneRow: MeasurementTableProps["onCloneRow"];
   onRemoveRow: MeasurementTableProps["onRemoveRow"];
@@ -79,6 +180,9 @@ function MobileMeasurementRow({
   isAdmin,
   showPriceColumn,
   showExteriorOpeningDims,
+  dimensionMode,
+  showChannel,
+  showHardware,
   onUpdateMeasurement,
   onCloneRow,
   onRemoveRow,
@@ -97,7 +201,26 @@ function MobileMeasurementRow({
   const rowTitle = measurementRowMobileTitle(row, rIdx);
 
   const collapsedMeta = formatMeasurementRowCollapsedMeta(row);
-  const dimensionLabel = formatMeasurementRowDimensionLabel(row);
+  const dimensionLabel = formatMeasurementRowDimensionLabel(row, dimensionMode);
+  const setField = (field: string, value: string) =>
+    onUpdateMeasurement(group.id, rIdx, field, value);
+  const primaryHeight =
+    dimensionMode === "opening" ? (row.openingHeight ?? "") : row.height;
+  const primaryWidth = dimensionMode === "opening" ? (row.openingWidth ?? "") : row.width;
+  const primaryHeightField = dimensionMode === "opening" ? "openingHeight" : "height";
+  const primaryWidthField = dimensionMode === "opening" ? "openingWidth" : "width";
+  const heightLabel =
+    dimensionMode === "skylight"
+      ? "Altura interior"
+      : dimensionMode === "opening"
+        ? "Altura vão"
+        : "Altura";
+  const widthLabel =
+    dimensionMode === "skylight"
+      ? "Largura interior"
+      : dimensionMode === "opening"
+        ? "Largura vão"
+        : "Largura";
 
   return (
     <div className="relative rounded-2xl border-2 border-border-strong bg-card p-4">
@@ -160,48 +283,60 @@ function MobileMeasurementRow({
       {!collapsed ? (
         <>
           <div className="mb-3 grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className={MEASUREMENT_DIM_LABEL}>
-                <span>Largura</span> <span className="text-sm font-bold text-primary-ink">mm</span>
-              </label>
-              {fieldsLocked ? (
-                <div className={MEASUREMENT_DIM_READ}>{row.width || "-"}</div>
-              ) : (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className={MEASUREMENT_DIM_INPUT}
-                  value={row.width}
-                  placeholder="Ex: 1200"
-                  disabled={fieldsLocked}
-                  onChange={(e) => onUpdateMeasurement(group.id, rIdx, "width", e.target.value)}
-                />
-              )}
-            </div>
-            <div className="space-y-1">
-              <label className={MEASUREMENT_DIM_LABEL}>
-                <span>Altura</span> <span className="text-sm font-bold text-primary-ink">mm</span>
-              </label>
-              {fieldsLocked ? (
-                <div className={MEASUREMENT_DIM_READ}>{row.height || "-"}</div>
-              ) : (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className={MEASUREMENT_DIM_INPUT}
-                  value={row.height}
-                  placeholder="Ex: 1500"
-                  disabled={fieldsLocked}
-                  onChange={(e) => onUpdateMeasurement(group.id, rIdx, "height", e.target.value)}
-                />
-              )}
-            </div>
+            <DimField
+              label={heightLabel}
+              value={primaryHeight}
+              locked={fieldsLocked}
+              placeholder="Ex: 1500"
+              onChange={(value) => setField(primaryHeightField, value)}
+            />
+            <DimField
+              label={widthLabel}
+              value={primaryWidth}
+              locked={fieldsLocked}
+              placeholder="Ex: 1200"
+              onChange={(value) => setField(primaryWidthField, value)}
+            />
           </div>
+          {dimensionMode === "opening" &&
+          (row.height?.trim() || row.width?.trim()) &&
+          (row.height !== row.openingHeight || row.width !== row.openingWidth) ? (
+            <p className="mb-3 px-1 text-xs font-semibold text-muted-foreground">
+              Estore já registado: {row.height || "—"} × {row.width || "—"} mm
+            </p>
+          ) : null}
+          {dimensionMode === "skylight" ? (
+            <div className="mb-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <DimField
+                  label="Altura exterior"
+                  value={row.skylightExteriorHeight ?? ""}
+                  locked={fieldsLocked}
+                  placeholder="Ex: 1500"
+                  onChange={(value) => setField("skylightExteriorHeight", value)}
+                />
+                <DimField
+                  label="Largura exterior"
+                  value={row.skylightExteriorWidth ?? ""}
+                  locked={fieldsLocked}
+                  placeholder="Ex: 1200"
+                  onChange={(value) => setField("skylightExteriorWidth", value)}
+                />
+              </div>
+              <div className="max-w-[12rem]">
+                <DimField
+                  label="Profundidade"
+                  value={row.depth ?? ""}
+                  locked={fieldsLocked}
+                  placeholder="Ex: 80"
+                  onChange={(value) => setField("depth", value)}
+                />
+              </div>
+            </div>
+          ) : null}
 
-          <div className={`mb-3 grid gap-3 ${showPriceColumn ? "grid-cols-2" : "grid-cols-1"}`}>
-            <div className="max-w-[7rem] space-y-1">
+          <div className="mb-3 flex flex-wrap items-start gap-3">
+            <div className="w-24 space-y-1">
               <label className="px-1 text-sm font-bold text-muted-foreground">
                 Qtd
               </label>
@@ -221,8 +356,11 @@ function MobileMeasurementRow({
                 />
               )}
             </div>
+            {showChannel ? (
+              <ChannelFields row={row} locked={fieldsLocked} onUpdate={setField} />
+            ) : null}
             {showPriceColumn ? (
-              <div className="space-y-1">
+              <div className="min-w-[8rem] flex-1 space-y-1">
                 <label className="px-1 text-sm font-bold text-muted-foreground">
                   Preço (€)
                 </label>
@@ -265,6 +403,7 @@ function MobileMeasurementRow({
             )}
           </div>
 
+          {showHardware || (showExteriorOpeningDims && (row.openingHeight || row.openingWidth)) ? (
           <div className="space-y-2">
             <button
               type="button"
@@ -283,62 +422,31 @@ function MobileMeasurementRow({
             </button>
             {extrasOpen ? (
               <div className="space-y-3 rounded-xl border border-border-strong bg-card/80 p-3">
-                {showExteriorOpeningDims ? (
+                {showExteriorOpeningDims && (row.openingHeight || row.openingWidth) ? (
                   <div className="space-y-2">
                     <p className="px-1 text-sm font-bold text-muted-foreground">
-                      Dimensão do vão (mm)
+                      Dimensão do vão já registada (mm)
                     </p>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="px-1 text-sm font-bold text-foreground">
-                          Largura vão
-                        </label>
-                        {fieldsLocked ? (
-                          <div className="rounded-xl border border-border bg-card p-3 text-sm font-black">
-                            {row.openingWidth || "-"}
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className="w-full rounded-xl border-2 border-border-strong bg-card p-3 text-base font-black text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
-                            value={row.openingWidth ?? ""}
-                            placeholder="Ex: 1250"
-                            onChange={(e) =>
-                              onUpdateMeasurement(group.id, rIdx, "openingWidth", e.target.value)
-                            }
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <label className="px-1 text-sm font-bold text-foreground">
-                          Altura vão
-                        </label>
-                        {fieldsLocked ? (
-                          <div className="rounded-xl border border-border bg-card p-3 text-sm font-black">
-                            {row.openingHeight || "-"}
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className="w-full rounded-xl border-2 border-border-strong bg-card p-3 text-base font-black text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
-                            value={row.openingHeight ?? ""}
-                            placeholder="Ex: 1550"
-                            onChange={(e) =>
-                              onUpdateMeasurement(group.id, rIdx, "openingHeight", e.target.value)
-                            }
-                          />
-                        )}
-                      </div>
+                      <DimField
+                        label="Altura vão"
+                        value={row.openingHeight ?? ""}
+                        locked={fieldsLocked}
+                        placeholder="Ex: 1550"
+                        onChange={(value) => setField("openingHeight", value)}
+                      />
+                      <DimField
+                        label="Largura vão"
+                        value={row.openingWidth ?? ""}
+                        locked={fieldsLocked}
+                        placeholder="Ex: 1250"
+                        onChange={(value) => setField("openingWidth", value)}
+                      />
                     </div>
-                    <p className="px-1 text-xs font-semibold text-muted-foreground">
-                      Largura/altura acima = estore; no PDF: vão (estore …).
-                    </p>
                   </div>
                 ) : null}
+                {showHardware ? (
+                <>
                 <div className="space-y-1">
                   <label className="px-1 text-sm font-bold text-muted-foreground">
                     Fixação
@@ -377,9 +485,12 @@ function MobileMeasurementRow({
                     />
                   )}
                 </div>
+                </>
+                ) : null}
               </div>
             ) : null}
           </div>
+          ) : null}
         </>
       ) : null}
     </div>
@@ -398,9 +509,24 @@ export function MeasurementTable({
 }: MeasurementTableProps) {
   const isDesktop = useMediaMinWidth(768);
   const fieldsLocked = isAdmin || readOnly;
-  const showExteriorOpeningDims =
-    group.type === "ESTORE_EXTERIOR" &&
-    group.details.exteriorInstallType === "COMPLETO";
+  const dimensionMode = lineDimensionMode(group.type, group.details);
+  const showChannel = group.details.activation === "MOTOR_RTS";
+  const portaAmerica = isPortaAmerica(group.type, group.details.model);
+  const hardwareHasValues = group.measurements.some(
+    (row) =>
+      Boolean(row.fixationCodes?.trim() || row.fixationCustom?.trim() || row.fixation?.trim()) ||
+      Boolean(row.controlsCodes?.trim() || row.controlsCustom?.trim() || row.controls?.trim())
+  );
+  const showHardware = !portaAmerica || hardwareHasValues;
+  const showLegacyOpening = dimensionMode !== "opening";
+  const showLegacyOpeningCols =
+    dimensionMode !== "opening" &&
+    dimensionMode !== "skylight" &&
+    group.measurements.some((row) => row.openingWidth?.trim() || row.openingHeight?.trim());
+  const heightLabel =
+    dimensionMode === "skylight" ? "Alt. int." : dimensionMode === "opening" ? "Alt. vão" : "Alt (mm)";
+  const widthLabel =
+    dimensionMode === "skylight" ? "Larg. int." : dimensionMode === "opening" ? "Larg. vão" : "Larg (mm)";
   const triggerHaptic = (ms = 20) => {
     hapticTap(ms);
   };
@@ -412,16 +538,30 @@ export function MeasurementTable({
           <thead>
             <tr className="text-left print:bg-muted">
               <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Qtd</th>
-              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Larg (mm)</th>
-              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Alt (mm)</th>
-              {showExteriorOpeningDims ? (
+              {showChannel ? (
+                <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Canal</th>
+              ) : null}
+              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">{heightLabel}</th>
+              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">{widthLabel}</th>
+              {dimensionMode === "skylight" ? (
                 <>
-                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Vão L</th>
-                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Vão A</th>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2">Alt. ext.</th>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2">Larg. ext.</th>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2">Prof.</th>
                 </>
               ) : null}
-              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Fixação</th>
-              <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Comandos</th>
+              {showLegacyOpeningCols ? (
+                <>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2">Vão A</th>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2">Vão L</th>
+                </>
+              ) : null}
+              {showHardware ? (
+                <>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Fixação</th>
+                  <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Comandos</th>
+                </>
+              ) : null}
               <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Divisão</th>
               {showPriceColumn ? (
                 <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Preço (€)</th>
@@ -447,74 +587,132 @@ export function MeasurementTable({
                     />
                   )}
                 </td>
+                {showChannel ? (
+                  <td className="py-1 px-1 min-w-[8rem]">
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="h-12 w-16 rounded-xl border-2 border-border-strong bg-card px-2 text-center text-sm font-black outline-none focus:border-primary"
+                        value={row.storeChannel ?? ""}
+                        placeholder="Nº"
+                        aria-label="Canal do estore"
+                        disabled={fieldsLocked}
+                        onChange={(e) =>
+                          onUpdateMeasurement(group.id, rIdx, "storeChannel", e.target.value.replace(/\D/g, ""))
+                        }
+                      />
+                      <input
+                        type="text"
+                        className="h-10 w-full rounded-xl border-2 border-border bg-card px-2 text-xs font-bold outline-none focus:border-primary"
+                        value={row.storeChannelOther ?? ""}
+                        placeholder="Outros"
+                        aria-label="Outros sobre o canal"
+                        disabled={fieldsLocked}
+                        onChange={(e) =>
+                          onUpdateMeasurement(group.id, rIdx, "storeChannelOther", e.target.value)
+                        }
+                      />
+                    </div>
+                  </td>
+                ) : null}
                 <td className="py-1 px-1 print:border print:p-2">
                   {fieldsLocked ? (
-                    <div className="text-sm font-black text-foreground text-center">{row.width || '-'}</div>
+                    <div className="text-sm font-black text-foreground text-center">
+                      {(dimensionMode === "opening" ? row.openingHeight : row.height) || "-"}
+                    </div>
                   ) : (
-                    <input 
+                    <input
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all print:border-0 print:p-0 disabled:bg-transparent disabled:border-transparent disabled:p-0"
-                      value={row.width}
-                      placeholder="Ex: 1200"
-                      disabled={fieldsLocked}
-                      onChange={(e) => onUpdateMeasurement(group.id, rIdx, 'width', e.target.value)}
-                    />
-                  )}
-                </td>
-                <td className="py-1 px-1 print:border print:p-2">
-                  {fieldsLocked ? (
-                    <div className="text-sm font-black text-foreground text-center">{row.height || '-'}</div>
-                  ) : (
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all print:border-0 print:p-0 disabled:bg-transparent disabled:border-transparent disabled:p-0"
-                      value={row.height}
+                      className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
+                      value={dimensionMode === "opening" ? (row.openingHeight ?? "") : row.height}
                       placeholder="Ex: 1500"
-                      disabled={fieldsLocked}
-                      onChange={(e) => onUpdateMeasurement(group.id, rIdx, 'height', e.target.value)}
+                      onChange={(e) =>
+                        onUpdateMeasurement(
+                          group.id,
+                          rIdx,
+                          dimensionMode === "opening" ? "openingHeight" : "height",
+                          e.target.value
+                        )
+                      }
                     />
                   )}
                 </td>
-                {showExteriorOpeningDims ? (
+                <td className="py-1 px-1 print:border print:p-2">
+                  {fieldsLocked ? (
+                    <div className="text-sm font-black text-foreground text-center">
+                      {(dimensionMode === "opening" ? row.openingWidth : row.width) || "-"}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
+                      value={dimensionMode === "opening" ? (row.openingWidth ?? "") : row.width}
+                      placeholder="Ex: 1200"
+                      onChange={(e) =>
+                        onUpdateMeasurement(
+                          group.id,
+                          rIdx,
+                          dimensionMode === "opening" ? "openingWidth" : "width",
+                          e.target.value
+                        )
+                      }
+                    />
+                  )}
+                </td>
+                {dimensionMode === "skylight" ? (
                   <>
-                    <td className="py-1 px-1 print:border print:p-2">
-                      {fieldsLocked ? (
-                        <div className="text-sm font-black text-foreground text-center">{row.openingWidth || "-"}</div>
-                      ) : (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
-                          value={row.openingWidth ?? ""}
-                          placeholder="Vão"
-                          disabled={fieldsLocked}
-                          onChange={(e) => onUpdateMeasurement(group.id, rIdx, "openingWidth", e.target.value)}
-                        />
-                      )}
+                    <td className="py-1 px-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black outline-none focus:border-primary"
+                        value={row.skylightExteriorHeight ?? ""}
+                        placeholder="Alt."
+                        disabled={fieldsLocked}
+                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "skylightExteriorHeight", e.target.value)}
+                      />
                     </td>
-                    <td className="py-1 px-1 print:border print:p-2">
-                      {fieldsLocked ? (
-                        <div className="text-sm font-black text-foreground text-center">{row.openingHeight || "-"}</div>
-                      ) : (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
-                          value={row.openingHeight ?? ""}
-                          placeholder="Vão"
-                          disabled={fieldsLocked}
-                          onChange={(e) => onUpdateMeasurement(group.id, rIdx, "openingHeight", e.target.value)}
-                        />
-                      )}
+                    <td className="py-1 px-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black outline-none focus:border-primary"
+                        value={row.skylightExteriorWidth ?? ""}
+                        placeholder="Larg."
+                        disabled={fieldsLocked}
+                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "skylightExteriorWidth", e.target.value)}
+                      />
+                    </td>
+                    <td className="py-1 px-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black outline-none focus:border-primary"
+                        value={row.depth ?? ""}
+                        placeholder="Prof."
+                        disabled={fieldsLocked}
+                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "depth", e.target.value)}
+                      />
                     </td>
                   </>
                 ) : null}
+                {showLegacyOpeningCols ? (
+                  <>
+                    <td className="py-1 px-1">
+                      <div className="text-sm font-black text-center">{row.openingHeight || "-"}</div>
+                    </td>
+                    <td className="py-1 px-1">
+                      <div className="text-sm font-black text-center">{row.openingWidth || "-"}</div>
+                    </td>
+                  </>
+                ) : null}
+                {showHardware ? (
+                <>
                 <td className="py-1 px-1 print:border print:p-2 min-w-[8rem]">
                   {fieldsLocked ? (
                     <div className="text-sm font-black text-foreground text-center">
@@ -547,6 +745,8 @@ export function MeasurementTable({
                     />
                   )}
                 </td>
+                </>
+                ) : null}
                 <td className="py-1 px-1 print:border print:p-2 min-w-[10rem]">
                   {fieldsLocked ? (
                     <div className="text-sm font-black text-foreground text-center">
@@ -622,7 +822,10 @@ export function MeasurementTable({
             fieldsLocked={fieldsLocked}
             isAdmin={isAdmin}
             showPriceColumn={showPriceColumn}
-            showExteriorOpeningDims={showExteriorOpeningDims}
+            showExteriorOpeningDims={showLegacyOpening}
+            dimensionMode={dimensionMode}
+            showChannel={showChannel}
+            showHardware={showHardware}
             onUpdateMeasurement={onUpdateMeasurement}
             onCloneRow={onCloneRow}
             onRemoveRow={onRemoveRow}

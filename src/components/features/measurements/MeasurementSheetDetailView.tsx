@@ -6,10 +6,9 @@ import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 import {
   getMeasurementGroupDetailEntries,
   partitionMeasurementGroupDetailEntries,
-  formatMeasurementLxAMm,
   formatMeasurementPriceDisplay,
-  groupShowsLineNotesColumn,
-  groupShowsOpeningDimensions,
+  measurementLineColumnPlan,
+  measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
 import { useToast } from "@/components/ui/ToastContext";
 import { toUserMessage } from "@/lib/userMessages";
@@ -210,6 +209,12 @@ export default function MeasurementSheetDetailView({
                 </dd>
               </div>
             ) : null}
+            {sheet.remeasureLabel?.trim() ? (
+              <div className="sm:col-span-2">
+                <dt className="ds-kicker">Retificação de medidas</dt>
+                <dd className="text-sm font-bold">{sheet.remeasureLabel}</dd>
+              </div>
+            ) : null}
             {sheet.version ? (
               <div>
                 <dt className="ds-kicker">Versão</dt>
@@ -291,8 +296,7 @@ export default function MeasurementSheetDetailView({
           const detailEntries = getMeasurementGroupDetailEntries(group);
           const { gridEntries, observations } =
             partitionMeasurementGroupDetailEntries(detailEntries);
-          const showOpeningCol = groupShowsOpeningDimensions(group);
-          const showNotesCol = groupShowsLineNotesColumn(group);
+          const plan = measurementLineColumnPlan(group);
           const isOpen = openGroups[gi] ?? true;
           return (
             <Panel key={`${group.productType}-${gi}`} className="overflow-hidden p-0">
@@ -334,22 +338,11 @@ export default function MeasurementSheetDetailView({
                     <table className="min-w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-border text-muted-foreground">
-                          <th className="px-2 py-1.5 font-black">#</th>
-                          <th className="px-2 py-1.5 font-black">Divisão</th>
-                          <th className="px-2 py-1.5 font-black">Qtd</th>
-                          <th className="px-2 py-1.5 font-black">L×A estore</th>
-                          {showOpeningCol ? (
-                            <>
-                              <th className="px-2 py-1.5 font-black">L×A vão</th>
-                              <th className="px-2 py-1.5 font-black">Resumo (vão + estore)</th>
-                            </>
-                          ) : null}
-                          <th className="px-2 py-1.5 font-black">Fix.</th>
-                          <th className="px-2 py-1.5 font-black">Cmd.</th>
-                          {showNotesCol ? (
-                            <th className="px-2 py-1.5 font-black">Notas</th>
-                          ) : null}
-                          <th className="px-2 py-1.5 font-black">Preço</th>
+                          {plan.columns.map((col) => (
+                            <th key={col.key} className="px-2 py-1.5 font-black whitespace-nowrap">
+                              {col.header}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -363,28 +356,9 @@ export default function MeasurementSheetDetailView({
                                 : "border-b border-border/60"
                             }
                           >
-                            <td className="px-2 py-1.5 font-bold">{row.index}</td>
-                            <td className="px-2 py-1.5">{row.division || "—"}</td>
-                            <td className="px-2 py-1.5 ds-num">{row.qty}</td>
-                            <td className="px-2 py-1.5 ds-num whitespace-nowrap">
-                              {row.widthMm}×{row.heightMm}
-                            </td>
-                            {showOpeningCol ? (
-                              <>
-                                <td className="px-2 py-1.5 ds-num whitespace-nowrap">
-                                  {formatMeasurementLxAMm(row.openingWidthMm, row.openingHeightMm)}
-                                </td>
-                                <td className="px-2 py-1.5 text-xs leading-snug">
-                                  {row.openingDimensionLabel || "—"}
-                                </td>
-                              </>
-                            ) : null}
-                            <td className="px-2 py-1.5">{row.fixation || "—"}</td>
-                            <td className="px-2 py-1.5">{row.controls || "—"}</td>
-                            {showNotesCol ? (
-                              <td className="px-2 py-1.5">{row.notes || "—"}</td>
-                            ) : null}
-                            <td className="px-2 py-1.5">
+                            {plan.columns.map((col) =>
+                              col.key === "price" ? (
+                                <td key={col.key} className="px-2 py-1.5">
                               {canEditPrices && row.lineId ? (
                                 <input
                                   type="text"
@@ -404,6 +378,12 @@ export default function MeasurementSheetDetailView({
                                 formatMeasurementPriceDisplay(row.price) || "—"
                               )}
                             </td>
+                              ) : (
+                                <td key={col.key} className="px-2 py-1.5 whitespace-nowrap">
+                                  {measurementLineColumnValue(row, col.key, plan.openingIsPrimary) || "—"}
+                                </td>
+                              )
+                            )}
                           </tr>
                         ))}
                       </tbody>

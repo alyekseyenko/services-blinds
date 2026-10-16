@@ -56,6 +56,7 @@ export function sheetRowsToMeasurementsPayload(
             openingHeight: hydrated.openingHeight,
             lineNotes:
               notesRaw && divisionRaw && notesRaw !== divisionRaw ? notesRaw : undefined,
+            ...pickLineExtras(hydrated as unknown as Record<string, unknown>),
             isPrepared: line.is_prepared,
           };
         }),

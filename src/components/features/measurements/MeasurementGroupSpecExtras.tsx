@@ -9,7 +9,10 @@ import {
   RTS_MOTOR_BRAND_OPTIONS,
 } from "@/lib/measurementLabels";
 import { getGroupSpecDetailEntries } from "@/lib/measurementGroupSpecDisplay";
-import { formatMosquitoOpeningDisplay, joinCsvCodes, parseCsvCodes } from "@/lib/measurements/extendedFields";
+import {
+  MOSQUITO_OPENING_OPTIONS,
+  formatMosquitoOpeningDisplay,
+} from "@/lib/measurements/extendedFields";
 
 const selectClass =
   "w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground";
@@ -47,20 +50,11 @@ export function MeasurementGroupSpecExtras({
     return null;
   }
 
-  const mosquitoSelected = parseCsvCodes(d.mosquitoOpening);
-
   const adminSpecLines = isAdmin
     ? getGroupSpecDetailEntries(group.type, d)
     : [];
 
   const adminSpecByLabel = Object.fromEntries(adminSpecLines.map((e) => [e.label, e.value]));
-
-  const toggleMosquitoSide = (side: "ESQUERDA" | "DIREITA") => {
-    const setSides = new Set(mosquitoSelected);
-    if (setSides.has(side)) setSides.delete(side);
-    else setSides.add(side);
-    set("mosquitoOpening", joinCsvCodes(Array.from(setSides)));
-  };
 
   return (
     <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border pt-3">
@@ -231,18 +225,20 @@ export function MeasurementGroupSpecExtras({
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {(["ESQUERDA", "DIREITA"] as const).map((side) => (
+              {MOSQUITO_OPENING_OPTIONS.map((option) => (
                 <button
-                  key={side}
+                  key={option}
                   type="button"
-                  className={`min-h-10 rounded-lg border-2 px-3 text-xs font-black uppercase ${
-                    mosquitoSelected.includes(side)
+                  className={`min-h-12 min-w-12 rounded-lg border-2 px-3 text-sm font-black ${
+                    d.mosquitoOpening === option
                       ? "border-primary bg-primary/15"
                       : "border-border bg-card"
                   }`}
-                  onClick={() => toggleMosquitoSide(side)}
+                  onClick={() =>
+                    set("mosquitoOpening", d.mosquitoOpening === option ? "" : option)
+                  }
                 >
-                  {side === "ESQUERDA" ? "Esquerda" : "Direita"}
+                  {option}
                 </button>
               ))}
             </div>

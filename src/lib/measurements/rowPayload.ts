@@ -23,6 +23,11 @@ export function emptyMeasurementRow(): MeasurementRow {
     controlsCustom: "",
     openingWidth: "",
     openingHeight: "",
+    skylightExteriorWidth: "",
+    skylightExteriorHeight: "",
+    depth: "",
+    storeChannel: "",
+    storeChannelOther: "",
   };
 }
 

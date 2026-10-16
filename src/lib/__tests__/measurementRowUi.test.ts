@@ -22,7 +22,7 @@ describe("measurementRowUi", () => {
       price: "",
     });
     expect(text).toContain("SALA");
-    expect(text).toContain("1200 × 1500");
+    expect(text).toContain("1500 × 1200");
     expect(text.indexOf("1200")).toBeLessThan(text.indexOf("SALA"));
   });
 });

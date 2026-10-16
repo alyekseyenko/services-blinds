@@ -176,6 +176,8 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       updateGroupDetails,
 
+      setRemeasure,
+
       cloneRow,
 
       addRow,
@@ -562,6 +564,64 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
         </div>
 
 
+
+        {(() => {
+          const answer = productGroups.find((g) => g.details.remeasureNeeded)?.details;
+          const needed = answer?.remeasureNeeded ?? "";
+          const note = answer?.remeasureNote ?? "";
+          const locked = isAdmin || readOnly;
+          return (
+            <div className="rounded-2xl border-2 border-border bg-card p-4 space-y-3">
+              <p className="text-sm font-black text-foreground">Retificação de medidas</p>
+              {locked ? (
+                <p className="text-sm font-bold text-foreground">
+                  {needed === "SIM"
+                    ? "Sim"
+                    : needed === "OUTROS"
+                      ? note.trim()
+                        ? `Outros: ${note.trim()}`
+                        : "Outros"
+                      : "—"}
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { value: "SIM", label: "Sim" },
+                        { value: "OUTROS", label: "Outros" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setRemeasure(needed === opt.value ? "" : opt.value, needed === opt.value ? "" : note)
+                        }
+                        className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase ${
+                          needed === opt.value
+                            ? "border-primary bg-primary/15 text-foreground"
+                            : "border-border bg-card text-muted-foreground"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {needed === "OUTROS" ? (
+                    <input
+                      type="text"
+                      className="w-full min-h-12 rounded-xl border-2 border-border bg-card p-3 text-sm font-bold text-foreground outline-none focus:border-info-solid"
+                      value={note}
+                      placeholder="Indique o que é preciso…"
+                      onChange={(e) => setRemeasure("OUTROS", e.target.value)}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="space-y-4">
 

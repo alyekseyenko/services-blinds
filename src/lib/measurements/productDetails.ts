@@ -63,7 +63,12 @@ export function sanitizeGroupDetailsOnProductTypeChange(
     return sanitizeGroupDetailsForType(nextType, details);
   }
   const observations = details?.observations?.trim() ?? "";
-  return sanitizeGroupDetailsForType(nextType, { observations });
+  return sanitizeGroupDetailsForType(nextType, {
+    observations,
+    customName: details?.customName,
+    remeasureNeeded: details?.remeasureNeeded,
+    remeasureNote: details?.remeasureNote,
+  });
 }
 
 /** Campos de detalhe válidos por tipo de produto (formulário técnico + CRM). */

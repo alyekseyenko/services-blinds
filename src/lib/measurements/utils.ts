@@ -4,7 +4,7 @@ import {
   productTypeUsesExteriorMaterial,
   sanitizeGroupDetailsForType,
 } from "@/lib/measurements/productDetails";
-import { pickGroupExtras } from "@/lib/measurements/extendedFields";
+import { pickGroupExtras, pickLineExtras } from "@/lib/measurements/extendedFields";
 import {
   emptyMeasurementRow,
   hydrateMeasurementRowFromLegacy,
@@ -249,6 +249,7 @@ export function productGroupsToMeasurementsPayload(groups: ProductGroup[]): Meas
           openingHeight: synced.openingHeight,
           lineCollapsed: synced.lineCollapsed,
           lineNotes: synced.lineNotes,
+          ...pickLineExtras(synced as unknown as Record<string, unknown>),
         };
       }),
     })),
@@ -289,6 +290,7 @@ export function measurementsPayloadToProductGroups(payload: MeasurementsPayload)
         openingHeight: (m as { openingHeight?: string }).openingHeight,
         lineCollapsed: (m as { lineCollapsed?: string }).lineCollapsed,
         lineNotes: (m as { lineNotes?: string }).lineNotes,
+        ...pickLineExtras(m as unknown as Record<string, unknown>),
       })
     ),
     isOpen: index === 0,

@@ -4,17 +4,19 @@ import {
   formatExteriorOpeningAndStoreDisplay,
   formatExteriorPartialPartsDisplay,
   getExteriorInstallTypeLabel,
-  isExteriorCompletoForExport,
   isExteriorParcialInstall,
   parseOpeningWidthHeightMm,
 } from "@/lib/measurements/exteriorInstall";
+import { formatStoreChannelDisplay } from "@/lib/measurements/extendedFields";
 import {
   formatMaterialOrModelLine,
+  formatProductGroupHeading,
+  formatRemeasureAnswer,
   getActivationLabel,
-  getProductTypeLabel,
 } from "@/lib/measurements/labels";
 import { getGroupSpecDetailEntries } from "@/lib/measurements/groupSpecDisplay";
 import { getDivisionLabel } from "@/lib/measurements/divisions";
+import { isPortaAmerica, lineDimensionMode } from "@/lib/measurements/lineModes";
 
 export type MeasurementSheetHeaderInput = {
   opportunityId: string;
@@ -26,30 +28,33 @@ export type MeasurementSheetHeaderInput = {
   visitDateIso?: string;
 };
 
+function positiveMm(value?: string | number): number | undefined {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 function buildGroupRows(
-  measurements: ServiceItemGroup["measurements"],
-  lineIds?: string[],
-  includeOpeningDims?: boolean
+  measurements: ServiceItemGroup["measurements"]
 ): MeasurementSheetGroup["rows"] {
   return measurements
     .map((m, idx) => {
       const row = m as {
         openingWidth?: string;
         openingHeight?: string;
+        skylightExteriorWidth?: string;
+        skylightExteriorHeight?: string;
+        depth?: string;
+        storeChannel?: string;
+        storeChannelOther?: string;
       };
-      const openingParsed =
-        includeOpeningDims
-          ? parseOpeningWidthHeightMm(row.openingWidth, row.openingHeight)
-          : { widthMm: 0, heightMm: 0 };
+      const openingParsed = parseOpeningWidthHeightMm(row.openingWidth, row.openingHeight);
       const openingDimensionLabel =
-        includeOpeningDims
-          ? formatExteriorOpeningAndStoreDisplay(
-              row.openingWidth,
-              row.openingHeight,
-              m.width,
-              m.height
-            ) || undefined
-          : undefined;
+        formatExteriorOpeningAndStoreDisplay(
+          row.openingWidth,
+          row.openingHeight,
+          m.width,
+          m.height
+        ) || undefined;
       const line = m as {
         divisionCode?: string;
         divisionCustom?: string;
@@ -62,7 +67,6 @@ function buildGroupRows(
       const lineNotes = line.lineNotes?.trim() || undefined;
       return {
         index: idx + 1,
-        lineId: lineIds?.[idx],
         division: divisionLabel,
         qty: Number(m.qty) || 0,
         widthMm: Number(m.width) || 0,
@@ -74,6 +78,11 @@ function buildGroupRows(
         openingWidthMm: openingParsed.widthMm > 0 ? openingParsed.widthMm : undefined,
         openingHeightMm: openingParsed.heightMm > 0 ? openingParsed.heightMm : undefined,
         openingDimensionLabel,
+        exteriorWidthMm: positiveMm(row.skylightExteriorWidth),
+        exteriorHeightMm: positiveMm(row.skylightExteriorHeight),
+        depthMm: positiveMm(row.depth),
+        channelLabel:
+          formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther) || undefined,
       };
     })
     .filter(
@@ -82,7 +91,11 @@ function buildGroupRows(
         r.widthMm > 0 ||
         r.heightMm > 0 ||
         (r.openingWidthMm ?? 0) > 0 ||
-        (r.openingHeightMm ?? 0) > 0
+        (r.openingHeightMm ?? 0) > 0 ||
+        (r.exteriorWidthMm ?? 0) > 0 ||
+        (r.exteriorHeightMm ?? 0) > 0 ||
+        (r.depthMm ?? 0) > 0 ||
+        Boolean(r.channelLabel)
     );
 }
 
@@ -90,6 +103,11 @@ export function buildMeasurementSheetFromPayload(
   header: MeasurementSheetHeaderInput,
   payload: MeasurementsPayload
 ): MeasurementSheet {
+  const remeasureLabel =
+    payload.groups
+      .map((g) => formatRemeasureAnswer(g.details?.remeasureNeeded, g.details?.remeasureNote))
+      .find((label) => label.length > 0) || undefined;
+
   const groups: MeasurementSheetGroup[] = payload.groups.map((g) => {
     const details = g.details ?? {};
     const productType = g.type;
@@ -97,7 +115,9 @@ export function buildMeasurementSheetFromPayload(
     const isExterior = productType === "ESTORE_EXTERIOR";
     return {
       productType,
-      productLabel: getProductTypeLabel(productType),
+      productLabel: formatProductGroupHeading(productType, details.customName),
+      dimensionMode: lineDimensionMode(productType, details),
+      suppressLineHardware: isPortaAmerica(productType, details.model),
       materialLabel:
         isExterior && isExteriorParcialInstall(exteriorInstall)
           ? undefined
@@ -122,16 +142,13 @@ export function buildMeasurementSheetFromPayload(
             ) || undefined
           : undefined,
       specDetailEntries: getGroupSpecDetailEntries(productType, details),
-      rows: buildGroupRows(
-        g.measurements,
-        undefined,
-        isExterior && isExteriorCompletoForExport(exteriorInstall)
-      ),
+      rows: buildGroupRows(g.measurements),
     };
   });
 
   return {
     ...header,
+    remeasureLabel,
     groups,
   };
 }

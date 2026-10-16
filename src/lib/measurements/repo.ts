@@ -7,6 +7,7 @@ import type { MeasurementsPayload } from "@/lib/schemas";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 import { sanitizeGroupDetailsForType } from "@/lib/measurements/productDetails";
 import { pickGroupExtras, pickLineExtras } from "@/lib/measurements/extendedFields";
+import { storedWidthHeightMm } from "@/lib/measurements/lineModes";
 import { syncMeasurementRowLegacyFields } from "@/lib/measurements/rowPayload";
 import type { MeasurementRow } from "@/types";
 import {
@@ -413,18 +414,10 @@ export async function saveSubmittedSheet(
             fixation: m.fixation ?? "",
             controls: m.controls ?? "",
             price: m.price != null ? String(m.price) : "",
-            divisionCode: m.divisionCode,
-            divisionCustom: m.divisionCustom,
-            fixationCodes: m.fixationCodes,
-            fixationCustom: m.fixationCustom,
-            controlsCodes: m.controlsCodes,
-            controlsCustom: m.controlsCustom,
-            openingWidth: m.openingWidth,
-            openingHeight: m.openingHeight,
-            lineCollapsed: m.lineCollapsed,
-            lineNotes: m.lineNotes,
+            ...pickLineExtras(m as unknown as Record<string, unknown>),
           });
           const lineExtra = pickLineExtras(synced as unknown as Record<string, unknown>);
+          const storedDims = storedWidthHeightMm(synced);
           const lineId = randomUUID();
           await client.query(
             `INSERT INTO measurement_line (
@@ -437,8 +430,8 @@ export async function saveSubmittedSheet(
               groupId,
               lineIndex,
               parseRowNumber(synced.qty),
-              parseRowNumber(synced.width),
-              parseRowNumber(synced.height),
+              storedDims.width,
+              storedDims.height,
               synced.notes?.trim() || null,
               synced.fixation?.trim() || null,
               synced.controls?.trim() || null,

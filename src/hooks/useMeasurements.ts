@@ -11,6 +11,8 @@ import {
   sanitizeGroupDetailsOnProductTypeChange,
 } from "@/lib/measurementProductDetails";
 import { emptyMeasurementRow, hydrateMeasurementRowFromLegacy } from "@/lib/measurements/rowPayload";
+import { isMeasurementRowComplete } from "@/lib/measurementCompleteness";
+import { lineDimensionMode } from "@/lib/measurements/lineModes";
 
 const DEFAULT_GROUP = (): ProductGroup => ({
   id: Date.now(),
@@ -34,12 +36,6 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
   const userEditedRef = useRef(false);
   const rowDimensionHapticRef = useRef(new Map<string, boolean>());
-
-  const isRowDimensionallyComplete = (row: { width: string; height: string }) => {
-    const w = Number.parseInt(String(row.width).trim(), 10);
-    const h = Number.parseInt(String(row.height).trim(), 10);
-    return Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0;
-  };
 
   useEffect(() => {
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -168,10 +164,32 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
 
   const addGroup = () => {
     markAsDirty();
-    setProductGroups((prev) => [
-      ...prev.map((g) => ({ ...g, isOpen: false })),
-      DEFAULT_GROUP(),
-    ]);
+    setProductGroups((prev) => {
+      const inherited = prev.find((g) => g.details.remeasureNeeded)?.details;
+      const next = DEFAULT_GROUP();
+      if (inherited?.remeasureNeeded) {
+        next.details = {
+          ...next.details,
+          remeasureNeeded: inherited.remeasureNeeded,
+          remeasureNote: inherited.remeasureNote ?? "",
+        };
+      }
+      return [...prev.map((g) => ({ ...g, isOpen: false })), next];
+    });
+  };
+
+  const setRemeasure = (needed: string, note?: string) => {
+    markAsDirty();
+    setProductGroups((prev) =>
+      prev.map((g) => ({
+        ...g,
+        details: {
+          ...g.details,
+          remeasureNeeded: needed,
+          remeasureNote: note ?? (needed === "OUTROS" ? g.details.remeasureNote ?? "" : ""),
+        },
+      }))
+    );
   };
 
   const cloneGroup = (group: ProductGroup) => {
@@ -218,9 +236,29 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
   const updateGroupDetails = (groupId: number, field: string, value: string) => {
     markAsDirty();
     setProductGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId ? { ...g, details: { ...g.details, [field]: value } } : g
-      )
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const nextDetails = { ...g.details, [field]: value };
+        const switchesToOpening =
+          (field === "exteriorInstallType" && value === "COMPLETO") ||
+          (field === "esteiraMeasureTarget" && value === "VAO");
+        if (!switchesToOpening) return { ...g, details: nextDetails };
+        return {
+          ...g,
+          details: nextDetails,
+          measurements: g.measurements.map((row) => {
+            if (row.openingHeight?.trim() || row.openingWidth?.trim()) return row;
+            if (!row.height?.trim() && !row.width?.trim()) return row;
+            return {
+              ...row,
+              openingHeight: row.height,
+              openingWidth: row.width,
+              height: "",
+              width: "",
+            };
+          }),
+        };
+      })
     );
   };
 
@@ -258,6 +296,11 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
               height: "",
               openingWidth: "",
               openingHeight: "",
+              skylightExteriorWidth: "",
+              skylightExteriorHeight: "",
+              depth: "",
+              storeChannel: "",
+              storeChannelOther: "",
               lineCollapsed: "",
             }
           : emptyMeasurementRow();
@@ -289,10 +332,20 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
         const newMeasures = g.measurements.map((row, i) =>
           i === rowIndex ? { ...row, [field]: value } : row
         );
-        if (field === "width" || field === "height") {
+        if (
+          field === "width" ||
+          field === "height" ||
+          field === "openingWidth" ||
+          field === "openingHeight" ||
+          field === "skylightExteriorWidth" ||
+          field === "skylightExteriorHeight" ||
+          field === "depth"
+        ) {
           const key = `${groupId}:${rowIndex}`;
           const row = newMeasures[rowIndex];
-          const complete = row ? isRowDimensionallyComplete(row) : false;
+          const complete = row
+            ? isMeasurementRowComplete(row, lineDimensionMode(g.type, g.details))
+            : false;
           const wasComplete = rowDimensionHapticRef.current.get(key) ?? false;
           if (complete && !wasComplete) {
             hapticMeasurementCaptured();
@@ -319,6 +372,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
     toggleGroup,
     updateGroupType,
     updateGroupDetails,
+    setRemeasure,
     cloneRow,
     addRow,
     removeRow,

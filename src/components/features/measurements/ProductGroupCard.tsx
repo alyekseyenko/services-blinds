@@ -10,7 +10,7 @@ import {
   getActivationLabel,
   EXTERIOR_MATERIAL_OPTIONS,
   getMaterialLabel,
-  getProductTypeLabel,
+  formatProductGroupHeading,
   INTERIOR_MODEL_OPTIONS,
   INTERIOR_ROLO_VARIANT_OPTIONS,
   formatInteriorModelDisplay,
@@ -24,9 +24,11 @@ import {
 } from "@/lib/measurementCompleteness";
 import {
   EXTERIOR_INSTALL_TYPE_OPTIONS,
+  formatEsteiraMeasureTarget,
   formatExteriorPartialPartsDisplay,
   getExteriorInstallTypeLabel,
   isExteriorParcialInstall,
+  partialPartsIncludeEsteiras,
 } from "@/lib/measurements/exteriorInstall";
 import { MeasurementExteriorPartialPartsPicker } from "./MeasurementFieldPickers";
 import { MeasurementTable } from "./MeasurementTable";
@@ -98,7 +100,9 @@ function ProductGroupCardComponent({
             {gIdx + 1}
           </div>
           <div>
-            <h4 className="font-black text-foreground text-lg">{getProductTypeLabel(group.type)}</h4>
+            <h4 className="font-black text-foreground text-lg">
+              {formatProductGroupHeading(group.type, group.details.customName)}
+            </h4>
             <p className="text-xs text-muted-foreground font-black uppercase tracking-wider">
               {group.measurements.reduce((acc, m) => acc + (parseInt(m.qty as string) || 0), 0)} uni •{" "}
               {group.type === "ESTORE_INTERIOR"
@@ -186,6 +190,25 @@ function ProductGroupCardComponent({
             </div>
             </div>
           )}
+
+          <div className="space-y-1">
+            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+              Nome personalizado
+            </label>
+            {specLocked ? (
+              <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
+                {group.details.customName?.trim() || "—"}
+              </div>
+            ) : (
+              <input
+                type="text"
+                placeholder="Ex.: quarto do fundo, varanda…"
+                className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none"
+                value={group.details.customName ?? ""}
+                onChange={(e) => onUpdateGroupDetails(group.id, "customName", e.target.value)}
+              />
+            )}
+          </div>
 
           <div className={focusMeasurements ? "space-y-4" : "space-y-8"}>
             {focusMeasurements && !specLocked ? (
@@ -277,6 +300,44 @@ function ProductGroupCardComponent({
                           onUpdateGroupDetails(group.id, "partialPartCustom", custom);
                         }}
                       />
+                    )}
+                  </div>
+                ) : null}
+
+                {isExteriorParcialInstall(group.details.exteriorInstallType) &&
+                partialPartsIncludeEsteiras(group.details.partialPartCodes) ? (
+                  <div className="space-y-1 md:col-span-3">
+                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                      Esteiras
+                    </label>
+                    {specLocked ? (
+                      <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
+                        {formatEsteiraMeasureTarget(group.details.esteiraMeasureTarget) || "—"}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { value: "VAO", label: "Preciso do vão" },
+                            { value: "ESTEIRA", label: "Preciso da esteira" },
+                          ] as const
+                        ).map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() =>
+                              onUpdateGroupDetails(group.id, "esteiraMeasureTarget", opt.value)
+                            }
+                            className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase transition-all ${
+                              group.details.esteiraMeasureTarget === opt.value
+                                ? "border-primary bg-primary/15 text-foreground"
+                                : "border-border bg-card text-muted-foreground"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ) : null}
@@ -500,6 +561,10 @@ function ProductGroupCardComponent({
                     )}
                   </div>
                 ) : null}
+                {group.type === "MOSQUITEIRO" &&
+                group.details.model === "PORTA_AMERICA" &&
+                !(specLocked && group.details.fabric?.trim()) ? null : (
+                <>
                 <div className="space-y-1">
                   <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
                     {group.type === "MOSQUITEIRO" ? "Rede" : "Tecido"}
@@ -507,15 +572,13 @@ function ProductGroupCardComponent({
                   {specLocked ? (
                     <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.fabric || '-'}</div>
                   ) : (
-                    <>
-                      <input 
-                        type="text"
-                        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
-                        value={group.details.fabric}
-                        disabled={specLocked}
-                        onChange={(e) => onUpdateGroupDetails(group.id, 'fabric', e.target.value)}
-                      />
-                    </>
+                    <input
+                      type="text"
+                      className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
+                      value={group.details.fabric}
+                      disabled={specLocked}
+                      onChange={(e) => onUpdateGroupDetails(group.id, 'fabric', e.target.value)}
+                    />
                   )}
                 </div>
                 {group.type !== "MOSQUITEIRO" && (
@@ -524,17 +587,17 @@ function ProductGroupCardComponent({
                     {specLocked ? (
                       <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.reference || '-'}</div>
                     ) : (
-                      <>
-                        <input 
-                          type="text"
-                          className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
-                          value={group.details.reference}
-                          disabled={specLocked}
-                          onChange={(e) => onUpdateGroupDetails(group.id, 'reference', e.target.value)}
-                        />
-                      </>
+                      <input
+                        type="text"
+                        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
+                        value={group.details.reference}
+                        disabled={specLocked}
+                        onChange={(e) => onUpdateGroupDetails(group.id, 'reference', e.target.value)}
+                      />
                     )}
                   </div>
+                )}
+                </>
                 )}
               </>
             )}

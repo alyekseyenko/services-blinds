@@ -7,6 +7,11 @@ import {
   getMaterialLabel,
 } from "@/lib/measurements/labels";
 import { formatMosquitoOpeningDisplay } from "@/lib/measurements/extendedFields";
+import {
+  formatEsteiraMeasureTarget,
+  isExteriorParcialInstall,
+  partialPartsIncludeEsteiras,
+} from "@/lib/measurements/exteriorInstall";
 export type GroupSpecDetailEntry = { label: string; value: string };
 
 export type GroupSpecDetailsInput = {
@@ -23,6 +28,9 @@ export type GroupSpecDetailsInput = {
   rtsMotorBrand?: string;
   otherRtsMotorBrand?: string;
   mosquitoOpening?: string;
+  partialPartCodes?: string;
+  exteriorInstallType?: string;
+  esteiraMeasureTarget?: string;
 };
 
 function labelFromOptions(
@@ -80,6 +88,15 @@ export function getGroupSpecDetailEntries(
             : brand,
       });
     }
+  }
+
+  if (
+    productType === "ESTORE_EXTERIOR" &&
+    isExteriorParcialInstall(details.exteriorInstallType) &&
+    partialPartsIncludeEsteiras(details.partialPartCodes)
+  ) {
+    const target = formatEsteiraMeasureTarget(details.esteiraMeasureTarget);
+    if (target) entries.push({ label: "Medida das esteiras", value: target });
   }
 
   if (productType === "MOSQUITEIRO" && details.model === "PORTA_AMERICA") {

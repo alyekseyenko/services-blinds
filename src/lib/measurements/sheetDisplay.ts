@@ -1,4 +1,7 @@
-import type { MeasurementSheetGroup } from "@/lib/schemas/measurementSheet";
+import type {
+  MeasurementSheetGroup,
+  MeasurementSheetRow,
+} from "@/lib/schemas/measurementSheet";
 import { measurementSheetRowHasOpeningDims } from "@/lib/measurements/exteriorInstall";
 
 export type MeasurementGroupDetailEntry = {
@@ -120,4 +123,168 @@ export function chunkMeasurementGroupDetailEntries(
     rows.push(entries.slice(i, i + columns));
   }
   return rows;
+}
+
+export type MeasurementLineColumnKey =
+  | "index"
+  | "division"
+  | "qty"
+  | "channel"
+  | "primaryHeight"
+  | "primaryWidth"
+  | "openingHeight"
+  | "openingWidth"
+  | "openingSummary"
+  | "exteriorHeight"
+  | "exteriorWidth"
+  | "depth"
+  | "fixation"
+  | "controls"
+  | "notes"
+  | "price";
+
+export type MeasurementLineColumn = {
+  key: MeasurementLineColumnKey;
+  header: string;
+};
+
+export type MeasurementLineColumnPlan = {
+  columns: MeasurementLineColumn[];
+  /** Vão é a medida principal (completo, ou esteiras com «preciso do vão»). */
+  openingIsPrimary: boolean;
+};
+
+function mmText(value?: number): string {
+  return value != null && value > 0 ? String(value) : "";
+}
+
+function rowHasDistinctStore(row: MeasurementSheetRow): boolean {
+  const hasStore = row.widthMm > 0 || row.heightMm > 0;
+  if (!hasStore) return false;
+  return row.widthMm !== (row.openingWidthMm ?? 0) || row.heightMm !== (row.openingHeightMm ?? 0);
+}
+
+/** Colunas da ficha, Excel e PDF — altura antes da largura; só o que o produto pede. */
+export function measurementLineColumnPlan(
+  group: MeasurementSheetGroup
+): MeasurementLineColumnPlan {
+  const mode = group.dimensionMode ?? "store";
+  const distinctStore = mode === "opening" && group.rows.some(rowHasDistinctStore);
+  const openingIsPrimary = mode === "opening" && !distinctStore;
+  const openingExtra =
+    !openingIsPrimary &&
+    mode !== "skylight" &&
+    group.rows.some((r) => (r.openingWidthMm ?? 0) > 0 || (r.openingHeightMm ?? 0) > 0);
+  const showSummary =
+    (distinctStore || openingExtra) &&
+    group.rows.some((r) => Boolean(r.openingDimensionLabel?.trim()));
+  const showExterior =
+    mode === "skylight" ||
+    group.rows.some((r) => (r.exteriorWidthMm ?? 0) > 0 || (r.exteriorHeightMm ?? 0) > 0);
+  const showDepth = mode === "skylight" || group.rows.some((r) => (r.depthMm ?? 0) > 0);
+  const showChannel = group.rows.some((r) => Boolean(r.channelLabel?.trim()));
+  const showFix =
+    !group.suppressLineHardware || group.rows.some((r) => Boolean(r.fixation?.trim()));
+  const showCmd =
+    !group.suppressLineHardware || group.rows.some((r) => Boolean(r.controls?.trim()));
+  const showNotes = group.rows.some((r) => Boolean(r.notes?.trim()));
+
+  const columns: MeasurementLineColumn[] = [
+    { key: "index", header: "Nº" },
+    { key: "division", header: "Divisão" },
+    { key: "qty", header: "Qtd" },
+  ];
+  if (showChannel) columns.push({ key: "channel", header: "Canal" });
+
+  if (mode === "skylight") {
+    columns.push(
+      { key: "primaryHeight", header: "Altura interior (mm)" },
+      { key: "primaryWidth", header: "Largura interior (mm)" }
+    );
+  } else if (openingIsPrimary) {
+    columns.push(
+      { key: "primaryHeight", header: "Altura vão (mm)" },
+      { key: "primaryWidth", header: "Largura vão (mm)" }
+    );
+  } else if (mode === "opening") {
+    columns.push(
+      { key: "primaryHeight", header: "Altura estore (mm)" },
+      { key: "primaryWidth", header: "Largura estore (mm)" }
+    );
+  } else {
+    columns.push(
+      { key: "primaryHeight", header: "Altura (mm)" },
+      { key: "primaryWidth", header: "Largura (mm)" }
+    );
+  }
+
+  if (distinctStore || openingExtra) {
+    columns.push(
+      { key: "openingHeight", header: "Altura vão (mm)" },
+      { key: "openingWidth", header: "Largura vão (mm)" }
+    );
+  }
+  if (showSummary) {
+    columns.push({ key: "openingSummary", header: "Resumo vão + estore (mm)" });
+  }
+  if (showExterior) {
+    columns.push(
+      { key: "exteriorHeight", header: "Altura exterior (mm)" },
+      { key: "exteriorWidth", header: "Largura exterior (mm)" }
+    );
+  }
+  if (showDepth) columns.push({ key: "depth", header: "Profundidade (mm)" });
+  if (showFix) columns.push({ key: "fixation", header: "Fixação" });
+  if (showCmd) columns.push({ key: "controls", header: "Comandos" });
+  if (showNotes) columns.push({ key: "notes", header: "Notas" });
+  columns.push({ key: "price", header: "Preço (€)" });
+
+  return { columns, openingIsPrimary };
+}
+
+export function measurementLineColumnValue(
+  row: MeasurementSheetRow,
+  key: MeasurementLineColumnKey,
+  openingIsPrimary: boolean
+): string {
+  switch (key) {
+    case "index":
+      return String(row.index);
+    case "division":
+      return row.division || "";
+    case "qty":
+      return String(row.qty);
+    case "channel":
+      return row.channelLabel || "";
+    case "primaryHeight":
+      return openingIsPrimary
+        ? mmText(row.openingHeightMm) || mmText(row.heightMm)
+        : mmText(row.heightMm);
+    case "primaryWidth":
+      return openingIsPrimary
+        ? mmText(row.openingWidthMm) || mmText(row.widthMm)
+        : mmText(row.widthMm);
+    case "openingHeight":
+      return mmText(row.openingHeightMm);
+    case "openingWidth":
+      return mmText(row.openingWidthMm);
+    case "openingSummary":
+      return row.openingDimensionLabel || "";
+    case "exteriorHeight":
+      return mmText(row.exteriorHeightMm);
+    case "exteriorWidth":
+      return mmText(row.exteriorWidthMm);
+    case "depth":
+      return mmText(row.depthMm);
+    case "fixation":
+      return row.fixation || "";
+    case "controls":
+      return row.controls || "";
+    case "notes":
+      return row.notes || "";
+    case "price":
+      return formatMeasurementPriceDisplay(row.price);
+    default:
+      return "";
+  }
 }

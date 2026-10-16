@@ -3,10 +3,8 @@ import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 import { COMPANY_LABEL } from "@/lib/branding";
 import {
   getMeasurementGroupDetailEntries,
-  formatMeasurementLxAMm,
-  formatMeasurementPriceDisplay,
-  groupShowsLineNotesColumn,
-  groupShowsOpeningDimensions,
+  measurementLineColumnPlan,
+  measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
 
 function formatVisitDate(iso?: string): string {
@@ -63,29 +61,16 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
     "Data da visita",
     formatVisitDate(sheet.visitDateIso),
   ]);
+  if (sheet.remeasureLabel?.trim()) {
+    ws.addRow(["Retificação de medidas", sheet.remeasureLabel.trim()]);
+  }
   ws.addRow([]);
-
-  const baseHeaderLabels = [
-    "Nº",
-    "Divisão",
-    "Qtd",
-    "Largura estore (mm)",
-    "Altura estore (mm)",
-  ];
 
   let totalUnits = 0;
 
   for (const group of sheet.groups) {
-    const showOpeningCol = groupShowsOpeningDimensions(group);
-    const showNotesCol = groupShowsLineNotesColumn(group);
-    const headerLabels = [
-      ...baseHeaderLabels,
-      ...(showOpeningCol ? ["L×A vão (mm)", "Resumo vão + estore (mm)"] : []),
-      "Fixação",
-      "Comandos",
-      ...(showNotesCol ? ["Notas"] : []),
-      "Preço (€)",
-    ];
+    const plan = measurementLineColumnPlan(group);
+    const headerLabels = plan.columns.map((col) => col.header);
     const colCount = headerLabels.length;
 
     const sub = ws.addRow([group.productLabel]);
@@ -116,23 +101,11 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
 
     for (const row of group.rows) {
       totalUnits += row.qty;
-      const dataRow = ws.addRow([
-        row.index,
-        row.division || "",
-        row.qty,
-        row.widthMm,
-        row.heightMm,
-        ...(showOpeningCol
-          ? [
-              formatMeasurementLxAMm(row.openingWidthMm, row.openingHeightMm),
-              row.openingDimensionLabel || "",
-            ]
-          : []),
-        row.fixation || "",
-        row.controls || "",
-        ...(showNotesCol ? [row.notes || ""] : []),
-        formatMeasurementPriceDisplay(row.price),
-      ]);
+      const dataRow = ws.addRow(
+        plan.columns.map((col) =>
+          measurementLineColumnValue(row, col.key, plan.openingIsPrimary)
+        )
+      );
       dataRow.eachCell((cell) => {
         cell.border = {
           top: { style: "thin" },

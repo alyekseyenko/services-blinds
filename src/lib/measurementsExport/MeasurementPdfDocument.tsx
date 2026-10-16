@@ -6,10 +6,8 @@ import {
   chunkMeasurementGroupDetailEntries,
   getMeasurementGroupDetailEntries,
   partitionMeasurementGroupDetailEntries,
-  formatMeasurementLxAMm,
-  formatMeasurementPriceDisplay,
-  groupShowsLineNotesColumn,
-  groupShowsOpeningDimensions,
+  measurementLineColumnPlan,
+  measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
 
 const styles = StyleSheet.create({
@@ -186,58 +184,34 @@ export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
           <Text style={styles.metaLabel}>Data</Text>
           <Text style={styles.metaValue}>{formatVisitDate(sheet.visitDateIso)}</Text>
         </View>
+        {sheet.remeasureLabel?.trim() ? (
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Retificação</Text>
+            <Text style={styles.metaValue}>{sheet.remeasureLabel}</Text>
+          </View>
+        ) : null}
 
         {sheet.groups.map((group, gi) => {
-          const showOpeningCol = groupShowsOpeningDimensions(group);
-          const showNotesCol = groupShowsLineNotesColumn(group);
+          const plan = measurementLineColumnPlan(group);
+          const cellStyle = { flexGrow: 1, flexBasis: 0, fontSize: 7 };
           return (
           <View key={`g-${gi}`}>
             <Text style={styles.groupTitle}>{group.productLabel}</Text>
             <GroupProductDetailsPdf entries={getMeasurementGroupDetailEntries(group)} />
             <View style={styles.tableHeader}>
-              <Text style={[styles.cell, styles.colIdx]}>Nº</Text>
-              <Text style={[styles.cell, styles.colDiv]}>Divisão</Text>
-              <Text style={[styles.cell, styles.colQty]}>Qtd</Text>
-              <Text style={[styles.cell, styles.colW]}>Larg. estore</Text>
-              <Text style={[styles.cell, styles.colH]}>Alt. estore</Text>
-              {showOpeningCol ? (
-                <>
-                  <Text style={[styles.cell, styles.colOpeningLxA]}>L×A vão</Text>
-                  <Text style={[styles.cell, styles.colOpeningSummary]}>Resumo vão+estore</Text>
-                </>
-              ) : null}
-              <Text style={[styles.cell, styles.colFix]}>Fixação</Text>
-              <Text style={[styles.cell, styles.colCmd]}>Comandos</Text>
-              {showNotesCol ? (
-                <Text style={[styles.cell, styles.colNotes]}>Notas</Text>
-              ) : null}
-              <Text style={[styles.cell, styles.colPrice]}>Preço (€)</Text>
+              {plan.columns.map((col) => (
+                <Text key={col.key} style={[styles.cell, cellStyle]}>
+                  {col.header}
+                </Text>
+              ))}
             </View>
             {group.rows.map((row) => (
               <View key={`r-${gi}-${row.index}`} style={styles.tableRow}>
-                <Text style={[styles.cell, styles.colIdx]}>{row.index}</Text>
-                <Text style={[styles.cell, styles.colDiv]}>{row.division || ""}</Text>
-                <Text style={[styles.cell, styles.colQty]}>{row.qty}</Text>
-                <Text style={[styles.cell, styles.colW]}>{row.widthMm}</Text>
-                <Text style={[styles.cell, styles.colH]}>{row.heightMm}</Text>
-                {showOpeningCol ? (
-                  <>
-                    <Text style={[styles.cell, styles.colOpeningLxA]}>
-                      {formatMeasurementLxAMm(row.openingWidthMm, row.openingHeightMm)}
-                    </Text>
-                    <Text style={[styles.cell, styles.colOpeningSummary]}>
-                      {row.openingDimensionLabel || ""}
-                    </Text>
-                  </>
-                ) : null}
-                <Text style={[styles.cell, styles.colFix]}>{row.fixation || ""}</Text>
-                <Text style={[styles.cell, styles.colCmd]}>{row.controls || ""}</Text>
-                {showNotesCol ? (
-                  <Text style={[styles.cell, styles.colNotes]}>{row.notes || ""}</Text>
-                ) : null}
-                <Text style={[styles.cell, styles.colPrice]}>
-                  {formatMeasurementPriceDisplay(row.price)}
-                </Text>
+                {plan.columns.map((col) => (
+                  <Text key={col.key} style={[styles.cell, cellStyle]}>
+                    {measurementLineColumnValue(row, col.key, plan.openingIsPrimary)}
+                  </Text>
+                ))}
               </View>
             ))}
           </View>

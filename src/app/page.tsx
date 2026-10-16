@@ -135,7 +135,7 @@ export default function Login() {
         </div>
         <div className="rounded-2xl border-2 border-border-strong bg-card p-6 sm:p-8">
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="mb-4 flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border-2 border-border-strong bg-ink">
+            <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border-2 border-border-strong bg-ink">
               <Image
                 src={APP_LOGO_PATH}
                 alt=""
@@ -145,7 +145,6 @@ export default function Login() {
                 priority
               />
             </div>
-            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Iniciar sessão</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">

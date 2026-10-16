@@ -142,7 +142,7 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
           <button
             type="button"
             onClick={() => setStatusOpen((v) => !v)}
-            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-xs font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
             aria-expanded={statusOpen}
           >
             Estados no pino
@@ -176,7 +176,7 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
           <button
             type="button"
             onClick={() => setExtrasOpen((v) => !v)}
-            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
+            className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl px-1 text-left text-xs font-black uppercase tracking-wider text-muted-foreground hover:bg-muted"
             aria-expanded={extrasOpen}
           >
             Outros pinos
@@ -189,7 +189,7 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
             <ul className="mt-2 space-y-2 text-xs font-semibold text-foreground">
               <li className="flex items-center gap-2">
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-ink text-[10px] font-black text-neon"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-ink text-xs font-black text-neon"
                   aria-hidden
                 >
                   Carr.
@@ -198,7 +198,7 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
               </li>
               <li className="flex items-center gap-2">
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-[10px] font-black text-foreground"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-xs font-black text-foreground"
                   aria-hidden
                 >
                   Sede

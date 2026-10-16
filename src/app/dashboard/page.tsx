@@ -1001,7 +1001,7 @@ export default function Dashboard() {
 
               {dayTasks.length === 0 && isOnline && (
                 <div className="pointer-events-none absolute inset-x-4 top-20 z-10 flex justify-center">
-                  <p className="rounded-2xl border border-border bg-card/95 px-4 py-2 text-center text-xs font-bold text-muted-foreground shadow-lg">
+                  <p className="rounded-2xl border-2 border-border-strong bg-card px-4 py-3 text-center text-sm font-bold text-foreground shadow-lg">
                     Sem visitas neste dia — use as setas para mudar o dia.
                   </p>
                 </div>
@@ -1046,19 +1046,45 @@ export default function Dashboard() {
                 type="button"
                 data-tour="tech-history-sync-queue"
                 onClick={openSyncQueue}
-                className="mb-6 flex w-full min-h-14 items-center justify-between gap-3 rounded-2xl border-2 border-warning-solid bg-warning-surface px-5 py-4 text-left transition-colors hover:bg-warning-surface active:scale-[0.99] dark:border-warning-border dark:bg-ink/30 dark:hover:bg-ink/50"
+                className={cn(
+                  "mb-6 flex w-full min-h-14 items-center justify-between gap-3 rounded-2xl border-2 px-5 py-4 text-left transition-colors active:scale-[0.99]",
+                  pendingCount + failedCount > 0
+                    ? "border-warning-solid bg-warning-surface hover:bg-warning-surface dark:border-warning-border dark:bg-ink/30 dark:hover:bg-ink/50"
+                    : "border-border-strong bg-card hover:bg-muted"
+                )}
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-black uppercase tracking-tight text-warning-fg dark:text-warning-fg">
+                  <p
+                    className={cn(
+                      "text-sm font-black uppercase tracking-tight",
+                      pendingCount + failedCount > 0
+                        ? "text-warning-fg dark:text-warning-fg"
+                        : "text-foreground"
+                    )}
+                  >
                     Fila offline
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-warning-fg/80 dark:text-warning-fg/80">
+                  <p
+                    className={cn(
+                      "mt-0.5 text-xs font-semibold",
+                      pendingCount + failedCount > 0
+                        ? "text-warning-fg/80 dark:text-warning-fg/80"
+                        : "text-muted-foreground"
+                    )}
+                  >
                     {pendingCount + failedCount > 0
                       ? `${pendingCount + failedCount} alteração(ões) por sincronizar`
-                      : "Ver alterações guardadas localmente"}
+                      : "Nada por enviar — ver fila local"}
                   </p>
                 </div>
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warning-surface/80 text-warning-fg dark:bg-warning-surface dark:text-warning-fg">
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                    pendingCount + failedCount > 0
+                      ? "bg-warning-surface/80 text-warning-fg dark:bg-warning-surface dark:text-warning-fg"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
                   <RefreshCw className="h-5 w-5" aria-hidden />
                 </span>
               </button>

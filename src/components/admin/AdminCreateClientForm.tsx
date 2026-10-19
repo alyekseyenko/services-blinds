@@ -85,18 +85,31 @@ export default function AdminCreateClientForm({
     setFormSummary(null);
   }, []);
 
+  const isEmpresa = clientType === "EMPRESA";
+
+  const handleClientTypeChange = useCallback(
+    (value: AdminClientType) => {
+      setClientType(value);
+      if (value === "EMPRESA") {
+        setLastName("");
+        clearFieldError("lastName");
+      }
+    },
+    [clearFieldError]
+  );
+
   const buildPayload = useCallback(
     () => ({
       clientType,
       firstName,
-      lastName: lastName.trim() || undefined,
+      lastName: isEmpresa ? undefined : lastName.trim() || undefined,
       nif: nif.replace(/\D/g, ""),
       email: email.trim() || undefined,
       phoneCountryCode,
       phoneNational,
       morada,
     }),
-    [clientType, email, firstName, lastName, morada, nif, phoneCountryCode, phoneNational]
+    [clientType, email, firstName, isEmpresa, lastName, morada, nif, phoneCountryCode, phoneNational]
   );
 
   const showValidationErrors = useCallback(
@@ -138,8 +151,9 @@ export default function AdminCreateClientForm({
   return (
     <div className={cn("space-y-4", className)} data-tour="admin-create-client-form">
       <p className="text-xs font-semibold text-muted-foreground">
-        Particular ou empresa define o tipo no CRM; os restantes campos são iguais (nome, NIF,
-        morada, contacto).
+        {isEmpresa
+          ? "Empresa: indique o nome comercial no CRM. NIF, morada e contacto são iguais ao particular."
+          : "Particular: nome e apelido. O tipo de cliente fica registado no Twenty; NIF, morada e contacto são comuns aos dois."}
       </p>
 
       {formSummary ? (
@@ -164,7 +178,7 @@ export default function AdminCreateClientForm({
           aria-label="Tipo de cliente"
           layout="grid"
           value={clientType}
-          onChange={setClientType}
+          onChange={handleClientTypeChange}
           options={[
             { value: "PARTICULAR", label: "Particular" },
             { value: "EMPRESA", label: "Empresa" },
@@ -172,10 +186,10 @@ export default function AdminCreateClientForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={cn("grid grid-cols-1 gap-3", !isEmpresa && "sm:grid-cols-2")}>
         <label className="block space-y-1.5">
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Nome (obrigatório)
+            {isEmpresa ? "Nome empresa (obrigatório)" : "Nome (obrigatório)"}
           </span>
           <input
             type="text"
@@ -185,30 +199,32 @@ export default function AdminCreateClientForm({
               clearFieldError("firstName");
             }}
             className={fieldInputClass(Boolean(fieldErrors.firstName))}
-            autoComplete="given-name"
+            autoComplete={isEmpresa ? "organization" : "given-name"}
             aria-invalid={Boolean(fieldErrors.firstName)}
             aria-describedby={fieldErrors.firstName ? "client-firstName-error" : undefined}
           />
           <FieldError id="client-firstName-error" message={fieldErrors.firstName} />
         </label>
-        <label className="block space-y-1.5">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Apelido
-          </span>
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => {
-              setLastName(e.target.value);
-              clearFieldError("lastName");
-            }}
-            className={fieldInputClass(Boolean(fieldErrors.lastName))}
-            autoComplete="family-name"
-            aria-invalid={Boolean(fieldErrors.lastName)}
-            aria-describedby={fieldErrors.lastName ? "client-lastName-error" : undefined}
-          />
-          <FieldError id="client-lastName-error" message={fieldErrors.lastName} />
-        </label>
+        {!isEmpresa ? (
+          <label className="block space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Apelido
+            </span>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                clearFieldError("lastName");
+              }}
+              className={fieldInputClass(Boolean(fieldErrors.lastName))}
+              autoComplete="family-name"
+              aria-invalid={Boolean(fieldErrors.lastName)}
+              aria-describedby={fieldErrors.lastName ? "client-lastName-error" : undefined}
+            />
+            <FieldError id="client-lastName-error" message={fieldErrors.lastName} />
+          </label>
+        ) : null}
       </div>
 
       <label className="block space-y-1.5">

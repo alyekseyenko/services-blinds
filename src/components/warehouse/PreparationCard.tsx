@@ -566,7 +566,9 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
             {/* Bottom Action Area */}
             <div className="pt-8 border-t border-border-strong flex flex-col md:flex-row gap-6 items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className={`w-3 h-3 rounded-full ${stats.percent === 100 ? 'bg-success-solid shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-muted'}`}></div>
+                <div
+                  className={`w-3 h-3 rounded-full ${stats.percent === 100 ? "bg-success-solid shadow-[0_0_15px_var(--success)]" : "bg-muted"}`}
+                ></div>
                 <div>
                   <p className="text-ink-foreground font-black text-sm uppercase tracking-tight">
                     {stats.percent === 100 ? 'Ordem de Fabrico Completa' : 'Aguardando Preparação'}

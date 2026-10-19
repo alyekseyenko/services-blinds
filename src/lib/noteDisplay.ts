@@ -17,7 +17,7 @@ export function formatNoteTitleForDisplay(title: string | null | undefined): str
 
 /** Texto de nota CRM para mostrar ao utilizador (sem marcadores de sync; pt-PT). */
 export function formatNoteBodyForDisplay(body: string | null | undefined): string {
-  let text = stripNoteBodyForDisplay(body);
+  const text = stripNoteBodyForDisplay(body);
   if (!text) return "";
 
   const legacy = text.match(LEGACY_LEFT_SITE_BODY);

@@ -38,6 +38,19 @@ const eslintConfig = defineConfig([
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
+      // hooks v7 (Next 16): warn until incremental cleanup — job CI é advisory
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/static-components": "warn",
+    },
+  },
+  {
+    files: ["src/lib/logger.ts"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   {
@@ -117,6 +130,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "scratch/**",
+    "src/scratch/**",
   ]),
 ]);
 

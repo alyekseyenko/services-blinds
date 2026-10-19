@@ -1385,7 +1385,7 @@ export default function TaskDetailsDrawer({
 
         {showMeasurementsSaveBar && (
           <div
-            className={`shrink-0 border-t border-border bg-card px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] ${
+            className={`shrink-0 border-t border-border bg-card px-4 py-3 shadow-md ${
               measurementsFullscreen ? "" : "md:px-8 md:py-4"
             }`}
             data-tour="tech-drawer-measurements-save"
@@ -1401,7 +1401,7 @@ export default function TaskDetailsDrawer({
 
         {showStatusSubmitBar && (
           <div
-            className="shrink-0 border-t border-border bg-card px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
+            className="shrink-0 border-t border-border bg-card px-4 py-3 shadow-md"
             data-tour="tech-drawer-submit-report-bar"
             style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
           >

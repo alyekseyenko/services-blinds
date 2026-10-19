@@ -79,7 +79,7 @@ export default function SearchableSelect<T extends string | number | null>({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-[0_20px_50px_rgba(15,23,42,0.12)]">
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-56 overflow-hidden rounded-2xl border border-border ds-surface-raised">
           <div className="border-b border-border p-2">
             <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />

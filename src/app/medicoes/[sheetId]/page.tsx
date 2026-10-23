@@ -179,15 +179,18 @@ export default function MedicoesSheetPage() {
     <div className={adminFullBleedShell.page} data-tour="medicoes-sheet-page">
       {pageHeader}
       <main className={adminFullBleedShell.scrollMain}>
-        <MeasurementSheetDetailView
-          sheet={sheet}
-          highlightLineId={highlightLineId}
-          exportOpportunityId={sheet.opportunityId}
-          versionOptions={versionOptions}
-          onSelectVersion={handleSelectVersion}
-          canEditPrices={canEditPrices}
-          onPricesSaved={() => void load()}
-        />
+        <div className={adminFullBleedShell.content}>
+          <MeasurementSheetDetailView
+            sheet={sheet}
+            highlightLineId={highlightLineId}
+            exportOpportunityId={sheet.opportunityId}
+            versionOptions={versionOptions}
+            onSelectVersion={handleSelectVersion}
+            canEditPrices={canEditPrices}
+            onPricesSaved={() => void load()}
+            embedded
+          />
+        </div>
       </main>
     </div>
   );

@@ -17,6 +17,22 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
+  min-height: 100dvh;
+  min-height: 100vh;
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* Medições em ecrã inteiro no telemóvel — esconde header e bottom nav por baixo do drawer */
+html[data-tech-immersive="measurements"] [data-tech-shell-chrome],
+html[data-tech-immersive="measurements"] [data-tech-bottom-nav] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Google Maps — alinhar com Inter da app */
@@ -205,6 +221,18 @@ input, textarea, select {
   padding: 0;
 }
 
+@media (min-width: 768px) {
+  [data-tour="tech-map-canvas"] .gm-style .gm-style-iw-d {
+    max-height: min(45dvh, 380px) !important;
+    overflow: visible !important;
+  }
+
+  [data-tour="tech-map-canvas"] .map-info-window-content {
+    min-width: min(300px, calc(100vw - 6rem));
+    max-width: min(340px, calc(100vw - 6rem));
+  }
+}
+
 /* react-big-calendar — tokens (técnico + admin) */
 .admin-calendar-shell .rbc-calendar,
 .tech-calendar-shell .rbc-calendar {
@@ -213,12 +241,23 @@ input, textarea, select {
   font-family: var(--font-sans);
 }
 
+.admin-calendar-shell .rbc-toolbar,
+.tech-calendar-shell .rbc-toolbar {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
 .admin-calendar-shell .rbc-toolbar button,
 .tech-calendar-shell .rbc-toolbar button {
   color: var(--foreground);
   background: var(--muted);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
 }
 
 .admin-calendar-shell .rbc-toolbar button:hover,
@@ -234,6 +273,18 @@ input, textarea, select {
 .tech-calendar-shell .rbc-toolbar-label {
   color: var(--foreground);
   font-weight: 800;
+  font-size: 0.8rem;
+  width: 100%;
+  text-align: center;
+  padding: 0.25rem 0;
+}
+
+@media (min-width: 640px) {
+  .admin-calendar-shell .rbc-toolbar-label,
+  .tech-calendar-shell .rbc-toolbar-label {
+    width: auto;
+    flex: 1;
+  }
 }
 
 .admin-calendar-shell .rbc-header,

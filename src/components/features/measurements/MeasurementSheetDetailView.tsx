@@ -25,6 +25,8 @@ type Props = {
   /** Operador admin/member/ceo — edita preços na ficha. */
   canEditPrices?: boolean;
   onPricesSaved?: () => void;
+  /** Quando true, o padding exterior fica a cargo da página (scroll no main). */
+  embedded?: boolean;
 };
 
 async function downloadExport(opportunityId: string, format: "xlsx" | "pdf") {
@@ -58,6 +60,7 @@ export default function MeasurementSheetDetailView({
   onSelectVersion,
   canEditPrices = false,
   onPricesSaved,
+  embedded = false,
 }: Props) {
   const toast = useToast();
   const [headerOpen, setHeaderOpen] = useState(true);
@@ -159,7 +162,7 @@ export default function MeasurementSheetDetailView({
   );
 
   return (
-    <div className={adminFullBleedShell.content}>
+    <div className={embedded ? "flex w-full flex-col gap-5" : adminFullBleedShell.content}>
       <Panel className="overflow-hidden p-0">
         <button
           type="button"

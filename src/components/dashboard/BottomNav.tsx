@@ -27,9 +27,10 @@ function BottomNav({
     <nav
       aria-label="Navegação Principal"
       data-tour="tech-bottom-nav"
-      className="fixed bottom-0 left-0 z-40 w-full shrink-0 select-none border-t-2 border-border-strong bg-ink px-3 py-2 text-ink-foreground safe-bottom touch-manipulation max-md:landscape:py-1"
+      data-tech-bottom-nav
+      className="fixed bottom-0 left-0 z-40 w-full shrink-0 select-none border-t-2 border-border-strong bg-ink px-3 py-2 text-ink-foreground safe-bottom touch-manipulation max-md:landscape:py-1 md:px-6"
     >
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-around md:max-w-4xl">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-around md:max-w-2xl lg:max-w-3xl">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = view === item.id;
@@ -53,7 +54,7 @@ function BottomNav({
               <Icon className={cn("h-6 w-6", isActive ? "text-neon-foreground" : "currentColor")} strokeWidth={2} />
               {item.id === "list" && pendingClosureCount > 0 ? (
                 <span
-                  className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-solid px-1 text-[10px] font-black text-ink-foreground"
+                  className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-solid px-1 text-xs font-black text-ink-foreground"
                   aria-label={`${pendingClosureCount} por fechar`}
                 >
                   {pendingClosureCount > 9 ? "9+" : pendingClosureCount}

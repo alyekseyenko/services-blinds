@@ -38,6 +38,18 @@ export const MEASUREMENT_DIVISION_OPTIONS: MeasurementDivisionOption[] = [
   { value: "OUTROS", label: "Outros (personalizar)", scopes: ["interior", "exterior"] },
 ];
 
+/** Atalhos de 1 toque no tirar medidas (filtrados por tipo de produto). */
+export const MEASUREMENT_DIVISION_QUICK_PICKS: {
+  code: string;
+  shortLabel: string;
+}[] = [
+  { code: "SALA_ESTAR", shortLabel: "Sala" },
+  { code: "QUARTO", shortLabel: "Quarto" },
+  { code: "COZINHA", shortLabel: "Cozinha" },
+  { code: "CASA_BANHO", shortLabel: "Casa de banho" },
+  { code: "MARQUISE", shortLabel: "Marquise" },
+];
+
 export function divisionsForProductType(type: ProductType): MeasurementDivisionOption[] {
   const scopes: DivisionScope[] =
     type === "ESTORE_EXTERIOR" || type === "TOLDO"
@@ -46,6 +58,27 @@ export function divisionsForProductType(type: ProductType): MeasurementDivisionO
   return MEASUREMENT_DIVISION_OPTIONS.filter((d) =>
     d.scopes.some((s) => scopes.includes(s))
   );
+}
+
+const EXTERIOR_EXTRA_QUICK_PICKS: { code: string; shortLabel: string }[] = [
+  { code: "VARANDA", shortLabel: "Varanda" },
+  { code: "TERRACO", shortLabel: "Terraço" },
+];
+
+/** Atalhos de divisão no tirar medidas, adaptados ao tipo de produto. */
+export function getQuickPickDivisionsForProductType(
+  type: ProductType
+): { code: string; shortLabel: string }[] {
+  const allowed = new Set(divisionsForProductType(type).map((o) => o.value));
+  const base = MEASUREMENT_DIVISION_QUICK_PICKS.filter((q) => allowed.has(q.code));
+  if (type === "ESTORE_EXTERIOR" || type === "TOLDO") {
+    const extra = EXTERIOR_EXTRA_QUICK_PICKS.filter((q) => allowed.has(q.code));
+    const seen = new Set(base.map((b) => b.code));
+    for (const q of extra) {
+      if (!seen.has(q.code)) base.push(q);
+    }
+  }
+  return base;
 }
 
 export function getDivisionLabel(code?: string, custom?: string): string {

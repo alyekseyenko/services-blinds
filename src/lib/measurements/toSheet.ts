@@ -22,9 +22,9 @@ export function buildMeasurementSheetFromDb(
     const dbLines = dbGroup ? linesByGroup.get(dbGroup.id) ?? [] : [];
     return {
       ...g,
-      rows: g.rows.map((row, rIdx) => ({
+      rows: g.rows.map((row) => ({
         ...row,
-        lineId: dbLines[rIdx]?.id,
+        lineId: dbLines[row.index - 1]?.id,
       })),
     };
   });

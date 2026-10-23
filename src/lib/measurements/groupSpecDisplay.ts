@@ -7,11 +7,7 @@ import {
   getMaterialLabel,
 } from "@/lib/measurements/labels";
 import { formatMosquitoOpeningDisplay } from "@/lib/measurements/extendedFields";
-import {
-  formatEsteiraMeasureTarget,
-  isExteriorParcialInstall,
-  partialPartsIncludeEsteiras,
-} from "@/lib/measurements/exteriorInstall";
+import { getRtsCommandDetailEntries } from "@/lib/measurements/rtsCommands";
 export type GroupSpecDetailEntry = { label: string; value: string };
 
 export type GroupSpecDetailsInput = {
@@ -25,6 +21,8 @@ export type GroupSpecDetailsInput = {
   manualType?: string;
   rtsCommandMode?: string;
   rtsChannelCount?: string;
+  rtsCommandCount?: string;
+  rtsCommandChannels?: string;
   rtsMotorBrand?: string;
   otherRtsMotorBrand?: string;
   mosquitoOpening?: string;
@@ -70,13 +68,17 @@ export function getGroupSpecDetailEntries(
   }
 
   if (productType !== "MOSQUITEIRO" && details.activation === "MOTOR_RTS") {
-    const mode = labelFromOptions(details.rtsCommandMode, RTS_COMMAND_MODE_OPTIONS);
-    if (mode) entries.push({ label: "Comandos RTS", value: mode });
-    if (details.rtsCommandMode === "VARIOS_CANAIS" && details.rtsChannelCount?.trim()) {
-      entries.push({
-        label: "Canais RTS",
-        value: details.rtsChannelCount.trim(),
-      });
+    if (details.rtsCommandCount?.trim()) {
+      entries.push(...getRtsCommandDetailEntries(details));
+    } else {
+      const mode = labelFromOptions(details.rtsCommandMode, RTS_COMMAND_MODE_OPTIONS);
+      if (mode) entries.push({ label: "Comandos RTS", value: mode });
+      if (details.rtsCommandMode === "VARIOS_CANAIS" && details.rtsChannelCount?.trim()) {
+        entries.push({
+          label: "Canais RTS",
+          value: details.rtsChannelCount.trim(),
+        });
+      }
     }
     const brand = labelFromOptions(details.rtsMotorBrand, RTS_MOTOR_BRAND_OPTIONS);
     if (brand) {
@@ -88,15 +90,6 @@ export function getGroupSpecDetailEntries(
             : brand,
       });
     }
-  }
-
-  if (
-    productType === "ESTORE_EXTERIOR" &&
-    isExteriorParcialInstall(details.exteriorInstallType) &&
-    partialPartsIncludeEsteiras(details.partialPartCodes)
-  ) {
-    const target = formatEsteiraMeasureTarget(details.esteiraMeasureTarget);
-    if (target) entries.push({ label: "Medida das esteiras", value: target });
   }
 
   if (productType === "MOSQUITEIRO" && details.model === "PORTA_AMERICA") {

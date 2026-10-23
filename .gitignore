@@ -24,6 +24,8 @@
 /build
 
 # misc
+__pycache__/
+*.py[cod]
 .DS_Store
 *.pem
 

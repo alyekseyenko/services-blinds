@@ -43,6 +43,10 @@ import MeasurementsForm, {
   MeasurementsSaveButton,
   type MeasurementsFormHandle,
 } from "@/components/features/measurements/MeasurementsForm";
+import {
+  MeasurementsFocusStatusBar,
+  type MeasurementsFocusedStatus,
+} from "@/components/features/measurements/MeasurementsFocusStatusBar";
 import ContactPhoneList from "@/components/ui/ContactPhoneList";
 import AddVisitServiceSheet from "@/components/dashboard/AddVisitServiceSheet";
 import type { VisitService } from "@/lib/schemas";
@@ -60,6 +64,7 @@ import {
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { scrollFocusedFieldIntoView } from "@/lib/scrollFocusedField";
+import { cn } from "@/lib/cn";
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
 
 /** Tipografia consistente — aba Detalhes & Visita (campo / mobile). */
@@ -118,8 +123,13 @@ export default function TaskDetailsDrawer({
   const measurementsFormRef = useRef<MeasurementsFormHandle>(null);
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
   const finalizeSectionRef = useRef<HTMLDivElement>(null);
+  const startVisitRef = useRef<HTMLDivElement>(null);
+  const arrivalReminderTaskIdRef = useRef<string | null>(null);
   const [drawerPanelEl, setDrawerPanelEl] = useState<HTMLElement | null>(null);
   const [measurementsSaving, setMeasurementsSaving] = useState(false);
+  const [measurementsDirty, setMeasurementsDirty] = useState(false);
+  const [measurementsFocusedStatus, setMeasurementsFocusedStatus] =
+    useState<MeasurementsFocusedStatus | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const drawerLocked = isUploading || isStartingVisit || isGeocoding;
@@ -129,8 +139,30 @@ export default function TaskDetailsDrawer({
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
 
+  const guardMeasurementsDraft = useCallback(async (): Promise<boolean> => {
+    const form = measurementsFormRef.current;
+    if (!form?.hasUnsavedChanges) return true;
+    if (form.canAutoSubmitDraft()) {
+      await form.save();
+      return true;
+    }
+    const ok = await confirm({
+      title: "Medições por guardar",
+      description:
+        "Há alterações nas medições que ainda não foram enviadas. Sair sem guardar?",
+      confirmLabel: "Sair sem guardar",
+      cancelLabel: "Continuar a editar",
+      destructive: true,
+    });
+    return ok;
+  }, [confirm]);
+
   const closeDrawer = useCallback(async () => {
     if (drawerLocked) return;
+    if (activeTab === "measurements" || measurementsDirty) {
+      const canProceed = await guardMeasurementsDraft();
+      if (!canProceed) return;
+    }
     const dirty = Boolean(statusAction || reason.trim() || newNoteText.trim());
     if (dirty) {
       const ok = await confirm({
@@ -142,8 +174,20 @@ export default function TaskDetailsDrawer({
       });
       if (!ok) return;
     }
+    arrivalReminderTaskIdRef.current = null;
+    setMeasurementsDirty(false);
     setSelectedTask(null);
-  }, [drawerLocked, statusAction, reason, newNoteText, confirm, setSelectedTask]);
+  }, [
+    drawerLocked,
+    activeTab,
+    measurementsDirty,
+    guardMeasurementsDraft,
+    statusAction,
+    reason,
+    newNoteText,
+    confirm,
+    setSelectedTask,
+  ]);
 
   const [isCreatingNote, setIsCreatingNote] = useState(false);
 
@@ -267,6 +311,8 @@ export default function TaskDetailsDrawer({
     const defaultOpp =
       measurementServices[0]?.opportunityId || selectedTask?.opportunityId;
     setMeasurementOppId(defaultOpp);
+    setMeasurementsDirty(false);
+    setMeasurementsFocusedStatus(null);
   }, [selectedTask?.id, measurementServices.length, selectedTask?.opportunityId]);
 
   // Automatically switch tab if not measurement service
@@ -419,6 +465,11 @@ export default function TaskDetailsDrawer({
   };
 
   const handleStatusUpdate = async () => {
+    if (needsArrivalCheckIn) {
+      promptArrivalCheckIn("Antes de fechar a visita, registe que chegou ao local.");
+      return;
+    }
+
     if (statusAction === "Concluído") {
       if (showMeasurementsTab) {
         const draftStr =
@@ -547,9 +598,45 @@ export default function TaskDetailsDrawer({
   };
 
   const mobileDrawerExpanded = !isDesktop;
+  const needsArrivalCheckIn =
+    isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status);
+
+  const promptArrivalCheckIn = useCallback(
+    (detail?: string) => {
+      toast.warning(
+        "Registe a chegada",
+        detail ??
+          "Toque em «Cheguei ao local» assim que estiver no cliente — o escritório só conta o tempo de visita depois disso."
+      );
+      startVisitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (!selectedTask?.id || !needsArrivalCheckIn) return;
+    if (arrivalReminderTaskIdRef.current === selectedTask.id) return;
+    arrivalReminderTaskIdRef.current = selectedTask.id;
+    const id = window.requestAnimationFrame(() => {
+      promptArrivalCheckIn();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [selectedTask?.id, needsArrivalCheckIn, promptArrivalCheckIn]);
 
   const measurementsFullscreen =
     mobileDrawerExpanded && showMeasurementsTab && activeTab === "measurements";
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (measurementsFullscreen) {
+      root.dataset.techImmersive = "measurements";
+    } else {
+      delete root.dataset.techImmersive;
+    }
+    return () => {
+      delete root.dataset.techImmersive;
+    };
+  }, [measurementsFullscreen]);
 
   const showMeasurementsSaveBar =
     activeTab === "measurements" &&
@@ -570,6 +657,15 @@ export default function TaskDetailsDrawer({
     return () => window.cancelAnimationFrame(id);
   }, [statusAction]);
 
+  const leaveMeasurementsTab = useCallback(async (): Promise<boolean> => {
+    const canProceed = await guardMeasurementsDraft();
+    if (canProceed) {
+      setActiveTab("info");
+      return true;
+    }
+    return false;
+  }, [guardMeasurementsDraft]);
+
   const handleDrawerBackClose = useCallback(() => {
     if (showAddService) {
       setShowAddService(false);
@@ -577,11 +673,11 @@ export default function TaskDetailsDrawer({
       return;
     }
     if (measurementsFullscreen) {
-      setActiveTab("info");
+      void leaveMeasurementsTab();
       return;
     }
     void closeDrawer();
-  }, [showAddService, measurementsFullscreen, closeDrawer]);
+  }, [showAddService, measurementsFullscreen, closeDrawer, leaveMeasurementsTab]);
 
   useBackToClose(Boolean(selectedTask), handleDrawerBackClose, "tech-task-drawer");
 
@@ -624,11 +720,10 @@ export default function TaskDetailsDrawer({
     <>
       {/* Drawer Overlay */}
       <div
-        className={`task-drawer-backdrop fixed inset-0 z-50 transition-opacity duration-300 ${
-          measurementsFullscreen
-            ? "bg-scrim"
-            : "bg-scrim"
-        }`}
+        className={cn(
+          "task-drawer-backdrop fixed inset-0 z-50 bg-scrim transition-opacity duration-300",
+          !mobileDrawerExpanded && "md:bg-scrim/45"
+        )}
         onClick={() => void closeDrawer()}
         aria-hidden="true"
       />
@@ -645,7 +740,7 @@ export default function TaskDetailsDrawer({
         className={
           mobileDrawerExpanded
             ? "fixed inset-0 z-[60] flex min-h-0 max-h-[100dvh] w-full flex-col border-0 bg-background text-card-foreground shadow-none"
-            : "fixed bottom-0 left-0 z-[60] flex w-full min-h-0 max-h-[min(88dvh,720px)] flex-col rounded-t-3xl border border-border bg-card text-card-foreground shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))] md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:h-full md:max-w-md md:rounded-none md:border-l-2 md:border-t-0 md:shadow-xl"
+            : "fixed inset-y-0 right-0 z-[60] flex h-[100dvh] w-full max-w-[min(100%,28rem)] min-h-0 flex-col border-l-2 border-border-strong bg-card text-card-foreground shadow-xl lg:max-w-[32rem]"
         }
         style={
           mobileDrawerExpanded
@@ -655,7 +750,7 @@ export default function TaskDetailsDrawer({
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             if (measurementsFullscreen) {
-              setActiveTab("info");
+              void leaveMeasurementsTab();
             } else {
               void closeDrawer();
             }
@@ -680,16 +775,22 @@ export default function TaskDetailsDrawer({
             data-tour="tech-drawer-measurements-focus"
           >
             <h2 id="task-drawer-title" className="sr-only">Medições da visita</h2>
-            <div className="flex items-center gap-1">
+            <div className="relative flex items-center gap-1">
               <button
                 type="button"
                 data-tour="tech-drawer-tab-info"
-                onClick={() => setActiveTab("info")}
+                onClick={() => void leaveMeasurementsTab()}
                 className="flex min-h-12 shrink-0 items-center gap-0.5 rounded-xl px-2 text-xs font-black uppercase tracking-wide text-foreground active:bg-muted"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden />
                 Detalhes
               </button>
+              <p
+                className="pointer-events-none absolute inset-x-12 top-1/2 -translate-y-1/2 truncate text-center text-xs font-black uppercase tracking-wide text-foreground"
+                aria-hidden
+              >
+                Medições
+              </p>
               <div className="min-w-0 flex-1" aria-hidden />
               {isTaskActive(selectedTask.status) ? (
                 <button
@@ -714,6 +815,12 @@ export default function TaskDetailsDrawer({
                 <X className="h-5 w-5" />
               </button>
             </div>
+            {measurementsFocusedStatus ? (
+              <MeasurementsFocusStatusBar
+                className="mt-2"
+                {...measurementsFocusedStatus}
+              />
+            ) : null}
             {measurementServices.length > 1 ? (
               <div className="-mx-1 mt-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 custom-scrollbar">
                 {measurementServices.map((svc) => (
@@ -798,7 +905,13 @@ export default function TaskDetailsDrawer({
               <button
                 type="button"
                 data-tour="tech-drawer-tab-info"
-                onClick={() => setActiveTab("info")}
+                onClick={() => {
+                  if (activeTab === "measurements") {
+                    void leaveMeasurementsTab();
+                  } else {
+                    setActiveTab("info");
+                  }
+                }}
                 className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
                   activeTab === "info"
                     ? "bg-primary text-primary-foreground border-2 border-border-strong"
@@ -811,13 +924,19 @@ export default function TaskDetailsDrawer({
                 type="button"
                 data-tour="tech-drawer-tab-measurements"
                 onClick={() => setActiveTab("measurements")}
-                className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
+                className={`relative flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
                   activeTab === "measurements"
                     ? "bg-primary text-primary-foreground border-2 border-border-strong"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
                 <Ruler className="w-4 h-4" /> Medições
+                {measurementsDirty && activeTab !== "measurements" ? (
+                  <span
+                    className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-warning-solid"
+                    aria-label="Medições por guardar"
+                  />
+                ) : null}
               </button>
             </div>
           )}
@@ -836,7 +955,25 @@ export default function TaskDetailsDrawer({
             <div
               className={`animate-in fade-in duration-300 ${mobileDrawerExpanded ? "space-y-5" : "space-y-8"}`}
             >
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+              {needsArrivalCheckIn ? (
+                <div
+                  className="rounded-2xl border-2 border-warning-border bg-warning-surface px-4 py-3 text-sm font-semibold text-warning-fg dark:bg-ink/40"
+                  role="status"
+                >
+                  <p className="font-black uppercase tracking-wide text-xs">Passo obrigatório</p>
+                  <p className="mt-1 leading-snug">
+                    Toque em <span className="font-bold">«Cheguei ao local»</span> quando estiver na morada do
+                    cliente.
+                  </p>
+                </div>
+              ) : null}
+
+              <div
+                className={cn(
+                  "grid grid-cols-1 gap-3",
+                  mobileDrawerExpanded && "md:grid-cols-2 md:gap-4"
+                )}
+              >
                 <Card className="p-5" data-tour="tech-drawer-client-card">
                   <CardContent className="space-y-4 p-0">
                     <div className="space-y-3">
@@ -870,8 +1007,12 @@ export default function TaskDetailsDrawer({
                   </CardContent>
                 </Card>
 
-                <Card className="flex flex-col gap-2 p-4" data-tour="tech-drawer-contact-card">
-                  {isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status) && (
+                <Card
+                  ref={startVisitRef}
+                  className="flex flex-col gap-2 p-4 scroll-mt-4"
+                  data-tour="tech-drawer-contact-card"
+                >
+                  {needsArrivalCheckIn && (
                     <Button
                       data-tour="tech-drawer-start-visit"
                       onClick={handleStartVisit}
@@ -1189,6 +1330,10 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-concluido"
                         onClick={() => {
+                          if (needsArrivalCheckIn) {
+                            promptArrivalCheckIn();
+                            return;
+                          }
                           hapticSelection();
                           setStatusAction("Concluído");
                           setReason("");
@@ -1206,6 +1351,10 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-incompleto"
                         onClick={() => {
+                          if (needsArrivalCheckIn) {
+                            promptArrivalCheckIn();
+                            return;
+                          }
                           hapticSelection();
                           setStatusAction("Incompleto");
                           setReason("");
@@ -1221,6 +1370,10 @@ export default function TaskDetailsDrawer({
                         disabled={isUploading}
                         data-tour="tech-drawer-status-cancelado"
                         onClick={() => {
+                          if (needsArrivalCheckIn) {
+                            promptArrivalCheckIn();
+                            return;
+                          }
                           hapticSelection();
                           setStatusAction("Cancelado");
                           setReason("");
@@ -1350,6 +1503,8 @@ export default function TaskDetailsDrawer({
                 opportunityId={measurementOppId || selectedTask.opportunityId}
                 isAdmin={false}
                 readOnly={!isTaskActive(selectedTask.status)}
+                onDirtyChange={setMeasurementsDirty}
+                onFocusedStatusChange={setMeasurementsFocusedStatus}
                 onSave={async (data) => {
                   const oppId = measurementOppId || selectedTask.opportunityId;
                   if (!oppId) {

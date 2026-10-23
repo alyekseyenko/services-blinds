@@ -71,9 +71,9 @@ export default function AdminCalendarView({
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-2 sm:p-2 lg:p-3">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-2 sm:p-2 lg:p-3">
           <div
-            className="admin-calendar-shell flex min-h-0 w-full flex-1 flex-col"
+            className="admin-calendar-shell flex min-h-[22rem] w-full flex-1 flex-col"
             data-tour="admin-calendar-rbc-toolbar"
           >
           <Calendar
@@ -88,7 +88,7 @@ export default function AdminCalendarView({
             }
             min={new Date(0, 0, 0, 8, 0, 0)}
             max={new Date(0, 0, 0, 19, 0, 0)}
-            style={{ height: "calc(100dvh - 200px)", minHeight: 320 }}
+            style={{ height: "100%", minHeight: 320 }}
             onSelectEvent={(opp: Opportunity) => onSelectOpportunity(opp)}
             date={calendarDate}
             view={calendarView}

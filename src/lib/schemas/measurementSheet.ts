@@ -43,8 +43,8 @@ export const MeasurementSheetGroupSchema = z.object({
       })
     )
     .optional(),
-  /** store = altura/largura do produto; opening = só vão; skylight = interior + exterior. */
-  dimensionMode: z.enum(["store", "opening", "skylight"]).optional(),
+  /** store = estore; opening = vão; esteira = parcial esteiras; skylight = interior + exterior. */
+  dimensionMode: z.enum(["store", "opening", "skylight", "esteira"]).optional(),
   /** Porta América: fixação e comandos só aparecem se já houver valor antigo. */
   suppressLineHardware: z.boolean().optional(),
   rows: z.array(MeasurementSheetRowSchema),

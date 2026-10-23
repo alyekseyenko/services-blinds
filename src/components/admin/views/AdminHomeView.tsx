@@ -7,6 +7,7 @@ import {
   Ruler,
   Search,
   MapPin,
+  Map as MapIcon,
   ChevronRight,
   Loader2,
   ClipboardPlus,
@@ -158,13 +159,50 @@ export default function AdminHomeView({
       data-tour="admin-home-dashboard"
     >
       <div className={cn(adminFullBleedShell.content, "min-h-0 flex-1 overflow-y-auto space-y-8")}>
+        <section
+          aria-label="Atalhos rápidos"
+          className="lg:hidden"
+          data-tour="admin-home-quick-actions"
+        >
+          <div className="flex flex-wrap gap-2">
+            {onOpenCreateClient ? (
+              <button
+                type="button"
+                onClick={onOpenCreateClient}
+                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-border bg-card px-3 text-xs font-bold text-foreground active:scale-[0.99] sm:flex-none sm:px-4"
+              >
+                <UserPlus className="h-4 w-4 shrink-0 text-primary-ink" aria-hidden />
+                Novo cliente
+              </button>
+            ) : null}
+            {onOpenCreateService ? (
+              <button
+                type="button"
+                onClick={onOpenCreateService}
+                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-border bg-card px-3 text-xs font-bold text-foreground active:scale-[0.99] sm:flex-none sm:px-4"
+              >
+                <ClipboardPlus className="h-4 w-4 shrink-0 text-primary-ink" aria-hidden />
+                Novo serviço
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onNavigate("map")}
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-border-strong bg-neon px-3 text-xs font-bold text-neon-foreground active:scale-[0.99] sm:flex-none sm:px-4"
+            >
+              <MapIcon className="h-4 w-4 shrink-0" aria-hidden />
+              Mapa
+            </button>
+          </div>
+        </section>
+
         <section aria-label="Atenção operacional" data-tour="admin-home-attention">
           <SectionHeading
             title="Atenção"
             detail="Toque para abrir o mapa ou histórico com o filtro certo"
           />
           <Panel variant="outline" className="overflow-hidden rounded-2xl border-2 border-border-strong p-0 shadow-none">
-            <div className="grid grid-cols-1 divide-y-2 divide-border-strong sm:grid-cols-2 sm:divide-x-2 sm:divide-y-0 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-[2px] bg-border-strong sm:grid-cols-2 lg:grid-cols-3">
               {attentionItems.map((item) => (
                 <AttentionCell key={item.id} {...item} />
               ))}
@@ -175,7 +213,7 @@ export default function AdminHomeView({
         <section aria-label="Resumo do pipeline">
           <SectionHeading title="Pipeline" detail="Estado geral no CRM" />
           <Panel variant="ink" className="overflow-hidden rounded-2xl border-2 border-border-strong p-0 shadow-none">
-            <div className="grid grid-cols-2 divide-x-2 divide-y-2 divide-border-strong sm:grid-cols-4 sm:divide-y-0">
+            <div className="grid grid-cols-2 gap-[2px] bg-border-strong sm:grid-cols-4">
               <HeroMetric
                 label="Em aberto"
                 value={stats.activePipeline}
@@ -408,7 +446,7 @@ function AttentionCell({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[5.5rem] flex-col justify-center px-4 py-4 text-left transition-opacity hover:bg-muted/40 active:scale-[0.99]"
+      className="flex min-h-[5.5rem] flex-col justify-center bg-card px-4 py-4 text-left transition-opacity hover:bg-muted/40 active:scale-[0.99]"
     >
       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
       <span
@@ -440,7 +478,7 @@ function HeroMetric({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[5.5rem] flex-col justify-center px-4 py-4 text-left transition-opacity hover:opacity-90 active:scale-[0.99]"
+      className="flex min-h-[5.5rem] flex-col justify-center bg-ink px-4 py-4 text-left transition-opacity hover:opacity-90 active:scale-[0.99]"
     >
       <span className="text-xs font-bold uppercase tracking-wider text-ink-foreground/70">
         {label}

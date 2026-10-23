@@ -5,14 +5,21 @@ import {
   COMPACT_MATERIAL_TYPE_OPTIONS,
   COMPACT_PLACEMENT_OPTIONS,
   MANUAL_TYPE_OPTIONS,
-  RTS_COMMAND_MODE_OPTIONS,
   RTS_MOTOR_BRAND_OPTIONS,
 } from "@/lib/measurementLabels";
+import { RtsCommandsEditor } from "./RtsCommandsEditor";
 import { getGroupSpecDetailEntries } from "@/lib/measurementGroupSpecDisplay";
 import {
   MOSQUITO_OPENING_OPTIONS,
   formatMosquitoOpeningDisplay,
 } from "@/lib/measurements/extendedFields";
+import { cn } from "@/lib/cn";
+
+const optionBtn = (active: boolean) =>
+  cn(
+    "min-h-12 rounded-xl border-2 px-3 text-xs font-black transition-all",
+    active ? "border-primary bg-primary/15 text-foreground" : "border-border bg-card text-muted-foreground"
+  );
 
 const selectClass =
   "w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground";
@@ -69,17 +76,21 @@ export function MeasurementGroupSpecExtras({
                 {adminSpecByLabel["Tipo compacto"] || "—"}
               </div>
             ) : (
-              <select
-                className={selectClass}
-                value={d.compactPlacement ?? ""}
-                disabled={isAdmin}
-                onChange={(e) => set("compactPlacement", e.target.value)}
-              >
-                <option value="">Interior ou exterior…</option>
+              <div className="grid grid-cols-2 gap-2">
                 {COMPACT_PLACEMENT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={d.compactPlacement === o.value}
+                    className={optionBtn(d.compactPlacement === o.value)}
+                    onClick={() =>
+                      set("compactPlacement", d.compactPlacement === o.value ? "" : o.value)
+                    }
+                  >
+                    {o.label}
+                  </button>
                 ))}
-              </select>
+              </div>
             )}
           </div>
           <div className="space-y-1">
@@ -91,17 +102,24 @@ export function MeasurementGroupSpecExtras({
                 {adminSpecByLabel["Material compacto"] || "—"}
               </div>
             ) : (
-              <select
-                className={selectClass}
-                value={d.compactMaterialType ?? ""}
-                disabled={isAdmin}
-                onChange={(e) => set("compactMaterialType", e.target.value)}
-              >
-                <option value="">PVC / alumínio…</option>
+              <div className="grid grid-cols-2 gap-2">
                 {COMPACT_MATERIAL_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={d.compactMaterialType === o.value}
+                    className={optionBtn(d.compactMaterialType === o.value)}
+                    onClick={() =>
+                      set(
+                        "compactMaterialType",
+                        d.compactMaterialType === o.value ? "" : o.value
+                      )
+                    }
+                  >
+                    {o.label}
+                  </button>
                 ))}
-              </select>
+              </div>
             )}
           </div>
         </>
@@ -117,65 +135,26 @@ export function MeasurementGroupSpecExtras({
               {adminSpecByLabel["Tipo manual"] || "—"}
             </div>
           ) : (
-            <select
-              className={selectClass}
-              value={d.manualType ?? ""}
-              disabled={isAdmin}
-              onChange={(e) => set("manualType", e.target.value)}
-            >
-              <option value="">Manivela ou fita…</option>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {MANUAL_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <button
+                  key={o.value}
+                  type="button"
+                  aria-pressed={d.manualType === o.value}
+                  className={optionBtn(d.manualType === o.value)}
+                  onClick={() => set("manualType", d.manualType === o.value ? "" : o.value)}
+                >
+                  {o.label}
+                </button>
               ))}
-            </select>
+            </div>
           )}
         </div>
       ) : null}
 
       {showRts ? (
         <>
-          <div className="space-y-1">
-            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
-              Comandos RTS
-            </label>
-            {isAdmin ? (
-              <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
-                {adminSpecByLabel["Comandos RTS"] || "—"}
-              </div>
-            ) : (
-              <select
-                className={selectClass}
-                value={d.rtsCommandMode ?? ""}
-                disabled={isAdmin}
-                onChange={(e) => set("rtsCommandMode", e.target.value)}
-              >
-                <option value="">1 ou vários canais…</option>
-                {RTS_COMMAND_MODE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            )}
-          </div>
-          {d.rtsCommandMode === "VARIOS_CANAIS" ? (
-            <div className="space-y-1">
-              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
-                Quantidade de canais
-              </label>
-              {isAdmin ? (
-                <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
-                  {adminSpecByLabel["Canais RTS"] || "—"}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className={inputClass}
-                  value={d.rtsChannelCount ?? ""}
-                  onChange={(e) => set("rtsChannelCount", e.target.value.replace(/\D/g, ""))}
-                />
-              )}
-            </div>
-          ) : null}
+          <RtsCommandsEditor details={d} readOnly={isAdmin} onChange={set} />
           <div className="space-y-1">
             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
               Marca motor / comando

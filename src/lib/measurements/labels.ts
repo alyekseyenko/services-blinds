@@ -130,6 +130,15 @@ export const ACTIVATION_OPTIONS = [
   { value: "OUTRO", label: "Outros" },
 ] as const;
 
+/** Atalhos de 1 toque para RAL / cor no terreno. */
+export const COMMON_RAL_QUICK_PICKS = [
+  "Branco",
+  "RAL 7016",
+  "Cinza",
+  "Bege",
+  "Preto",
+] as const;
+
 export function getProductTypeLabel(type: string): string {
   return PRODUCT_TYPE_LABELS[type] || type.replace(/_/g, " ");
 }
@@ -143,6 +152,7 @@ export function formatProductGroupHeading(type: string, customName?: string): st
 
 export function formatRemeasureAnswer(needed?: string, note?: string): string {
   if (needed === "SIM") return "Sim";
+  if (needed === "NAO") return "Não";
   if (needed === "OUTROS") {
     const extra = note?.trim();
     return extra ? `Outros: ${extra}` : "Outros";

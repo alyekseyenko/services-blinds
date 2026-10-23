@@ -26,6 +26,7 @@ export function emptyMeasurementRow(): MeasurementRow {
     skylightExteriorWidth: "",
     skylightExteriorHeight: "",
     depth: "",
+    storeCommand: "",
     storeChannel: "",
     storeChannelOther: "",
   };

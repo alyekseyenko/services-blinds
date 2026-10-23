@@ -3,6 +3,10 @@ import type {
   MeasurementSheetRow,
 } from "@/lib/schemas/measurementSheet";
 import { measurementSheetRowHasOpeningDims } from "@/lib/measurements/exteriorInstall";
+import {
+  lineDimensionHeightLabel,
+  lineDimensionWidthLabel,
+} from "@/lib/measurements/lineModes";
 
 export type MeasurementGroupDetailEntry = {
   label: string;
@@ -194,7 +198,10 @@ export function measurementLineColumnPlan(
     { key: "division", header: "Divisão" },
     { key: "qty", header: "Qtd" },
   ];
-  if (showChannel) columns.push({ key: "channel", header: "Canal" });
+  if (showChannel) {
+    const usesCommands = group.rows.some((r) => r.channelLabel?.startsWith("Comando"));
+    columns.push({ key: "channel", header: usesCommands ? "Comando / canal" : "Canal" });
+  }
 
   if (mode === "skylight") {
     columns.push(
@@ -203,18 +210,23 @@ export function measurementLineColumnPlan(
     );
   } else if (openingIsPrimary) {
     columns.push(
-      { key: "primaryHeight", header: "Altura vão (mm)" },
-      { key: "primaryWidth", header: "Largura vão (mm)" }
+      { key: "primaryHeight", header: lineDimensionHeightLabel("opening", "export") },
+      { key: "primaryWidth", header: lineDimensionWidthLabel("opening", "export") }
     );
   } else if (mode === "opening") {
     columns.push(
       { key: "primaryHeight", header: "Altura estore (mm)" },
       { key: "primaryWidth", header: "Largura estore (mm)" }
     );
+  } else if (mode === "esteira") {
+    columns.push(
+      { key: "primaryHeight", header: lineDimensionHeightLabel("esteira", "export") },
+      { key: "primaryWidth", header: lineDimensionWidthLabel("esteira", "export") }
+    );
   } else {
     columns.push(
-      { key: "primaryHeight", header: "Altura (mm)" },
-      { key: "primaryWidth", header: "Largura (mm)" }
+      { key: "primaryHeight", header: lineDimensionHeightLabel("store", "export") },
+      { key: "primaryWidth", header: lineDimensionWidthLabel("store", "export") }
     );
   }
 

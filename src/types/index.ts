@@ -34,6 +34,7 @@ export interface MeasurementRow {
   skylightExteriorWidth?: string;
   skylightExteriorHeight?: string;
   depth?: string;
+  storeCommand?: string;
   storeChannel?: string;
   storeChannelOther?: string;
 }
@@ -56,6 +57,8 @@ export interface ProductGroupDetails {
   manualType?: string;
   rtsCommandMode?: string;
   rtsChannelCount?: string;
+  rtsCommandCount?: string;
+  rtsCommandChannels?: string;
   rtsMotorBrand?: string;
   otherRtsMotorBrand?: string;
   mosquitoOpening?: string;

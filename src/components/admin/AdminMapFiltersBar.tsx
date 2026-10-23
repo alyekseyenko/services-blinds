@@ -138,7 +138,7 @@ function PanelShell({
       className={cn(
         "flex max-h-[min(50vh,28rem)] flex-col overflow-hidden rounded-2xl border-2 border-border-strong bg-card shadow-lg",
         placement === "dropdown" &&
-          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[min(100vw-2rem,22rem)] max-h-[min(85vh,34rem)]",
+          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[calc(100vw-1.5rem)] max-h-[min(68dvh,30rem)] sm:w-[22rem]",
         placement === "dock" && "relative z-30 mt-1 w-full max-h-[min(55vh,32rem)]"
       )}
     >

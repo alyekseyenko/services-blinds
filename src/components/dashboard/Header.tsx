@@ -25,6 +25,7 @@ import InAppNotificationBell from "@/components/ui/InAppNotificationBell";
 import type { InAppNotification } from "@/lib/inAppNotifications";
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
+import { cn } from "@/lib/cn";
 
 interface HeaderProps {
   userName: string;
@@ -215,23 +216,10 @@ function Header({
               </h1>
               <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
                 {APP_SHORT_NAME} · {tasksCount} tarefa{tasksCount === 1 ? "" : "s"}
+                {showSyncChip && syncChip ? (
+                  <span className="text-muted-foreground/80"> · {syncChip.label}</span>
+                ) : null}
               </p>
-              {showSyncChip && syncChip && (
-                <button
-                  type="button"
-                  data-tour="tech-header-sync-chip"
-                  onClick={() => {
-                    if (pendingCount > 0 || failedCount > 0) setQueueOpen(true);
-                  }}
-                  className={`mt-1.5 inline-flex min-h-12 max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-black uppercase tracking-wide ${syncChip.className} ${
-                    pendingCount > 0 || failedCount > 0 ? "cursor-pointer" : "cursor-default"
-                  }`}
-                  aria-label={syncChip.label}
-                >
-                  {syncChip.icon}
-                  <span className="truncate">{syncChip.label}</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -303,6 +291,26 @@ function Header({
               </IconButton>
             </div>
 
+            {showSyncChip && syncChip ? (
+              <button
+                type="button"
+                data-tour="tech-header-sync-chip"
+                onClick={() => {
+                  if (pendingCount > 0 || failedCount > 0) setQueueOpen(true);
+                  else if (!isOnline || isSyncing || agendaDataStale) mutateTasks();
+                }}
+                className={cn(
+                  "flex min-h-12 max-w-[7.5rem] shrink-0 items-center gap-1 rounded-xl border px-2 py-1 text-xs font-black uppercase tracking-wide md:hidden",
+                  syncChip.className,
+                  pendingCount > 0 || failedCount > 0 ? "cursor-pointer" : "cursor-default"
+                )}
+                aria-label={syncChip.label}
+              >
+                {syncChip.icon}
+                <span className="truncate">{syncChip.label}</span>
+              </button>
+            ) : null}
+
             <div className="flex items-center gap-1 md:hidden">
               <InAppNotificationBell
                 scope={notificationScope}
@@ -326,12 +334,18 @@ function Header({
 
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col bg-card safe-bottom md:hidden"
-          role="dialog"
-          aria-label="Menu do técnico"
-          data-tour="tech-mobile-menu-sheet"
+          className="fixed inset-0 z-[80] flex items-stretch bg-scrim md:hidden"
+          role="presentation"
+          onClick={() => setMobileMenuOpen(false)}
         >
-          <div className="safe-top flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+          <div
+            className="safe-top safe-bottom ml-auto flex h-full max-h-dvh w-full max-w-none flex-col overflow-hidden border-2 border-border-strong bg-card sm:max-w-sm sm:rounded-l-2xl sm:border-r-0"
+            role="dialog"
+            aria-label="Menu do técnico"
+            data-tour="tech-mobile-menu-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-sm font-bold text-foreground">Menu</p>
               <p className="text-xs font-semibold text-muted-foreground">Sincronização, GPS e sessão</p>
@@ -458,6 +472,7 @@ function Header({
               <LogOut className="h-5 w-5" />
               Terminar sessão
             </button>
+          </div>
           </div>
         </div>
       )}

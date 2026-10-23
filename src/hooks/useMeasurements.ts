@@ -13,6 +13,8 @@ import {
 import { emptyMeasurementRow, hydrateMeasurementRowFromLegacy } from "@/lib/measurements/rowPayload";
 import { isMeasurementRowComplete } from "@/lib/measurementCompleteness";
 import { lineDimensionMode } from "@/lib/measurements/lineModes";
+import { getRtsCommandSpecs, sanitizeRowRtsAssignment } from "@/lib/measurements/rtsCommands";
+import { getNextAvailableRtsAssignment } from "@/lib/measurements/rtsChannelUsage";
 
 const DEFAULT_GROUP = (): ProductGroup => ({
   id: Date.now(),
@@ -34,6 +36,7 @@ const DEFAULT_GROUP = (): ProductGroup => ({
 export function useMeasurements(task?: Task, opportunityId?: string) {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([DEFAULT_GROUP()]);
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const userEditedRef = useRef(false);
   const rowDimensionHapticRef = useRef(new Map<string, boolean>());
 
@@ -62,6 +65,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
 
   useEffect(() => {
     userEditedRef.current = false;
+    setIsDirty(false);
     let cancelled = false;
 
     const savedDraft = localStorage.getItem(DRAFT_KEY);
@@ -159,6 +163,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
 
   const markAsDirty = () => {
     userEditedRef.current = true;
+    setIsDirty(true);
     localStorage.removeItem(DRAFT_KEY + "_saved");
   };
 
@@ -186,7 +191,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
         details: {
           ...g.details,
           remeasureNeeded: needed,
-          remeasureNote: note ?? (needed === "OUTROS" ? g.details.remeasureNote ?? "" : ""),
+          remeasureNote: note ?? "",
         },
       }))
     );
@@ -239,10 +244,18 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
       prev.map((g) => {
         if (g.id !== groupId) return g;
         const nextDetails = { ...g.details, [field]: value };
-        const switchesToOpening =
-          (field === "exteriorInstallType" && value === "COMPLETO") ||
-          (field === "esteiraMeasureTarget" && value === "VAO");
-        if (!switchesToOpening) return { ...g, details: nextDetails };
+        if (field === "rtsCommandCount" || field === "rtsCommandChannels") {
+          const specs = getRtsCommandSpecs(nextDetails);
+          return {
+            ...g,
+            details: nextDetails,
+            measurements: g.measurements.map((row) => sanitizeRowRtsAssignment(row, specs)),
+          };
+        }
+        const switchesToOpening = field === "exteriorInstallType" && value === "COMPLETO";
+        if (!switchesToOpening) {
+          return { ...g, details: nextDetails };
+        }
         return {
           ...g,
           details: nextDetails,
@@ -287,8 +300,13 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
     setProductGroups((prev) =>
       prev.map((g) => {
         if (g.id !== groupId) return g;
-        const last = g.measurements[g.measurements.length - 1];
-        const newRow = last
+        const mode = lineDimensionMode(g.type, g.details);
+        const collapsedMeasurements = g.measurements.map((row) => {
+          if (!isMeasurementRowComplete(row, mode)) return row;
+          return { ...row, lineCollapsed: "true" };
+        });
+        const last = collapsedMeasurements[collapsedMeasurements.length - 1];
+        let newRow = last
           ? {
               ...(JSON.parse(JSON.stringify(last)) as typeof last),
               qty: 1,
@@ -299,14 +317,22 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
               skylightExteriorWidth: "",
               skylightExteriorHeight: "",
               depth: "",
+              storeCommand: "",
               storeChannel: "",
               storeChannelOther: "",
               lineCollapsed: "",
             }
           : emptyMeasurementRow();
+        if (g.details.activation === "MOTOR_RTS") {
+          const specs = getRtsCommandSpecs(g.details);
+          const next = getNextAvailableRtsAssignment(specs, collapsedMeasurements);
+          if (next) {
+            newRow = { ...newRow, storeCommand: next.storeCommand, storeChannel: next.storeChannel };
+          }
+        }
         return {
           ...g,
-          measurements: [...g.measurements, newRow],
+          measurements: [...collapsedMeasurements, newRow],
         };
       })
     );
@@ -360,11 +386,14 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
   const clearDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
     localStorage.setItem(DRAFT_KEY + "_saved", "true");
+    userEditedRef.current = false;
+    setIsDirty(false);
   };
 
   return {
     productGroups,
     lastLocalSave,
+    isDirty,
     DRAFT_KEY,
     addGroup,
     cloneGroup,

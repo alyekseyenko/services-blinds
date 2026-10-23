@@ -7,6 +7,7 @@ import {
   divisionsForProductType,
   filterDivisionsByQuery,
   getDivisionLabel,
+  getQuickPickDivisionsForProductType,
 } from "@/lib/measurements/divisions";
 import {
   CONTROL_SIDE_VALUES,
@@ -16,7 +17,7 @@ import {
   joinCsvCodes,
   parseCsvCodes,
 } from "@/lib/measurements/extendedFields";
-import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
+import { useMeasurementsWideLayout } from "@/hooks/useMeasurementsLayout";
 import { cn } from "@/lib/cn";
 
 const DIVISION_LIST_MAX_PX = 208;
@@ -54,6 +55,11 @@ export function MeasurementDivisionPicker({
   );
 
   const selectedLabel = getDivisionLabel(divisionCode, divisionCustom);
+
+  const quickPicks = useMemo(
+    () => getQuickPickDivisionsForProductType(productType),
+    [productType]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -113,6 +119,24 @@ export function MeasurementDivisionPicker({
 
   return (
     <div className="space-y-1.5" ref={rootRef}>
+      {!disabled && quickPicks.length > 0 ? (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Divisões frequentes">
+          {quickPicks.map((q) => (
+            <button
+              key={q.code}
+              type="button"
+              aria-pressed={divisionCode === q.code}
+              className={cn(
+                "ds-chip min-h-10 px-3 text-xs font-black",
+                divisionCode === q.code && "border-primary bg-primary/15 text-foreground"
+              )}
+              onClick={() => pick(q.code)}
+            >
+              {q.shortLabel}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="relative">
         <input
           ref={inputRef}
@@ -214,7 +238,7 @@ function MultiOptionPicker({
   disabled,
   onChange,
 }: MultiOptionPickerProps) {
-  const isDesktop = useMediaMinWidth(768);
+  const isDesktop = useMeasurementsWideLayout();
   const selected = parseCsvCodes(codes);
 
   const toggle = (code: string) => {

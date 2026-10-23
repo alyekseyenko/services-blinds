@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Field operations PWA for blinds technical services",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#84cc16",
+    background_color: "#fafafa",
+    theme_color: "#fafafa",
     icons: [
       { src: APP_LOGO_PATH, sizes: "64x64", type: "image/png" },
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

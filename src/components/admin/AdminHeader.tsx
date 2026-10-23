@@ -33,13 +33,15 @@ import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreference
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import InAppNotificationBell from "@/components/ui/InAppNotificationBell";
 import { getNotificationScope, type InAppNotification } from "@/lib/inAppNotifications";
-import { AdminPrimaryNav } from "@/components/admin/AdminPrimaryNav";
+import {
+  AdminPrimaryNav,
+  ADMIN_PRIMARY_NAV_ITEMS,
+  type AdminViewId,
+} from "@/components/admin/AdminPrimaryNav";
 import { IconButton } from "@/components/ui/IconButton";
 import { cn } from "@/lib/cn";
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
-import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
-import { DisplayHeading } from "@/components/ui/DisplayHeading";
 
 interface AdminHeaderProps {
   opportunitiesCount: number;
@@ -59,6 +61,13 @@ interface AdminHeaderProps {
   /** Cabeçalho hero em ecrã inteiro (vista Início), estilo lista de medições. */
   layout?: "toolbar" | "dashboard";
 }
+
+const ADMIN_VIEW_LABELS: Record<AdminViewId, string> = {
+  home: "Início",
+  map: "Mapa",
+  calendar: "Agenda",
+  history: "Histórico",
+};
 
 const ADMIN_MENU_ITEM_CLASS =
   "flex min-h-12 w-full items-center gap-3 rounded-xl border-2 border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-muted active:scale-[0.99]";
@@ -130,6 +139,7 @@ function SyncChip({
   loading,
   className,
   dataTour,
+  fullWidth,
 }: {
   isSyncing: boolean;
   syncDataStale?: boolean;
@@ -138,6 +148,7 @@ function SyncChip({
   loading: boolean;
   className?: string;
   dataTour?: string;
+  fullWidth?: boolean;
 }) {
   return (
     <button
@@ -146,7 +157,8 @@ function SyncChip({
       disabled={loading || isSyncing}
       data-tour={dataTour}
       className={cn(
-        "flex min-h-12 max-w-[12rem] items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition-all disabled:opacity-60 md:min-h-10 md:px-3",
+        "flex min-h-12 items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition-all disabled:opacity-60 md:min-h-10 md:px-3",
+        fullWidth ? "w-full max-w-none" : "max-w-[12rem]",
         isSyncing
           ? "border-warning-border bg-warning-surface text-warning-fg"
           : syncDataStale
@@ -246,6 +258,10 @@ export default function AdminHeader({
         ? `Desatualizado · ${formatSyncAgeLabel(lastSync.getTime())}`
         : `Sincronizar · ${formatSyncAgeLabel(lastSync.getTime())}`;
 
+  const viewTitle =
+    ADMIN_VIEW_LABELS[view as AdminViewId] ??
+    (layout === "dashboard" ? "Início" : "Painel");
+
   const accountMenuItems = (
     <>
       <div className={cn(ADMIN_MENU_ITEM_CLASS, "cursor-default hover:bg-card")}>
@@ -299,7 +315,7 @@ export default function AdminHeader({
             <div
               ref={navMenuRef}
               data-tour="admin-mobile-menu-sheet"
-              className="safe-top safe-bottom flex h-full max-h-dvh w-full flex-col gap-4 overflow-y-auto border-2 border-border-strong bg-card p-4 md:max-w-sm md:rounded-none md:rounded-l-2xl md:border-r-0 md:p-5"
+              className="safe-top safe-bottom flex h-full max-h-dvh w-full flex-col gap-4 overflow-y-auto border-2 border-border-strong bg-card p-4 sm:max-w-sm sm:rounded-none sm:rounded-l-2xl sm:border-r-0 sm:p-5"
               role="dialog"
               aria-label="Menu do painel"
               onClick={(e) => e.stopPropagation()}
@@ -308,7 +324,7 @@ export default function AdminHeader({
                 <div>
                   <p className="text-sm font-bold text-foreground">Menu do painel</p>
                   <p className="text-xs font-semibold text-muted-foreground">
-                    Vistas, operações e conta. Pesquisa e sync no topo do ecrã.
+                    Sincronização, vistas, operações e conta.
                   </p>
                 </div>
                 <IconButton aria-label="Fechar menu" variant="ghost" onClick={closeNavMenu}>
@@ -316,7 +332,20 @@ export default function AdminHeader({
                 </IconButton>
               </div>
 
-              <section className="space-y-2 rounded-xl border-2 border-border bg-muted/30 p-3">
+              <section className="space-y-2 md:hidden">
+                <p className="ds-kicker px-0.5">Sincronização</p>
+                <SyncChip
+                  isSyncing={isSyncing}
+                  syncDataStale={syncDataStale}
+                  syncLabel={syncLabel}
+                  onRefresh={onRefresh}
+                  loading={loading}
+                  dataTour="admin-refresh"
+                  fullWidth
+                />
+              </section>
+
+              <section className="space-y-2 rounded-xl border-2 border-border bg-muted/30 p-3 lg:hidden">
                 <p className="ds-kicker px-0.5">Vistas</p>
                 <div data-tour="admin-views-mobile">
                   <AdminPrimaryNav view={view} setView={selectViewFromMenu} />
@@ -401,17 +430,30 @@ export default function AdminHeader({
     </div>
   );
 
+  const menuNeedsAttention = isSyncing || syncDataStale;
+
   const menuTrigger = (
-    <IconButton
-      aria-label="Menu do painel"
-      aria-expanded={navMenuOpen}
-      data-tour="admin-mobile-menu-trigger admin-desktop-more-menu"
-      size={ADMIN_TOOLBAR_ICON_SIZE}
-      className={ADMIN_TOOLBAR_ICON_CLASS}
-      onClick={() => setNavMenuOpen(true)}
-    >
-      <Menu className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
-    </IconButton>
+    <span className="relative inline-flex shrink-0">
+      <IconButton
+        aria-label="Menu do painel"
+        aria-expanded={navMenuOpen}
+        data-tour="admin-mobile-menu-trigger admin-desktop-more-menu"
+        size={ADMIN_TOOLBAR_ICON_SIZE}
+        className={ADMIN_TOOLBAR_ICON_CLASS}
+        onClick={() => setNavMenuOpen(true)}
+      >
+        <Menu className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
+      </IconButton>
+      {menuNeedsAttention ? (
+        <span
+          className={cn(
+            "pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
+            isSyncing ? "bg-warning-solid" : "bg-danger-solid"
+          )}
+          aria-hidden
+        />
+      ) : null}
+    </span>
   );
 
   const syncChipHeader = (
@@ -422,87 +464,86 @@ export default function AdminHeader({
       onRefresh={onRefresh}
       loading={loading}
       dataTour="admin-refresh"
-      className="shrink-0"
+      className="hidden shrink-0 md:flex"
     />
   );
 
-  if (layout === "dashboard") {
-    return (
-      <>
-        <header
-          className="safe-top relative z-30 shrink-0 border-b-2 border-border-strong bg-card text-card-foreground"
-          data-tour="admin-home-dashboard-header"
-        >
-          <div className={adminFullBleedShell.headerInner}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-border-strong bg-muted">
-                  <LayoutDashboard className={ADMIN_TOOLBAR_GLYPH} strokeWidth={2} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <DisplayHeading as="h1" lines={["Painel operacional"]} className="text-lg md:text-xl" />
-                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                    Medidas, instalações, reparações e restantes serviços — pipeline e atalhos.
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                    {userName || "Operador"} · {opportunitiesCount} serviços no mapa
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                {syncChipHeader}
-                {searchTrigger}
-                {notificationBell}
-                {menuTrigger}
-              </div>
-            </div>
-          </div>
-        </header>
-        {navMenuPortal}
-      </>
-    );
-  }
+  const desktopPrimaryNav = (
+    <div
+      className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex"
+      data-tour="admin-views-desktop"
+    >
+      {ADMIN_PRIMARY_NAV_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const isActive = view === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            data-tour={`admin-nav-${item.id}`}
+            onClick={() => setView(item.id)}
+            aria-current={isActive ? "page" : undefined}
+            title={item.label}
+            className={cn(
+              "flex min-h-10 items-center gap-2 rounded-xl border-2 px-3 text-xs font-bold transition-all active:scale-[0.99]",
+              isActive
+                ? "border-border-strong bg-neon text-neon-foreground"
+                : "border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <>
-      <header className="safe-top relative z-30 shrink-0 border-b-2 border-border-strong bg-card text-card-foreground">
-        <div className="mx-auto grid w-full max-w-[100rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <div className="relative shrink-0">
-              <Image
-                src={APP_LOGO_PATH}
-                alt=""
-                width={36}
-                height={36}
-                className="h-9 w-9 object-contain"
-              />
-              <span
-                className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
-                  isSyncing ? "bg-warning-solid" : "bg-primary"
-                )}
-                aria-hidden
-              />
+      <header
+        className="safe-top relative z-30 shrink-0 border-b-2 border-border-strong bg-card text-card-foreground"
+        data-tour={layout === "dashboard" ? "admin-home-dashboard-header" : undefined}
+      >
+        <div className="mx-auto flex w-full max-w-[100rem] flex-col gap-2 px-3 py-2.5 sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2 lg:contents">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-2.5 lg:shrink-0">
+              <div className="relative shrink-0">
+                <Image
+                  src={APP_LOGO_PATH}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 object-contain"
+                />
+                <span
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
+                    isSyncing ? "bg-warning-solid" : syncDataStale ? "bg-danger-solid" : "bg-primary"
+                  )}
+                  aria-hidden
+                />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-bold leading-tight text-foreground sm:text-base">
+                  {viewTitle}
+                </h1>
+                <p className="truncate text-xs font-medium text-muted-foreground">
+                  {opportunitiesCount} serviços
+                  <span className="hidden sm:inline"> · {userName || "Operador"}</span>
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1
-                className="max-w-[4.5rem] truncate text-xs font-bold leading-tight text-foreground min-[420px]:max-w-[7rem] sm:max-w-[10rem] sm:text-sm md:max-w-none"
-                title={userName || undefined}
-              >
-                {userName || "Painel"}
-              </h1>
-              <p className="hidden truncate text-xs font-medium text-muted-foreground min-[420px]:block sm:block">
-                {opportunitiesCount} serviços
-              </p>
+
+            <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5 lg:order-last">
+              {syncChipHeader}
+              {searchTrigger}
+              {notificationBell}
+              {menuTrigger}
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-            {syncChipHeader}
-            {searchTrigger}
-            {notificationBell}
-            {menuTrigger}
-          </div>
+          {desktopPrimaryNav}
         </div>
       </header>
       {navMenuPortal}

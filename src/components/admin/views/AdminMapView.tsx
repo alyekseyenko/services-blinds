@@ -357,7 +357,7 @@ export default function AdminMapView({
             type="button"
             data-tour="admin-route-open-sheet"
             onClick={() => setShowRouteSheet(true)}
-            className="fixed bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] left-4 right-4 z-20 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-ink text-xs font-black uppercase tracking-wider text-neon shadow-xl lg:hidden"
+            className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 z-20 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-ink text-xs font-black uppercase tracking-wider text-neon shadow-xl lg:hidden"
           >
             <Navigation className="h-5 w-5" aria-hidden />
             Ver roteiro ({selectedForRoute.length})

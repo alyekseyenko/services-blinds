@@ -64,6 +64,7 @@ import {
 } from "@/lib/urlMainView";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { cn } from "@/lib/cn";
+import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { hapticLight } from "@/lib/haptics";
 import { useTechnicianLocationSharing } from "@/hooks/useTechnicianLocationSharing";
 import { useCalendarMidnightRollover } from "@/hooks/useCalendarMidnightRollover";
@@ -175,6 +176,7 @@ export default function Dashboard() {
     }
   }, []);
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const mapVisitSidePanel = useMediaMinWidth(768);
   const [showLocationConsent, setShowLocationConsent] = useState(false);
   const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
   const [showRgpdModal, setShowRgpdModal] = useState(false);
@@ -696,7 +698,7 @@ export default function Dashboard() {
       className="relative flex h-[100dvh] flex-col overflow-hidden bg-background font-sans text-foreground"
     >
       
-      <div className="z-50 shrink-0">
+      <div className="z-50 shrink-0" data-tech-shell-chrome>
       {/* Banner de Consentimento de Localização (RGPD) */}
       {showLocationConsent && (
         <div className="bg-ink text-ink-foreground px-4 py-3 flex items-center gap-3 shadow-lg animate-in slide-in-from-top duration-300">
@@ -922,29 +924,31 @@ export default function Dashboard() {
               )}
               aria-hidden={view !== "map"}
             >
-              <div className="pointer-events-none absolute top-2 left-2 right-2 z-10 flex items-center justify-between gap-2">
-                <div className="pointer-events-auto flex min-h-12 flex-1 items-center gap-1 rounded-xl border-2 border-border-strong bg-card px-1.5 py-1 touch-manipulation" data-tour="tech-map-day">
+              <div className="pointer-events-none absolute top-2 left-2 right-2 z-10 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="pointer-events-auto flex min-h-12 w-full min-w-0 items-center gap-1 rounded-xl border-2 border-border-strong bg-card px-1.5 py-1 touch-manipulation sm:flex-1" data-tour="tech-map-day">
                   <button
                     type="button"
                     onClick={() => shiftCalendarDay(-1)}
-                    className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted active:bg-muted"
+                    className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted active:bg-muted"
                     aria-label="Dia anterior"
                   >
                     ◀
                   </button>
 
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1 px-0.5 text-center">
-                    <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-                    <span className="text-xs font-bold capitalize text-foreground" suppressHydrationWarning>
-                      {formatPtDate(clientHydrated, calendarDate, {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      · {dayTasks.length}
-                    </span>
+                  <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center sm:flex-row sm:flex-wrap sm:gap-1">
+                    <div className="flex min-w-0 items-center justify-center gap-1">
+                      <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                      <span className="truncate text-xs font-bold capitalize text-foreground" suppressHydrationWarning>
+                        {formatPtDate(clientHydrated, calendarDate, {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                        · {dayTasks.length}
+                      </span>
+                    </div>
                     {dayOverdueCount > 0 && (
                       <button
                         type="button"
@@ -952,9 +956,9 @@ export default function Dashboard() {
                           setMapAutoFitScope("overdue");
                           setMapFitNonce((n) => n + 1);
                         }}
-                        className="rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-xs font-black text-warning-fg hover:bg-warning-surface"
+                        className="max-w-full truncate rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-xs font-black text-warning-fg hover:bg-warning-surface"
                       >
-                        {dayOverdueCount} atrasada{dayOverdueCount > 1 ? "s" : ""} — ver no mapa
+                        {dayOverdueCount} atrasada{dayOverdueCount > 1 ? "s" : ""}
                       </button>
                     )}
                   </div>
@@ -962,7 +966,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => shiftCalendarDay(1)}
-                    className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted active:bg-muted"
+                    className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted active:bg-muted"
                     aria-label="Dia seguinte"
                   >
                     ▶
@@ -973,7 +977,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setCalendarDate(new Date())}
-                    className="pointer-events-auto min-h-12 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-primary shadow-md touch-manipulation"
+                    className="pointer-events-auto min-h-12 w-full shrink-0 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-primary shadow-md touch-manipulation sm:w-auto"
                   >
                     Hoje
                   </button>
@@ -981,7 +985,13 @@ export default function Dashboard() {
               </div>
 
               <div
-                className="relative min-h-0 flex-1 border-2 border-border-strong bg-background md:m-2 md:rounded-2xl md:overflow-hidden"
+                className={cn(
+                  "relative min-h-0 flex-1 border-2 border-border-strong bg-background transition-[margin] duration-200 md:m-2 md:rounded-2xl md:overflow-hidden",
+                  view === "map" &&
+                    selectedTask &&
+                    mapVisitSidePanel &&
+                    "md:mr-[min(28rem,calc(42vw+0.5rem))] lg:mr-[33rem]"
+                )}
                 data-tour="tech-map-canvas"
               >
               <MapComponent

@@ -1,9 +1,4 @@
-import {
-  isExteriorParcialInstall,
-  partialPartsIncludeEsteiras,
-} from "@/lib/measurements/exteriorInstall";
-
-export type LineDimensionMode = "store" | "opening" | "skylight";
+export type LineDimensionMode = "store" | "opening" | "skylight" | "esteira";
 
 type ModeDetails = {
   model?: string;
@@ -29,15 +24,68 @@ export function lineDimensionMode(type: string, details: ModeDetails): LineDimen
   if (type === "ESTORE_EXTERIOR" && details.exteriorInstallType === "COMPLETO") {
     return "opening";
   }
-  if (
-    type === "ESTORE_EXTERIOR" &&
-    isExteriorParcialInstall(details.exteriorInstallType) &&
-    partialPartsIncludeEsteiras(details.partialPartCodes) &&
-    details.esteiraMeasureTarget === "VAO"
-  ) {
-    return "opening";
-  }
   return "store";
+}
+
+/** Rótulos pt-PT das medidas principais (técnico, admin, Excel, PDF). */
+export function lineDimensionHeightLabel(
+  mode: LineDimensionMode,
+  variant: "short" | "long" | "export" = "long"
+): string {
+  if (mode === "skylight") {
+    return variant === "short"
+      ? "Alt. int."
+      : variant === "export"
+        ? "Altura interior (mm)"
+        : "Altura interior";
+  }
+  if (mode === "opening") {
+    return variant === "short"
+      ? "Alt. vão"
+      : variant === "export"
+        ? "Altura vão (mm)"
+        : "Altura vão";
+  }
+  if (mode === "esteira") {
+    return variant === "short"
+      ? "Alt. esteira"
+      : variant === "export"
+        ? "Altura da esteira (mm)"
+        : "Altura da esteira";
+  }
+  return variant === "short" ? "Alt (mm)" : variant === "export" ? "Altura (mm)" : "Altura";
+}
+
+export function lineDimensionWidthLabel(
+  mode: LineDimensionMode,
+  variant: "short" | "long" | "export" = "long"
+): string {
+  if (mode === "skylight") {
+    return variant === "short"
+      ? "Larg. int."
+      : variant === "export"
+        ? "Largura interior (mm)"
+        : "Largura interior";
+  }
+  if (mode === "opening") {
+    return variant === "short"
+      ? "Larg. vão"
+      : variant === "export"
+        ? "Largura vão (mm)"
+        : "Largura vão";
+  }
+  if (mode === "esteira") {
+    return variant === "short"
+      ? "Larg. esteira"
+      : variant === "export"
+        ? "Largura da esteira (mm)"
+        : "Largura da esteira";
+  }
+  return variant === "short" ? "Larg (mm)" : variant === "export" ? "Largura (mm)" : "Largura";
+}
+
+export function lineDimensionUsesOpeningFields(mode: LineDimensionMode): boolean {
+  return mode === "opening";
 }
 
 function positiveMm(value?: string | number): number | null {

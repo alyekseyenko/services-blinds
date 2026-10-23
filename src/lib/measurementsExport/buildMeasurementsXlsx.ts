@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 import { COMPANY_LABEL } from "@/lib/branding";
+import { measurementExportByline } from "@/lib/measurementsExport/exportByline";
 import {
   getMeasurementGroupDetailEntries,
   measurementLineColumnPlan,
@@ -19,8 +20,9 @@ function formatVisitDate(iso?: string): string {
 }
 
 export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Buffer> {
+  const exportByline = measurementExportByline(sheet.technicianName);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = COMPANY_LABEL;
+  workbook.creator = exportByline || COMPANY_LABEL;
   workbook.created = new Date();
 
   const ws = workbook.addWorksheet("Medições", {
@@ -50,7 +52,9 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
   titleRow.font = { bold: true, size: 16 };
   ws.mergeCells(titleRow.number, 1, titleRow.number, 9);
 
-  ws.addRow([COMPANY_LABEL]);
+  if (exportByline) {
+    ws.addRow([exportByline]);
+  }
   ws.addRow([]);
   ws.addRow(["Cliente", sheet.clientName, "", "NSI", sheet.nsi || "—"]);
   ws.addRow(["Morada", sheet.address, "", "Serviço", sheet.serviceLabel || "—"]);

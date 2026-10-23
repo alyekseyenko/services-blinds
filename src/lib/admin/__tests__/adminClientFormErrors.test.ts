@@ -11,8 +11,18 @@ const validMorada = {
 };
 
 describe("validateCreateAdminClientInput", () => {
-  it("aceita payload válido", () => {
+  it("aceita payload válido com ou sem NIF", () => {
     const result = validateCreateAdminClientInput({
+      clientType: "PARTICULAR",
+      firstName: "Ana",
+      nif: "",
+      phoneCountryCode: "PT",
+      phoneNational: "912345678",
+      morada: validMorada,
+    });
+    expect(result.ok).toBe(true);
+
+    const withNif = validateCreateAdminClientInput({
       clientType: "PARTICULAR",
       firstName: "Ana",
       nif: "123456789",
@@ -20,7 +30,7 @@ describe("validateCreateAdminClientInput", () => {
       phoneNational: "912345678",
       morada: validMorada,
     });
-    expect(result.ok).toBe(true);
+    expect(withNif.ok).toBe(true);
   });
 
   it("devolve erros por campo", () => {

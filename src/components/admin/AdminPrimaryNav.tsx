@@ -12,12 +12,14 @@ import { cn } from "@/lib/cn";
 export const ADMIN_VIEW_IDS = ["home", "map", "calendar", "history"] as const;
 export type AdminViewId = (typeof ADMIN_VIEW_IDS)[number];
 
-const navItems: { id: AdminViewId; label: string; icon: LucideIcon }[] = [
+export const ADMIN_PRIMARY_NAV_ITEMS: { id: AdminViewId; label: string; icon: LucideIcon }[] = [
   { id: "home", label: "Início", icon: LayoutDashboard },
   { id: "map", label: "Mapa", icon: MapIcon },
   { id: "calendar", label: "Agenda", icon: CalendarIcon },
   { id: "history", label: "Histórico", icon: History },
 ];
+
+const navItems = ADMIN_PRIMARY_NAV_ITEMS;
 
 interface AdminPrimaryNavProps {
   view: string;

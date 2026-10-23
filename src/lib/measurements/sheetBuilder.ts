@@ -16,7 +16,7 @@ import {
 } from "@/lib/measurements/labels";
 import { getGroupSpecDetailEntries } from "@/lib/measurements/groupSpecDisplay";
 import { getDivisionLabel } from "@/lib/measurements/divisions";
-import { isPortaAmerica, lineDimensionMode } from "@/lib/measurements/lineModes";
+import { isPortaAmerica, lineDimensionMode, storedWidthHeightMm } from "@/lib/measurements/lineModes";
 
 export type MeasurementSheetHeaderInput = {
   opportunityId: string;
@@ -44,6 +44,7 @@ function buildGroupRows(
         skylightExteriorWidth?: string;
         skylightExteriorHeight?: string;
         depth?: string;
+        storeCommand?: string;
         storeChannel?: string;
         storeChannelOther?: string;
       };
@@ -65,12 +66,18 @@ function buildGroupRows(
         m.notes?.trim() ||
         undefined;
       const lineNotes = line.lineNotes?.trim() || undefined;
+      const stored = storedWidthHeightMm({
+        width: m.width,
+        height: m.height,
+        openingWidth: row.openingWidth,
+        openingHeight: row.openingHeight,
+      });
       return {
         index: idx + 1,
         division: divisionLabel,
         qty: Number(m.qty) || 0,
-        widthMm: Number(m.width) || 0,
-        heightMm: Number(m.height) || 0,
+        widthMm: stored.width,
+        heightMm: stored.height,
         fixation: m.fixation?.trim() || undefined,
         controls: m.controls?.trim() || undefined,
         notes: lineNotes,
@@ -82,7 +89,8 @@ function buildGroupRows(
         exteriorHeightMm: positiveMm(row.skylightExteriorHeight),
         depthMm: positiveMm(row.depth),
         channelLabel:
-          formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther) || undefined,
+          formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther, row.storeCommand) ||
+          undefined,
       };
     })
     .filter(
@@ -95,7 +103,8 @@ function buildGroupRows(
         (r.exteriorWidthMm ?? 0) > 0 ||
         (r.exteriorHeightMm ?? 0) > 0 ||
         (r.depthMm ?? 0) > 0 ||
-        Boolean(r.channelLabel)
+        Boolean(r.channelLabel) ||
+        Boolean(r.division || r.notes || r.fixation || r.controls || r.price)
     );
 }
 

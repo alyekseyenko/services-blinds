@@ -68,7 +68,10 @@ export const CreateAdminClientSchema = z
     nif: z
       .string()
       .trim()
-      .regex(/^\d{9}$/, "O NIF deve ter exatamente 9 dígitos."),
+      .default("")
+      .refine((val) => val === "" || /^\d{9}$/.test(val), {
+        message: "O NIF deve ter exatamente 9 dígitos.",
+      }),
     email: z.string().trim().optional(),
     phoneCountryCode: z.string().trim().min(2).max(2).default("PT"),
     phoneNational: z.string().trim().min(1, "Indique o telemóvel."),

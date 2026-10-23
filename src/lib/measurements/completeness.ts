@@ -1,8 +1,5 @@
 import type { MeasurementRow, ProductGroup, ProductGroupDetails, ProductType } from "@/types";
-import {
-  isExteriorParcialInstall,
-  partialPartsIncludeEsteiras,
-} from "@/lib/measurements/exteriorInstall";
+import { isExteriorParcialInstall } from "@/lib/measurements/exteriorInstall";
 import {
   lineDimensionMode,
   type LineDimensionMode,
@@ -75,18 +72,7 @@ export function groupHasSpecCompletenessWarnings(group: ProductGroup): boolean {
     return true;
   }
   if (groupMissingActivation(group.type, group.details)) return true;
-  if (groupMissingEsteiraTarget(group.type, group.details)) return true;
   return false;
-}
-
-function groupMissingEsteiraTarget(
-  type: ProductType,
-  details: ProductGroupDetails
-): boolean {
-  if (type !== "ESTORE_EXTERIOR") return false;
-  if (!isExteriorParcialInstall(details.exteriorInstallType)) return false;
-  if (!partialPartsIncludeEsteiras(details.partialPartCodes)) return false;
-  return details.esteiraMeasureTarget !== "VAO" && details.esteiraMeasureTarget !== "ESTEIRA";
 }
 
 export function summarizeMeasurementsFormProgress(groups: ProductGroup[]): {
@@ -121,9 +107,6 @@ export function summarizeMeasurementGroupCompleteness(group: ProductGroup): stri
     !group.details.partialPartCodes?.trim()
   ) {
     hints.push("Falta material (peças)");
-  }
-  if (groupMissingEsteiraTarget(group.type, group.details)) {
-    hints.push("Falta vão ou esteira");
   }
   if (groupMissingActivation(group.type, group.details)) {
     hints.push("Falta acionamento");

@@ -30,6 +30,10 @@ export function formatMeasurementRowDimensionLabel(
     );
     if (opening) return opening;
   }
+  if (mode === "esteira") {
+    const esteira = pairLabel(String(row.height ?? "").trim(), String(row.width ?? "").trim());
+    if (esteira) return esteira;
+  }
   if (mode === "skylight") {
     const interior = pairLabel(String(row.height ?? "").trim(), String(row.width ?? "").trim());
     const exterior = pairLabel(
@@ -55,8 +59,13 @@ export function formatMeasurementRowCollapsedMeta(row: MeasurementRow): string {
   const qty = row.qty != null && String(row.qty).trim() !== "" ? `${row.qty} un` : "";
   const fix = formatFixationDisplay(row.fixationCodes, row.fixationCustom);
   const cmd = formatControlsDisplay(row.controlsCodes, row.controlsCustom);
-  const channel = formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther);
-  const extras = [channel ? `Canal ${channel}` : "", fix, cmd].filter(Boolean).join(" · ");
+  const channel = formatStoreChannelDisplay(
+    row.storeChannel,
+    row.storeChannelOther,
+    row.storeCommand
+  );
+  const channelText = !channel ? "" : row.storeCommand?.trim() ? channel : `Canal ${channel}`;
+  const extras = [channelText, fix, cmd].filter(Boolean).join(" · ");
   return [division, qty, extras].filter(Boolean).join(" · ");
 }
 

@@ -56,7 +56,8 @@ describe("CreateAdminClientSchema", () => {
     ).toBe(true);
   });
 
-  it("exige NIF com 9 dígitos e telemóvel válido", () => {
+  it("aceita cliente sem NIF e valida NIF parcial e telemóvel", () => {
+    expect(CreateAdminClientSchema.safeParse({ ...baseClient, nif: "" }).success).toBe(true);
     expect(CreateAdminClientSchema.safeParse({ ...baseClient, nif: "123" }).success).toBe(false);
     expect(
       CreateAdminClientSchema.safeParse({ ...baseClient, phoneNational: "123" }).success

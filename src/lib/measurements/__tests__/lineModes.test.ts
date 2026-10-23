@@ -11,17 +11,7 @@ describe("lineDimensionMode", () => {
     ).toBe("opening");
   });
 
-  it("esteiras com preciso do vão pede o vão", () => {
-    expect(
-      lineDimensionMode("ESTORE_EXTERIOR", {
-        exteriorInstallType: "PARCIAL",
-        partialPartCodes: "ESTEIRAS",
-        esteiraMeasureTarget: "VAO",
-      })
-    ).toBe("opening");
-  });
-
-  it("esteiras com preciso da esteira pede a medida do estore", () => {
+  it("parcial com esteiras usa medida normal (altura/largura)", () => {
     expect(
       lineDimensionMode("ESTORE_EXTERIOR", {
         exteriorInstallType: "PARCIAL",
@@ -117,6 +107,32 @@ describe("ficha com os campos novos", () => {
     expect(headers.some((h) => h.includes("interior"))).toBe(true);
     expect(headers.some((h) => h.includes("exterior"))).toBe(true);
     expect(headers.some((h) => h.includes("Profundidade"))).toBe(true);
+  });
+
+  it("parcial com esteiras exporta colunas Altura/Largura normais", () => {
+    const sheet = buildMeasurementSheetFromPayload(
+      { opportunityId: "o", clientName: "C", address: "A" },
+      {
+        groups: [
+          {
+            type: "ESTORE_EXTERIOR",
+            details: {
+              exteriorInstallType: "PARCIAL",
+              partialPartCodes: "ESTEIRAS",
+              activation: "MANUAL",
+            },
+            measurements: [{ qty: 1, width: 1200, height: 1500 }],
+          },
+        ],
+      }
+    );
+    expect(sheet.groups[0].dimensionMode).toBe("store");
+    expect(sheet.groups[0].partialPartsLabel).toBe("Esteiras");
+    const headers = measurementLineColumnPlan(sheet.groups[0]).columns.map((c) => c.header);
+    expect(headers).toContain("Altura (mm)");
+    expect(headers).toContain("Largura (mm)");
+    expect(headers.some((h) => h.includes("esteira"))).toBe(false);
+    expect(headers.some((h) => h.includes("vão"))).toBe(false);
   });
 
   it("porta América usa A B C D e esconde fixação vazia", () => {

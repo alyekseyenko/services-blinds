@@ -152,8 +152,8 @@ export default function AdminCreateClientForm({
     <div className={cn("space-y-4", className)} data-tour="admin-create-client-form">
       <p className="text-xs font-semibold text-muted-foreground">
         {isEmpresa
-          ? "Empresa: indique o nome comercial no CRM. NIF, morada e contacto são iguais ao particular."
-          : "Particular: nome e apelido. O tipo de cliente fica registado no Twenty; NIF, morada e contacto são comuns aos dois."}
+          ? "Empresa: indique o nome comercial no CRM. Morada e contacto são iguais ao particular; o NIF é opcional."
+          : "Particular: nome e apelido. O tipo de cliente fica registado no Twenty; morada e contacto são comuns aos dois; o NIF é opcional."}
       </p>
 
       {formSummary ? (
@@ -229,7 +229,7 @@ export default function AdminCreateClientForm({
 
       <label className="block space-y-1.5">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          NIF (obrigatório, 9 dígitos)
+          NIF (opcional, 9 dígitos)
         </span>
         <input
           type="text"
@@ -242,7 +242,7 @@ export default function AdminCreateClientForm({
             clearFieldError("nif");
           }}
           className={fieldInputClass(Boolean(fieldErrors.nif))}
-          placeholder="9 dígitos"
+          placeholder="Opcional — 9 dígitos"
           aria-invalid={Boolean(fieldErrors.nif)}
           aria-describedby={fieldErrors.nif ? "client-nif-error" : undefined}
         />

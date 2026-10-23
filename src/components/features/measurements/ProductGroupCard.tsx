@@ -2,11 +2,16 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Box, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
-import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
+import {
+  useExpandSectionsOnWideLayout,
+  useMeasurementsCompactSections,
+  useMeasurementsWideLayout,
+} from "@/hooks/useMeasurementsLayout";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { ProductGroup, ProductType } from "@/types";
 import {
   ACTIVATION_OPTIONS,
+  COMMON_RAL_QUICK_PICKS,
   getActivationLabel,
   EXTERIOR_MATERIAL_OPTIONS,
   getMaterialLabel,
@@ -24,16 +29,73 @@ import {
 } from "@/lib/measurementCompleteness";
 import {
   EXTERIOR_INSTALL_TYPE_OPTIONS,
-  formatEsteiraMeasureTarget,
   formatExteriorPartialPartsDisplay,
   getExteriorInstallTypeLabel,
   isExteriorParcialInstall,
-  partialPartsIncludeEsteiras,
 } from "@/lib/measurements/exteriorInstall";
 import { MeasurementExteriorPartialPartsPicker } from "./MeasurementFieldPickers";
 import { MeasurementTable } from "./MeasurementTable";
 import { MeasurementGroupSpecExtras } from "./MeasurementGroupSpecExtras";
+import { MeasurementFormSection } from "./MeasurementFormSection";
+import {
+  measurementMaterialSectionStatus,
+  measurementMaterialSectionSummary,
+  measurementProductSectionShouldDefaultOpen,
+  measurementProductSectionSummary,
+  measurementWindowsSectionMeta,
+} from "@/lib/measurements/groupFormSectionMeta";
 import { VoiceTextarea } from "@/components/ui/VoiceTextarea";
+import { cn } from "@/lib/cn";
+
+const specOptionBtn = (active: boolean) =>
+  cn(
+    "min-h-12 rounded-xl border-2 px-2 text-xs font-black uppercase transition-all",
+    active
+      ? "border-primary bg-primary/15 text-foreground"
+      : "border-border bg-card text-muted-foreground"
+  );
+
+function RalColorField({
+  value,
+  locked,
+  onChange,
+}: {
+  value: string;
+  locked: boolean;
+  onChange: (next: string) => void;
+}) {
+  if (locked) {
+    return (
+      <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
+        {value || "-"}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Cores frequentes">
+        {COMMON_RAL_QUICK_PICKS.map((pick) => (
+          <button
+            key={pick}
+            type="button"
+            aria-pressed={value === pick}
+            className={specOptionBtn(value === pick)}
+            onClick={() => onChange(value === pick ? "" : pick)}
+          >
+            {pick}
+          </button>
+        ))}
+      </div>
+      <input
+        type="text"
+        placeholder="Ex: 7016, Branco..."
+        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
 
 interface ProductGroupCardProps {
   group: ProductGroup;
@@ -70,11 +132,16 @@ function ProductGroupCardComponent({
   voiceObservationsTourAnchor = false,
 }: ProductGroupCardProps) {
   const confirm = useConfirm();
-  const isDesktop = useMediaMinWidth(768);
+  const wideLayout = useMeasurementsWideLayout();
   const specLocked = isAdmin || readOnly;
-  const focusMeasurements = !specLocked && !isDesktop;
+  const focusMeasurements = useMeasurementsCompactSections(!specLocked);
+  const [productOpen, setProductOpen] = useState(() =>
+    focusMeasurements ? measurementProductSectionShouldDefaultOpen(group) : true
+  );
   const [specsOpen, setSpecsOpen] = useState(false);
+  const [windowsOpen, setWindowsOpen] = useState(true);
   const autoSpecsOpenedRef = useRef(false);
+  const autoProductCollapsedRef = useRef(false);
 
   useEffect(() => {
     if (autoSpecsOpenedRef.current || !focusMeasurements) return;
@@ -84,15 +151,59 @@ function ProductGroupCardComponent({
     }
   }, [focusMeasurements, group]);
 
+  useEffect(() => {
+    if (!focusMeasurements || autoProductCollapsedRef.current) return;
+    if (!measurementProductSectionShouldDefaultOpen(group)) {
+      setProductOpen(false);
+      autoProductCollapsedRef.current = true;
+    }
+  }, [focusMeasurements, group]);
+
+  useExpandSectionsOnWideLayout(wideLayout, setProductOpen, setSpecsOpen, setWindowsOpen);
+
   const completenessHints = useMemo(
     () => (!specLocked ? summarizeMeasurementGroupCompleteness(group) : []),
     [group, specLocked]
   );
 
+  const section1Summary = useMemo(
+    () => (!specLocked ? measurementProductSectionSummary(group) : undefined),
+    [group, specLocked]
+  );
+  const section2Summary = useMemo(
+    () => (!specLocked ? measurementMaterialSectionSummary(group) : undefined),
+    [group, specLocked]
+  );
+  const section2Status = useMemo(
+    () => (!specLocked ? measurementMaterialSectionStatus(group) : undefined),
+    [group, specLocked]
+  );
+  const section3Meta = useMemo(
+    () => (!specLocked ? measurementWindowsSectionMeta(group) : undefined),
+    [group, specLocked]
+  );
+
+  const hasWarnings =
+    !specLocked &&
+    (completenessHints.length > 0 || groupHasSpecCompletenessWarnings(group));
+
   return (
-    <div className="bg-card rounded-3xl border-2 border-border shadow-sm overflow-hidden">
-      <div 
-        className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${group.isOpen ? 'bg-muted' : 'bg-card'}`}
+    <div
+      className={cn(
+        "overflow-hidden rounded-3xl border-2 bg-card transition-shadow",
+        group.isOpen
+          ? "border-border-strong shadow-sm"
+          : cn(
+              "shadow-md ring-2 ring-border-strong/25",
+              hasWarnings ? "border-warning-border ring-warning-border/20" : "border-border-strong"
+            )
+      )}
+    >
+      <div
+        className={cn(
+          "flex cursor-pointer items-center justify-between p-4 transition-colors",
+          group.isOpen ? "border-b-2 border-border bg-muted" : "bg-card"
+        )}
         onClick={() => onToggleGroup(group.id)}
       >
         <div className="flex items-center gap-3">
@@ -160,85 +271,75 @@ function ProductGroupCardComponent({
 
       {group.isOpen && (
         <div
-          className={`${focusMeasurements ? "space-y-4 p-4" : "space-y-8 p-6"} animate-in slide-in-from-top-2 duration-300`}
+          className={`${specLocked ? "space-y-8 p-6" : "space-y-4 p-4 md:p-5 lg:space-y-6 lg:p-6"} animate-in slide-in-from-top-2 duration-300`}
         >
-          {!specLocked && (
-            <div className={focusMeasurements ? "space-y-2" : undefined}>
-              {focusMeasurements ? (
-                <p className="text-xs font-bold text-muted-foreground px-0.5">
-                  1. Produto
-                </p>
-              ) : null}
-            <div
-              className={`grid grid-cols-2 md:grid-cols-4 gap-2 ${focusMeasurements ? "gap-1.5" : ""}`}
-            >
-              {PRODUCT_TYPE_OPTIONS.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => onUpdateGroupType(group.id, type.id)}
-                  className={`flex items-center gap-2 rounded-xl border-2 text-xs font-black uppercase transition-all ${
-                    focusMeasurements ? "p-2.5" : "p-3"
-                  } ${
-                    group.type === type.id
-                      ? "bg-ink border-border text-ink-foreground shadow-lg"
-                      : "bg-card border-border text-muted-foreground hover:border-border"
-                  }`}
-                >
-                  <Box className="w-4 h-4" /> {type.label}
-                </button>
-              ))}
-            </div>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
-              Nome personalizado
-            </label>
-            {specLocked ? (
-              <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
-                {group.details.customName?.trim() || "—"}
-              </div>
-            ) : (
+          {!specLocked ? (
+          <MeasurementFormSection
+            step={1}
+            title="Produto"
+            description="Nome para reconhecer na obra e tipo de estore ou toldo."
+            summary={section1Summary}
+            collapsible={focusMeasurements}
+            open={focusMeasurements ? productOpen : true}
+            onOpenChange={setProductOpen}
+          >
+            <div className="space-y-1">
+              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                Nome personalizado
+              </label>
               <input
                 type="text"
                 placeholder="Ex.: quarto do fundo, varanda…"
-                className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none"
+                className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none"
                 value={group.details.customName ?? ""}
                 onChange={(e) => onUpdateGroupDetails(group.id, "customName", e.target.value)}
               />
-            )}
-          </div>
-
-          <div className={focusMeasurements ? "space-y-4" : "space-y-8"}>
-            {focusMeasurements && !specLocked ? (
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-muted-foreground px-0.5">
-                  2. Material e detalhes
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSpecsOpen((v) => !v)}
-                  className="flex w-full min-h-11 items-center justify-between gap-2 rounded-xl border-2 border-border bg-card px-3 py-2.5 text-left shadow-sm"
-                  aria-expanded={specsOpen}
-                >
-                  <span className="text-xs font-black text-foreground">
-                    {specsOpen ? "Ocultar detalhes" : "Abrir material, RAL, acionamento…"}
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${specsOpen ? "rotate-180" : ""}`}
-                    aria-hidden
-                  />
-                </button>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                Tipo de produto
+              </span>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+                {PRODUCT_TYPE_OPTIONS.map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => onUpdateGroupType(group.id, type.id)}
+                    className={`flex min-h-12 items-center gap-2 rounded-xl border-2 p-2.5 text-xs font-black uppercase transition-all ${
+                      group.type === type.id
+                        ? "bg-ink border-border text-ink-foreground shadow-lg"
+                        : "bg-card border-border text-muted-foreground hover:border-border"
+                    }`}
+                  >
+                    <Box className="h-4 w-4 shrink-0" aria-hidden /> {type.label}
+                  </button>
+                ))}
               </div>
-            ) : null}
+            </div>
+          </MeasurementFormSection>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                Nome personalizado
+              </label>
+              <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
+                {group.details.customName?.trim() || "—"}
+              </div>
+            </div>
+          )}
 
-            {(!focusMeasurements || specsOpen) ? (
-            <div
-              className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${
-                focusMeasurements ? "gap-3" : ""
-              }`}
-            >
+          <MeasurementFormSection
+            step={2}
+            enabled={!specLocked}
+            title="Material e detalhes"
+            description="Montagem, cores, tecido, acionamento e observações do produto."
+            summary={section2Summary}
+            statusBadge={section2Status}
+            collapsible={focusMeasurements}
+            open={focusMeasurements ? specsOpen : true}
+            onOpenChange={setSpecsOpen}
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
             {group.type === "ESTORE_EXTERIOR" && (
               <>
                 <div className="space-y-1 md:col-span-3">
@@ -304,44 +405,6 @@ function ProductGroupCardComponent({
                   </div>
                 ) : null}
 
-                {isExteriorParcialInstall(group.details.exteriorInstallType) &&
-                partialPartsIncludeEsteiras(group.details.partialPartCodes) ? (
-                  <div className="space-y-1 md:col-span-3">
-                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
-                      Esteiras
-                    </label>
-                    {specLocked ? (
-                      <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
-                        {formatEsteiraMeasureTarget(group.details.esteiraMeasureTarget) || "—"}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {(
-                          [
-                            { value: "VAO", label: "Preciso do vão" },
-                            { value: "ESTEIRA", label: "Preciso da esteira" },
-                          ] as const
-                        ).map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() =>
-                              onUpdateGroupDetails(group.id, "esteiraMeasureTarget", opt.value)
-                            }
-                            className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase transition-all ${
-                              group.details.esteiraMeasureTarget === opt.value
-                                ? "border-primary bg-primary/15 text-foreground"
-                                : "border-border bg-card text-muted-foreground"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-
                 {group.details.exteriorInstallType === "COMPLETO" ? (
                   <>
                     <div className="space-y-1">
@@ -353,17 +416,25 @@ function ProductGroupCardComponent({
                             : group.details.material || "-"}
                         </div>
                       ) : (
-                        <select
-                          className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
-                          value={group.details.material}
-                          disabled={specLocked}
-                          onChange={(e) => onUpdateGroupDetails(group.id, "material", e.target.value)}
-                        >
-                          <option value="">Selecionar...</option>
+                        <div className="grid grid-cols-2 gap-2">
                           {EXTERIOR_MATERIAL_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            <button
+                              key={opt.value}
+                              type="button"
+                              aria-pressed={group.details.material === opt.value}
+                              className={specOptionBtn(group.details.material === opt.value)}
+                              onClick={() =>
+                                onUpdateGroupDetails(
+                                  group.id,
+                                  "material",
+                                  group.details.material === opt.value ? "" : opt.value
+                                )
+                              }
+                            >
+                              {opt.label}
+                            </button>
                           ))}
-                        </select>
+                        </div>
                       )}
                     </div>
 
@@ -385,18 +456,11 @@ function ProductGroupCardComponent({
 
                     <div className="space-y-1">
                       <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">RAL / Cor</label>
-                      {specLocked ? (
-                        <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.ral || "-"}</div>
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder="Ex: 7016, Branco..."
-                          className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
-                          value={group.details.ral}
-                          disabled={specLocked}
-                          onChange={(e) => onUpdateGroupDetails(group.id, "ral", e.target.value)}
-                        />
-                      )}
+                      <RalColorField
+                        value={group.details.ral ?? ""}
+                        locked={specLocked}
+                        onChange={(next) => onUpdateGroupDetails(group.id, "ral", next)}
+                      />
                     </div>
                   </>
                 ) : null}
@@ -404,18 +468,11 @@ function ProductGroupCardComponent({
                 {isExteriorParcialInstall(group.details.exteriorInstallType) ? (
                   <div className="space-y-1">
                     <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">RAL / Cor</label>
-                    {specLocked ? (
-                      <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.ral || "-"}</div>
-                    ) : (
-                      <input
-                        type="text"
-                        placeholder="Ex: 7016, Branco..."
-                        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
-                        value={group.details.ral}
-                        disabled={specLocked}
-                        onChange={(e) => onUpdateGroupDetails(group.id, "ral", e.target.value)}
-                      />
-                    )}
+                    <RalColorField
+                      value={group.details.ral ?? ""}
+                      locked={specLocked}
+                      onChange={(next) => onUpdateGroupDetails(group.id, "ral", next)}
+                    />
                   </div>
                 ) : null}
               </>
@@ -611,23 +668,26 @@ function ProductGroupCardComponent({
                       {getActivationLabel(group.details.activation, group.details.otherActivation) || "-"}
                     </div>
                   ) : (
-                    <select
-                      className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
-                      value={group.details.activation}
-                      disabled={specLocked}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        onUpdateGroupDetails(group.id, "activation", value);
-                        if (value !== "OUTRO") {
-                          onUpdateGroupDetails(group.id, "otherActivation", "");
-                        }
-                      }}
-                    >
-                      <option value="">Selecionar...</option>
+                    <div className="grid grid-cols-2 gap-2">
                       {ACTIVATION_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={group.details.activation === opt.value}
+                          className={specOptionBtn(group.details.activation === opt.value)}
+                          onClick={() => {
+                            const value =
+                              group.details.activation === opt.value ? "" : opt.value;
+                            onUpdateGroupDetails(group.id, "activation", value);
+                            if (value !== "OUTRO") {
+                              onUpdateGroupDetails(group.id, "otherActivation", "");
+                            }
+                          }}
+                        >
+                          {opt.label}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   )}
                 </div>
                 {group.details.activation === "OUTRO" ? (
@@ -708,26 +768,30 @@ function ProductGroupCardComponent({
               )}
             </div>
             </div>
-            ) : null}
+          </MeasurementFormSection>
 
-            <div className={focusMeasurements ? "space-y-2" : undefined}>
-              {focusMeasurements ? (
-                <p className="text-xs font-bold text-muted-foreground px-0.5">
-                  3. Janelas
-                </p>
-              ) : null}
-              <MeasurementTable
-                group={group}
-                isAdmin={isAdmin}
-                readOnly={readOnly}
-                showPriceColumn={isAdmin}
-                onUpdateMeasurement={onUpdateMeasurement}
-                onCloneRow={onCloneRow}
-                onAddRow={onAddRow}
-                onRemoveRow={onRemoveRow}
-              />
-            </div>
-          </div>
+          <MeasurementFormSection
+            step={3}
+            enabled={!specLocked}
+            title="Janelas"
+            description="Uma linha por vão: medidas, divisão e extras de cada estore."
+            summary={section3Meta?.summary}
+            statusBadge={section3Meta?.statusBadge}
+            collapsible={focusMeasurements}
+            open={focusMeasurements ? windowsOpen : true}
+            onOpenChange={setWindowsOpen}
+          >
+            <MeasurementTable
+              group={group}
+              isAdmin={isAdmin}
+              readOnly={readOnly}
+              showPriceColumn={isAdmin}
+              onUpdateMeasurement={onUpdateMeasurement}
+              onCloneRow={onCloneRow}
+              onAddRow={onAddRow}
+              onRemoveRow={onRemoveRow}
+            />
+          </MeasurementFormSection>
 
         </div>
       )}

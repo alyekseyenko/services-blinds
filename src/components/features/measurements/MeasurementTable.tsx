@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { ChevronDown, Copy, Trash2, Plus } from "lucide-react";
-import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
+import { useMeasurementsWideLayout } from "@/hooks/useMeasurementsLayout";
 import { ProductGroup, MeasurementRow } from "@/types";
 import { hapticTap } from "@/lib/haptics";
 import { getDivisionLabel } from "@/lib/measurements/divisions";
@@ -9,7 +9,23 @@ import {
   formatMeasurementRowDimensionLabel,
   isMeasurementLineCollapsed,
 } from "@/lib/measurements/measurementRowUi";
-import { isPortaAmerica, lineDimensionMode, type LineDimensionMode } from "@/lib/measurements/lineModes";
+import {
+  isPortaAmerica,
+  lineDimensionHeightLabel,
+  lineDimensionMode,
+  lineDimensionUsesOpeningFields,
+  lineDimensionWidthLabel,
+  type LineDimensionMode,
+} from "@/lib/measurements/lineModes";
+import { getRtsCommandSpecs } from "@/lib/measurements/rtsCommands";
+import { isMeasurementRowComplete } from "@/lib/measurements/completeness";
+import { cn } from "@/lib/cn";
+import { RtsChannelFields } from "./RtsChannelFields";
+import {
+  analyzeRtsChannelUsage,
+  formatRtsCapacityWarningMessage,
+} from "@/lib/measurements/rtsChannelUsage";
+import { getDimensionSanityWarnings } from "@/lib/measurements/dimensionSanity";
 
 const MEASUREMENT_DIM_LABEL =
   "flex items-center justify-between px-1 text-sm font-bold text-foreground";
@@ -43,13 +59,26 @@ function DimField({
   locked,
   placeholder,
   onChange,
+  inputRef,
+  enterKeyHint = "done",
+  onEnterPress,
 }: {
   label: string;
   value: string;
   locked: boolean;
   placeholder: string;
   onChange: (value: string) => void;
+  inputRef?: Ref<HTMLInputElement>;
+  enterKeyHint?: "next" | "done";
+  onEnterPress?: () => void;
 }) {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onEnterPress?.();
+    }
+  };
+
   return (
     <div className="space-y-1">
       <label className={MEASUREMENT_DIM_LABEL}>
@@ -59,76 +88,127 @@ function DimField({
         <div className={MEASUREMENT_DIM_READ}>{value || "-"}</div>
       ) : (
         <input
+          ref={inputRef}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
+          enterKeyHint={enterKeyHint}
           className={MEASUREMENT_DIM_INPUT}
           value={value}
           placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={handleKeyDown}
         />
       )}
     </div>
   );
 }
 
-function ChannelFields({
-  row,
-  locked,
-  onUpdate,
-}: {
-  row: MeasurementRow;
-  locked: boolean;
-  onUpdate: (field: string, value: string) => void;
-}) {
-  const [otherOpen, setOtherOpen] = useState(Boolean(row.storeChannelOther?.trim()));
+function DimensionSanityAlerts({ messages }: { messages: string[] }) {
+  if (messages.length === 0) return null;
   return (
-    <div className="min-w-0 flex-1 space-y-1">
-      <label className="px-1 text-sm font-bold text-muted-foreground">Canal do estore</label>
-      <div className="flex items-center gap-2">
-        {locked ? (
-          <div className="min-h-12 flex-1 rounded-xl border border-border bg-card p-3 text-sm font-black text-foreground">
-            {row.storeChannel || "-"}
-          </div>
-        ) : (
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            className="h-12 w-20 rounded-xl border-2 border-border-strong bg-card px-2 text-center text-sm font-black text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
-            value={row.storeChannel ?? ""}
-            placeholder="Nº"
-            aria-label="Canal do estore"
-            onChange={(e) => onUpdate("storeChannel", e.target.value.replace(/\D/g, ""))}
-          />
-        )}
-        <button
-          type="button"
-          className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase ${
-            otherOpen || row.storeChannelOther?.trim()
-              ? "border-primary bg-primary/15"
-              : "border-border bg-card"
-          }`}
-          onClick={() => setOtherOpen((v) => !v)}
-          disabled={locked && !row.storeChannelOther?.trim()}
+    <div className="space-y-1 px-1" role="status">
+      {messages.map((msg) => (
+        <p
+          key={msg}
+          className="rounded-lg border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-bold leading-snug text-warning-fg"
         >
-          Outros
-        </button>
+          {msg}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function parseRowQty(value: string | number | undefined): number {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function MeasurementQtyStepper({
+  value,
+  locked,
+  onChange,
+}: {
+  value: string | number | undefined;
+  locked: boolean;
+  onChange: (next: string) => void;
+}) {
+  const current = parseRowQty(value);
+  if (locked) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-3 text-sm font-black text-foreground">
+        {value || "-"}
       </div>
-      {otherOpen || row.storeChannelOther?.trim() ? (
-        locked ? (
-          <div className="rounded-xl border border-border bg-card p-3 text-sm font-bold text-foreground">
-            {row.storeChannelOther || "—"}
-          </div>
-        ) : (
-          <input
-            type="text"
-            className="w-full min-h-12 rounded-xl border-2 border-border-strong bg-card p-3 text-sm font-bold text-foreground outline-none focus:border-primary"
-            value={row.storeChannelOther ?? ""}
-            placeholder="Mais informação sobre o canal"
-            onChange={(e) => onUpdate("storeChannelOther", e.target.value)}
-          />
-        )
+    );
+  }
+  const stepBtn =
+    "flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-card text-lg font-black text-foreground active:scale-95";
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        className={stepBtn}
+        aria-label="Diminuir quantidade"
+        onClick={() => onChange(String(Math.max(1, current - 1)))}
+      >
+        −
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        className="ds-num h-12 w-14 rounded-xl border-2 border-border-strong bg-card text-center text-sm font-black text-foreground outline-none focus:border-primary"
+        value={value}
+        aria-label="Quantidade"
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+      />
+      <button
+        type="button"
+        className={stepBtn}
+        aria-label="Aumentar quantidade"
+        onClick={() => onChange(String(Math.min(99, current + 1)))}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function AddMeasurementRowFooter({
+  rowCount,
+  fieldsLocked,
+  onAdd,
+  triggerHaptic,
+  onBeforeAdd,
+}: {
+  rowCount: number;
+  fieldsLocked: boolean;
+  onAdd: () => void;
+  triggerHaptic: (ms?: number) => void;
+  onBeforeAdd?: () => void;
+}) {
+  if (fieldsLocked) return null;
+  return (
+    <div className="mt-4 space-y-2">
+      <button
+        type="button"
+        data-tour="tech-measurements-add-row"
+        onClick={() => {
+          triggerHaptic(40);
+          onBeforeAdd?.();
+          onAdd();
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-border-strong bg-primary px-6 py-3.5 text-xs font-black uppercase tracking-wider text-primary-foreground transition-all hover:bg-primary-hover md:w-auto"
+      >
+        <Plus className="h-4 w-4 stroke-[3] text-foreground" />
+        {rowCount > 0 ? "Adicionar outra na mesma divisão" : "Adicionar janela (linha)"}
+      </button>
+      {rowCount > 0 ? (
+        <p className="px-2 text-center text-xs font-semibold text-muted-foreground">
+          Mantém divisão, fixação e comandos da linha anterior; preencha novas medidas. Recolha
+          janelas concluídas no cabeçalho.
+        </p>
       ) : null}
     </div>
   );
@@ -170,6 +250,9 @@ type MobileRowProps = {
   onCloneRow: MeasurementTableProps["onCloneRow"];
   onRemoveRow: MeasurementTableProps["onRemoveRow"];
   triggerHaptic: (ms?: number) => void;
+  focusHeightOnMount?: boolean;
+  onHeightFocused?: () => void;
+  onRequestFocusRow?: (nextRowIndex: number) => void;
 };
 
 function MobileMeasurementRow({
@@ -187,11 +270,30 @@ function MobileMeasurementRow({
   onCloneRow,
   onRemoveRow,
   triggerHaptic,
+  focusHeightOnMount = false,
+  onHeightFocused,
+  onRequestFocusRow,
 }: MobileRowProps) {
+  const heightInputRef = useRef<HTMLInputElement>(null);
+  const widthInputRef = useRef<HTMLInputElement>(null);
   const collapsed = isMeasurementLineCollapsed(row);
   const [extrasOpen, setExtrasOpen] = useState(() =>
     rowExtrasShouldDefaultOpen(row, showExteriorOpeningDims)
   );
+  const rowComplete = isMeasurementRowComplete(row, dimensionMode);
+  const sanityWarnings = useMemo(
+    () => (fieldsLocked ? [] : getDimensionSanityWarnings(row, dimensionMode)),
+    [fieldsLocked, row, dimensionMode]
+  );
+
+  useEffect(() => {
+    if (!focusHeightOnMount || collapsed || fieldsLocked) return;
+    const id = requestAnimationFrame(() => {
+      heightInputRef.current?.focus();
+      onHeightFocused?.();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [focusHeightOnMount, collapsed, fieldsLocked, onHeightFocused]);
 
   const toggleCollapsed = () => {
     triggerHaptic();
@@ -204,26 +306,25 @@ function MobileMeasurementRow({
   const dimensionLabel = formatMeasurementRowDimensionLabel(row, dimensionMode);
   const setField = (field: string, value: string) =>
     onUpdateMeasurement(group.id, rIdx, field, value);
-  const primaryHeight =
-    dimensionMode === "opening" ? (row.openingHeight ?? "") : row.height;
-  const primaryWidth = dimensionMode === "opening" ? (row.openingWidth ?? "") : row.width;
-  const primaryHeightField = dimensionMode === "opening" ? "openingHeight" : "height";
-  const primaryWidthField = dimensionMode === "opening" ? "openingWidth" : "width";
-  const heightLabel =
-    dimensionMode === "skylight"
-      ? "Altura interior"
-      : dimensionMode === "opening"
-        ? "Altura vão"
-        : "Altura";
-  const widthLabel =
-    dimensionMode === "skylight"
-      ? "Largura interior"
-      : dimensionMode === "opening"
-        ? "Largura vão"
-        : "Largura";
+  const usesOpeningFields = lineDimensionUsesOpeningFields(dimensionMode);
+  const primaryHeight = usesOpeningFields ? (row.openingHeight ?? "") : row.height;
+  const primaryWidth = usesOpeningFields ? (row.openingWidth ?? "") : row.width;
+  const primaryHeightField = usesOpeningFields ? "openingHeight" : "height";
+  const primaryWidthField = usesOpeningFields ? "openingWidth" : "width";
+  const heightLabel = lineDimensionHeightLabel(dimensionMode, "long");
+  const widthLabel = lineDimensionWidthLabel(dimensionMode, "long");
+
+  const divisionLabel = getDivisionLabel(row.divisionCode, row.divisionCustom)?.trim();
 
   return (
-    <div className="relative rounded-2xl border-2 border-border-strong bg-card p-4">
+    <div
+      className={cn(
+        "relative rounded-2xl border-2 p-4 shadow-sm",
+        rowComplete
+          ? "border-success-border bg-success-surface/40"
+          : "border-border-strong bg-card"
+      )}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <button
           type="button"
@@ -236,7 +337,15 @@ function MobileMeasurementRow({
             aria-hidden
           />
           <div className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-foreground">{rowTitle}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="ds-kicker text-primary-ink">Janela {rIdx + 1}</span>
+              <span className={rowComplete ? "ds-chip-success" : "ds-chip-warning"}>
+                {rowComplete ? "Pronta" : "Falta medida"}
+              </span>
+            </div>
+            <span className="mt-0.5 block text-sm font-black text-foreground">
+              {divisionLabel || rowTitle}
+            </span>
             {collapsed ? (
               <>
                 <span className="ds-num mt-1 block text-xl font-black leading-tight text-foreground">
@@ -259,6 +368,7 @@ function MobileMeasurementRow({
                   triggerHaptic();
                   onUpdateMeasurement(group.id, rIdx, "lineCollapsed", "true");
                   onCloneRow(group.id, row);
+                  onRequestFocusRow?.(group.measurements.length);
                 }}
                 className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-muted text-muted-foreground transition-all hover:bg-secondary"
                 aria-label="Duplicar janela"
@@ -288,6 +398,9 @@ function MobileMeasurementRow({
               value={primaryHeight}
               locked={fieldsLocked}
               placeholder="Ex: 1500"
+              inputRef={heightInputRef}
+              enterKeyHint="next"
+              onEnterPress={() => widthInputRef.current?.focus()}
               onChange={(value) => setField(primaryHeightField, value)}
             />
             <DimField
@@ -295,9 +408,13 @@ function MobileMeasurementRow({
               value={primaryWidth}
               locked={fieldsLocked}
               placeholder="Ex: 1200"
+              inputRef={widthInputRef}
+              enterKeyHint="done"
+              onEnterPress={() => widthInputRef.current?.blur()}
               onChange={(value) => setField(primaryWidthField, value)}
             />
           </div>
+          <DimensionSanityAlerts messages={sanityWarnings} />
           {dimensionMode === "opening" &&
           (row.height?.trim() || row.width?.trim()) &&
           (row.height !== row.openingHeight || row.width !== row.openingWidth) ? (
@@ -336,28 +453,25 @@ function MobileMeasurementRow({
           ) : null}
 
           <div className="mb-3 flex flex-wrap items-start gap-3">
-            <div className="w-24 space-y-1">
+            <div className="space-y-1">
               <label className="px-1 text-sm font-bold text-muted-foreground">
                 Qtd
               </label>
-              {fieldsLocked ? (
-                <div className="rounded-xl border border-border bg-card p-3 text-sm font-black text-foreground">
-                  {row.qty || "-"}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className="w-full rounded-xl border-2 border-border-strong bg-card p-3 text-sm font-black text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/25"
-                  value={row.qty}
-                  disabled={fieldsLocked}
-                  onChange={(e) => onUpdateMeasurement(group.id, rIdx, "qty", e.target.value)}
-                />
-              )}
+              <MeasurementQtyStepper
+                value={row.qty}
+                locked={fieldsLocked}
+                onChange={(next) => onUpdateMeasurement(group.id, rIdx, "qty", next)}
+              />
             </div>
             {showChannel ? (
-              <ChannelFields row={row} locked={fieldsLocked} onUpdate={setField} />
+              <RtsChannelFields
+                row={row}
+                rowIndex={rIdx}
+                allRows={group.measurements}
+                specs={getRtsCommandSpecs(group.details)}
+                locked={fieldsLocked}
+                onUpdate={setField}
+              />
             ) : null}
             {showPriceColumn ? (
               <div className="min-w-[8rem] flex-1 space-y-1">
@@ -507,10 +621,12 @@ export function MeasurementTable({
   onAddRow,
   onRemoveRow,
 }: MeasurementTableProps) {
-  const isDesktop = useMediaMinWidth(768);
+  const useWideTable = useMeasurementsWideLayout();
+  const [focusRowIndex, setFocusRowIndex] = useState<number | null>(null);
   const fieldsLocked = isAdmin || readOnly;
   const dimensionMode = lineDimensionMode(group.type, group.details);
   const showChannel = group.details.activation === "MOTOR_RTS";
+  const rtsSpecs = getRtsCommandSpecs(group.details);
   const portaAmerica = isPortaAmerica(group.type, group.details.model);
   const hardwareHasValues = group.measurements.some(
     (row) =>
@@ -518,28 +634,47 @@ export function MeasurementTable({
       Boolean(row.controlsCodes?.trim() || row.controlsCustom?.trim() || row.controls?.trim())
   );
   const showHardware = !portaAmerica || hardwareHasValues;
-  const showLegacyOpening = dimensionMode !== "opening";
+  const usesOpeningFields = lineDimensionUsesOpeningFields(dimensionMode);
+  const showLegacyOpening = !usesOpeningFields;
   const showLegacyOpeningCols =
-    dimensionMode !== "opening" &&
+    !usesOpeningFields &&
     dimensionMode !== "skylight" &&
     group.measurements.some((row) => row.openingWidth?.trim() || row.openingHeight?.trim());
-  const heightLabel =
-    dimensionMode === "skylight" ? "Alt. int." : dimensionMode === "opening" ? "Alt. vão" : "Alt (mm)";
-  const widthLabel =
-    dimensionMode === "skylight" ? "Larg. int." : dimensionMode === "opening" ? "Larg. vão" : "Larg (mm)";
+  const heightLabel = lineDimensionHeightLabel(dimensionMode, "short");
+  const widthLabel = lineDimensionWidthLabel(dimensionMode, "short");
   const triggerHaptic = (ms = 20) => {
     hapticTap(ms);
   };
 
-  if (isDesktop) {
-  return (
+  const rtsUsage = useMemo(
+    () => (showChannel ? analyzeRtsChannelUsage(rtsSpecs, group.measurements) : null),
+    [showChannel, rtsSpecs, group.measurements]
+  );
+  const rtsCapacityWarning =
+    showChannel && rtsUsage
+      ? formatRtsCapacityWarningMessage(rtsSpecs, rtsUsage)
+      : null;
+
+  const rtsCapacityBanner = rtsCapacityWarning ? (
+    <p
+      className="mb-4 rounded-xl border border-warning-border bg-warning-surface px-3 py-2.5 text-xs font-bold leading-snug text-warning-fg"
+      role="status"
+    >
+      {rtsCapacityWarning}
+    </p>
+  ) : null;
+
+  if (useWideTable) {
+    return (
+    <>
+      {rtsCapacityBanner}
       <div className="overflow-x-auto print:overflow-visible">
-        <table className="w-full min-w-[500px] border-separate border-spacing-y-2 print:border-collapse print:border-spacing-0">
+        <table className="w-full min-w-[720px] border-separate border-spacing-y-2 print:border-collapse print:border-spacing-0">
           <thead>
             <tr className="text-left print:bg-muted">
               <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Qtd</th>
               {showChannel ? (
-                <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Canal</th>
+                <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">Comando / canal</th>
               ) : null}
               <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">{heightLabel}</th>
               <th className="pb-3 text-xs font-black text-foreground uppercase tracking-wider px-2 print:border print:p-2 print:text-foreground">{widthLabel}</th>
@@ -588,38 +723,22 @@ export function MeasurementTable({
                   )}
                 </td>
                 {showChannel ? (
-                  <td className="py-1 px-1 min-w-[8rem]">
-                    <div className="flex flex-col gap-1">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        className="h-12 w-16 rounded-xl border-2 border-border-strong bg-card px-2 text-center text-sm font-black outline-none focus:border-primary"
-                        value={row.storeChannel ?? ""}
-                        placeholder="Nº"
-                        aria-label="Canal do estore"
-                        disabled={fieldsLocked}
-                        onChange={(e) =>
-                          onUpdateMeasurement(group.id, rIdx, "storeChannel", e.target.value.replace(/\D/g, ""))
-                        }
-                      />
-                      <input
-                        type="text"
-                        className="h-10 w-full rounded-xl border-2 border-border bg-card px-2 text-xs font-bold outline-none focus:border-primary"
-                        value={row.storeChannelOther ?? ""}
-                        placeholder="Outros"
-                        aria-label="Outros sobre o canal"
-                        disabled={fieldsLocked}
-                        onChange={(e) =>
-                          onUpdateMeasurement(group.id, rIdx, "storeChannelOther", e.target.value)
-                        }
-                      />
-                    </div>
+                  <td className="py-1 px-1 min-w-[9rem]">
+                    <RtsChannelFields
+                      compact
+                      row={row}
+                      rowIndex={rIdx}
+                      allRows={group.measurements}
+                      specs={rtsSpecs}
+                      locked={fieldsLocked}
+                      onUpdate={(field, value) => onUpdateMeasurement(group.id, rIdx, field, value)}
+                    />
                   </td>
                 ) : null}
                 <td className="py-1 px-1 print:border print:p-2">
                   {fieldsLocked ? (
                     <div className="text-sm font-black text-foreground text-center">
-                      {(dimensionMode === "opening" ? row.openingHeight : row.height) || "-"}
+                      {(usesOpeningFields ? row.openingHeight : row.height) || "-"}
                     </div>
                   ) : (
                     <input
@@ -627,13 +746,13 @@ export function MeasurementTable({
                       inputMode="numeric"
                       pattern="[0-9]*"
                       className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
-                      value={dimensionMode === "opening" ? (row.openingHeight ?? "") : row.height}
+                      value={usesOpeningFields ? (row.openingHeight ?? "") : row.height}
                       placeholder="Ex: 1500"
                       onChange={(e) =>
                         onUpdateMeasurement(
                           group.id,
                           rIdx,
-                          dimensionMode === "opening" ? "openingHeight" : "height",
+                          usesOpeningFields ? "openingHeight" : "height",
                           e.target.value
                         )
                       }
@@ -643,7 +762,7 @@ export function MeasurementTable({
                 <td className="py-1 px-1 print:border print:p-2">
                   {fieldsLocked ? (
                     <div className="text-sm font-black text-foreground text-center">
-                      {(dimensionMode === "opening" ? row.openingWidth : row.width) || "-"}
+                      {(usesOpeningFields ? row.openingWidth : row.width) || "-"}
                     </div>
                   ) : (
                     <input
@@ -651,13 +770,13 @@ export function MeasurementTable({
                       inputMode="numeric"
                       pattern="[0-9]*"
                       className="w-full h-12 bg-card border-2 border-border-strong rounded-xl px-2.5 text-base font-black text-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none transition-all"
-                      value={dimensionMode === "opening" ? (row.openingWidth ?? "") : row.width}
+                      value={usesOpeningFields ? (row.openingWidth ?? "") : row.width}
                       placeholder="Ex: 1200"
                       onChange={(e) =>
                         onUpdateMeasurement(
                           group.id,
                           rIdx,
-                          dimensionMode === "opening" ? "openingWidth" : "width",
+                          usesOpeningFields ? "openingWidth" : "width",
                           e.target.value
                         )
                       }
@@ -807,12 +926,21 @@ export function MeasurementTable({
           </tbody>
         </table>
       </div>
+      <AddMeasurementRowFooter
+        rowCount={group.measurements.length}
+        fieldsLocked={fieldsLocked}
+        onBeforeAdd={() => setFocusRowIndex(group.measurements.length)}
+        onAdd={() => onAddRow(group.id)}
+        triggerHaptic={triggerHaptic}
+      />
+    </>
     );
   }
 
   return (
     <>
-      <div className="space-y-4 print:hidden">
+      {rtsCapacityBanner}
+      <div className="mx-auto w-full max-w-3xl space-y-4 print:hidden md:max-w-4xl">
         {group.measurements.map((row, rIdx) => (
           <MobileMeasurementRow
             key={rIdx}
@@ -830,34 +958,20 @@ export function MeasurementTable({
             onCloneRow={onCloneRow}
             onRemoveRow={onRemoveRow}
             triggerHaptic={triggerHaptic}
+            focusHeightOnMount={focusRowIndex === rIdx}
+            onHeightFocused={() => setFocusRowIndex(null)}
+            onRequestFocusRow={(next) => setFocusRowIndex(next)}
           />
         ))}
       </div>
 
-      {!fieldsLocked && (
-        <div className="mt-6 space-y-2">
-          <button
-            type="button"
-            data-tour="tech-measurements-add-row"
-            onClick={() => {
-              triggerHaptic(40);
-              onAddRow(group.id);
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-border-strong bg-primary px-6 py-3.5 text-xs font-black uppercase tracking-wider text-primary-foreground transition-all hover:bg-primary-hover md:w-auto"
-          >
-            <Plus className="h-4 w-4 stroke-[3] text-foreground" />
-            {group.measurements.length > 0
-              ? "Adicionar outra na mesma divisão"
-              : "Adicionar janela (linha)"}
-          </button>
-          {group.measurements.length > 0 ? (
-            <p className="px-2 text-center text-xs font-semibold text-muted-foreground">
-              Mantém divisão, fixação e comandos da linha anterior; preencha novas medidas. Recolha
-              janelas concluídas no cabeçalho.
-            </p>
-          ) : null}
-        </div>
-      )}
+      <AddMeasurementRowFooter
+        rowCount={group.measurements.length}
+        fieldsLocked={fieldsLocked}
+        onBeforeAdd={() => setFocusRowIndex(group.measurements.length)}
+        onAdd={() => onAddRow(group.id)}
+        triggerHaptic={triggerHaptic}
+      />
     </>
   );
 }

@@ -5,6 +5,7 @@ import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { MapInfoWindowShell } from "@/components/map/MapInfoWindowShell";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import { resolveTaskOverdue } from "@/lib/taskUtils";
+import { isTaskActive, isTaskInProgress } from "@/lib/crm/contract";
 
 export interface TaskMapOpportunity {
   id?: string;
@@ -29,11 +30,14 @@ interface TaskMapInfoWindowProps {
 export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWindowProps) {
   const serviceType = resolveServiceType(task);
   const typeColors = getServiceTypeColor(serviceType || "GERAL");
+  const status = task.status ?? task.taskStatus;
   const isLate = resolveTaskOverdue({
-    status: task.status ?? task.taskStatus,
+    status,
     dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
     dueAt: task.scheduledAt ?? task.dueDate ?? undefined,
   });
+  const needsArrival =
+    isTaskActive(status) && !isTaskInProgress(status);
 
   const when = task.scheduledAt || task.dueDate;
   const timeLabel =
@@ -81,6 +85,12 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWin
           {task.address}
         </p>
       )}
+
+      {needsArrival ? (
+        <p className="mt-2 rounded-lg border-2 border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-semibold leading-snug text-warning-fg">
+          Abra a visita e toque em «Cheguei ao local» na morada.
+        </p>
+      ) : null}
 
       <div className="mt-3 grid grid-cols-1 gap-2">
         <button

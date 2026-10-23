@@ -5,6 +5,7 @@ import { E2ESuiteDepthSchema } from '@/lib/observability/e2eTypes';
 import { getLuxuryJob } from '@/lib/observability/luxury/luxuryJobStore';
 import { startLuxuryWorkflowJob } from '@/lib/observability/luxury/startLuxuryWorkflowJob';
 import { runAndPersistObservabilitySuite } from '@/lib/server/observabilityHistory';
+import { seedMapTrainingOpportunitiesInCrm } from '@/lib/demo/seedMapTrainingCrm';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +41,19 @@ export async function POST(request: NextRequest) {
         success: true,
         mode: 'E2E_FULL_SUITE',
         report,
+      });
+    }
+
+    if (mode === 'SEED_MAP_TRAINING_OPPORTUNITIES') {
+      const result = await seedMapTrainingOpportunitiesInCrm();
+      if (result.error) {
+        return NextResponse.json({ success: false, mode, ...result }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        mode,
+        message: `Criados ${result.created.length} serviços no mapa; ${result.skipped.length} já existiam.`,
+        ...result,
       });
     }
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
-import { COMPANY_LABEL } from "@/lib/branding";
+import { measurementExportByline } from "@/lib/measurementsExport/exportByline";
 import {
   chunkMeasurementGroupDetailEntries,
   getMeasurementGroupDetailEntries,
@@ -9,23 +9,34 @@ import {
   measurementLineColumnPlan,
   measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
+import { formatMeasurementPdfPageLabel } from "@/lib/measurementsExport/pdfPageFooter";
 
 const styles = StyleSheet.create({
   page: {
     padding: 32,
+    paddingBottom: 52,
     fontSize: 9,
     fontFamily: "Helvetica",
+  },
+  pageFooter: {
+    position: "absolute",
+    bottom: 18,
+    left: 32,
+    right: 32,
+    fontSize: 8,
+    textAlign: "center",
+    color: "#555",
   },
   title: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 10,
-    color: "#444",
+  byline: {
+    fontSize: 11,
+    color: "#333",
     marginBottom: 16,
-    textTransform: "uppercase",
+    fontWeight: "bold",
   },
   metaRow: {
     flexDirection: "row",
@@ -157,12 +168,13 @@ export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
     (acc, g) => acc + g.rows.reduce((s, r) => s + r.qty, 0),
     0
   );
+  const exportByline = measurementExportByline(sheet.technicianName);
 
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={styles.page} wrap>
         <Text style={styles.title}>Ficha Técnica de Medição</Text>
-        <Text style={styles.subtitle}>{COMPANY_LABEL}</Text>
+        {exportByline ? <Text style={styles.byline}>{exportByline}</Text> : null}
 
         <View style={styles.metaRow}>
           <Text style={styles.metaLabel}>Cliente</Text>
@@ -219,6 +231,14 @@ export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
         })}
 
         <Text style={styles.footer}>Total unidades: {totalUnits}</Text>
+
+        <Text
+          style={styles.pageFooter}
+          fixed
+          render={({ pageNumber, totalPages }) =>
+            formatMeasurementPdfPageLabel(pageNumber, totalPages)
+          }
+        />
       </Page>
     </Document>
   );

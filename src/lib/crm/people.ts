@@ -161,17 +161,13 @@ export async function createPersonForAdmin(
     }
   }
 
-  const nifValue = input.nif.trim();
-  if (!/^\d{9}$/.test(nifValue)) {
-    throw new Error("NIF inválido.");
-  }
+  const nifValue = input.nif?.trim() ?? "";
 
   const createData: Record<string, unknown> = {
     name: {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || "",
     },
-    [CRM_FIELDS.person.nif]: nifValue,
     [CRM_FIELDS.person.morada]: buildPersonMoradaPayload(input.morada),
     [CRM_FIELDS.person.clientType]: [input.clientType],
     phones: {
@@ -180,6 +176,12 @@ export async function createPersonForAdmin(
       primaryPhoneNumber: national,
     },
   };
+  if (nifValue) {
+    if (!/^\d{9}$/.test(nifValue)) {
+      throw new Error("NIF inválido.");
+    }
+    createData[CRM_FIELDS.person.nif] = nifValue;
+  }
   if (email) {
     createData.emails = { primaryEmail: email };
   }

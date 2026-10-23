@@ -16,6 +16,10 @@ export const MeasurementGroupExtrasSchema = z.object({
     .optional(),
   rtsCommandMode: z.enum(["UM_CANAL", "VARIOS_CANAIS"]).optional(),
   rtsChannelCount: z.string().optional(),
+  /** Quantidade de comandos RTS (1–100). */
+  rtsCommandCount: z.string().optional(),
+  /** Canais por comando, CSV: "1" um canal, "V" vários por indicar, N vários com N canais. */
+  rtsCommandChannels: z.string().optional(),
   rtsMotorBrand: z.enum(["SOMFY", "GAVIOTA", "OUTRO"]).optional(),
   otherRtsMotorBrand: z.string().optional(),
   mosquitoOpening: z.string().optional(),
@@ -24,7 +28,7 @@ export const MeasurementGroupExtrasSchema = z.object({
   partialPartCustom: z.string().optional(),
   /** Título livre no cartão: «Estore Exterior — …». */
   customName: z.string().optional(),
-  /** Pergunta no início da ficha: SIM ou OUTROS. */
+  /** Pergunta no início da ficha: SIM ou NAO (OUTROS em fichas antigas). */
   remeasureNeeded: z.string().optional(),
   remeasureNote: z.string().optional(),
   /** Parcial + esteiras: VAO ou ESTEIRA. */
@@ -52,9 +56,11 @@ export const MeasurementLineExtrasSchema = z.object({
   skylightExteriorHeight: z.string().optional(),
   /** Profundidade partilhada (skylight), mm. */
   depth: z.string().optional(),
+  /** Comando RTS do estore (1-based, entre os comandos do produto). */
+  storeCommand: z.string().optional(),
   /** Canal do estore (Motor RTS), número. */
   storeChannel: z.string().optional(),
-  /** Texto livre do canal quando escolhem Outros. */
+  /** Legado: texto livre do canal («Outros»). */
   storeChannelOther: z.string().optional(),
 });
 
@@ -116,9 +122,18 @@ export function formatMosquitoOpeningDisplay(raw?: string): string {
     .join(" · ");
 }
 
-export function formatStoreChannelDisplay(channel?: string, other?: string): string {
+export function formatStoreChannelDisplay(
+  channel?: string,
+  other?: string,
+  command?: string
+): string {
   const number = channel?.trim() ?? "";
   const note = other?.trim() ?? "";
+  const cmd = command?.trim() ?? "";
+  if (cmd) {
+    const base = number ? `Comando ${cmd} · Canal ${number}` : `Comando ${cmd}`;
+    return note ? `${base} · Outros: ${note}` : base;
+  }
   if (number && note) return `${number} · Outros: ${note}`;
   if (note) return `Outros: ${note}`;
   return number;

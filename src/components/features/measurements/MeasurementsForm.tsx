@@ -1,6 +1,6 @@
 "use client";
 
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import { Plus, Ruler, Zap, Loader2 } from "lucide-react";
 
@@ -8,10 +8,13 @@ import { Task } from "@/types";
 import type { MeasurementsPayload } from "@/lib/schemas";
 import { productGroupsToMeasurementsPayload } from "@/lib/measurementsUtils";
 import { summarizeMeasurementsFormProgress } from "@/lib/measurementCompleteness";
+import { canAutoSubmitMeasurementsDraft } from "@/lib/measurements/draftStatus";
+import { formatRemeasureAnswer } from "@/lib/measurements/labels";
 
 import { useMeasurements } from "@/hooks/useMeasurements";
 
 import { ProductGroupCard } from "./ProductGroupCard";
+import type { MeasurementsFocusedStatus } from "./MeasurementsFocusStatusBar";
 
 
 
@@ -26,13 +29,11 @@ import { isTransientSyncError } from "@/lib/sync/syncQueuePolicy";
 
 
 export type MeasurementsFormHandle = {
-
   save: () => Promise<void>;
-
   isSaving: boolean;
-
   addGroup: () => void;
-
+  hasUnsavedChanges: boolean;
+  canAutoSubmitDraft: () => boolean;
 };
 
 
@@ -61,6 +62,11 @@ interface MeasurementsFormProps {
   /** Esconde cabeçalhos do formulário (modo ecrã inteiro no drawer). */
 
   focusedLayout?: boolean;
+
+  onDirtyChange?: (dirty: boolean) => void;
+
+  /** Modo ecrã inteiro: estado agrupado no cabeçalho do drawer (em vez de linhas soltas no formulário). */
+  onFocusedStatusChange?: (status: MeasurementsFocusedStatus) => void;
 
 }
 
@@ -146,6 +152,10 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       focusedLayout = false,
 
+      onDirtyChange,
+
+      onFocusedStatusChange,
+
     },
 
     ref
@@ -190,9 +200,13 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       setLastLocalSave,
 
+      isDirty,
+
     } = useMeasurements(task, opportunityId);
 
-
+    useEffect(() => {
+      onDirtyChange?.(isDirty);
+    }, [isDirty, onDirtyChange]);
 
     const handleSave = useCallback(async () => {
 
@@ -294,9 +308,13 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
         addGroup,
 
+        hasUnsavedChanges: isDirty,
+
+        canAutoSubmitDraft: () => canAutoSubmitMeasurementsDraft(productGroups, isDirty),
+
       }),
 
-      [handleSave, loading, addGroup]
+      [handleSave, loading, addGroup, isDirty, productGroups]
 
     );
 
@@ -324,7 +342,23 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
       return [products, windows, incomplete].filter(Boolean).join(" · ");
     }, [formProgress]);
 
+    const focusedStatus = useMemo((): MeasurementsFocusedStatus => {
+      let draftLabel: string | null = null;
+      let draftTone: "success" | "warning" | null = null;
+      if (lastLocalSave) {
+        draftLabel = `Rascunho · ${lastLocalSave}`;
+        draftTone = "success";
+      } else if (hasDraft) {
+        draftLabel = "Rascunho ativo";
+        draftTone = "warning";
+      }
+      return { progressSummary, draftLabel, draftTone };
+    }, [progressSummary, lastLocalSave, hasDraft]);
 
+    useEffect(() => {
+      if (!focusedLayout || isAdmin || !onFocusedStatusChange) return;
+      onFocusedStatusChange(focusedStatus);
+    }, [focusedLayout, isAdmin, onFocusedStatusChange, focusedStatus]);
 
     const showInlineSave = !isAdmin && onSave && saveBarMode === "inline";
 
@@ -336,11 +370,11 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
         data-tour="tech-measurements-form"
 
-        className={`${focusedLayout ? "space-y-3" : "space-y-4 md:space-y-6"} animate-in fade-in duration-500 ${saveBarMode === "external" ? "pb-2" : "pb-4"}`}
+        className={`${focusedLayout ? "space-y-3" : "space-y-4 lg:space-y-6"} mx-auto w-full max-w-6xl animate-in fade-in duration-500 ${saveBarMode === "external" ? "pb-2" : "pb-4"}`}
 
       >
 
-        {focusedLayout && !isAdmin ? (
+        {focusedLayout && !isAdmin && !onFocusedStatusChange ? (
           <p
             className="text-center text-xs font-bold text-muted-foreground"
             data-tour="tech-measurements-progress"
@@ -349,26 +383,16 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
           </p>
         ) : null}
 
-        {focusedLayout && !isAdmin && (lastLocalSave || hasDraft) ? (
-
+        {focusedLayout && !isAdmin && !onFocusedStatusChange && (lastLocalSave || hasDraft) ? (
           <p className="text-center text-xs font-bold text-muted-foreground">
-
             {lastLocalSave ? (
-
               <span className="text-success-fg">Rascunho guardado às {lastLocalSave}</span>
-
             ) : (
-
               <span data-tour="tech-measurements-draft-status" className="text-warning-solid">
-
                 Rascunho ativo no telemóvel
-
               </span>
-
             )}
-
           </p>
-
         ) : null}
 
 
@@ -377,7 +401,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
           <div
 
-            className="flex items-center justify-between gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2.5 shadow-sm md:hidden"
+            className="flex items-center justify-between gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2.5 shadow-sm lg:hidden"
 
           >
 
@@ -455,7 +479,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
           className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-muted border-2 border-border rounded-3xl ${
 
-            focusedLayout ? "hidden" : !isAdmin ? "hidden md:flex" : ""
+            focusedLayout ? "hidden" : !isAdmin ? "hidden lg:flex" : ""
 
           }`}
 
@@ -549,7 +573,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
                 onClick={addGroup}
 
-                className="hidden md:flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-3 bg-ink hover:bg-ink/90 text-ink-foreground rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 min-h-12"
+                className="hidden lg:flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-3 bg-ink hover:bg-ink/90 text-ink-foreground rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 min-h-12"
 
               >
 
@@ -575,13 +599,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
               <p className="text-sm font-black text-foreground">Retificação de medidas</p>
               {locked ? (
                 <p className="text-sm font-bold text-foreground">
-                  {needed === "SIM"
-                    ? "Sim"
-                    : needed === "OUTROS"
-                      ? note.trim()
-                        ? `Outros: ${note.trim()}`
-                        : "Outros"
-                      : "—"}
+                  {formatRemeasureAnswer(needed, note) || "—"}
                 </p>
               ) : (
                 <>
@@ -589,15 +607,14 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
                     {(
                       [
                         { value: "SIM", label: "Sim" },
-                        { value: "OUTROS", label: "Outros" },
+                        { value: "NAO", label: "Não" },
                       ] as const
                     ).map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
-                        onClick={() =>
-                          setRemeasure(needed === opt.value ? "" : opt.value, needed === opt.value ? "" : note)
-                        }
+                        aria-pressed={needed === opt.value}
+                        onClick={() => setRemeasure(needed === opt.value ? "" : opt.value)}
                         className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase ${
                           needed === opt.value
                             ? "border-primary bg-primary/15 text-foreground"
@@ -609,13 +626,9 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
                     ))}
                   </div>
                   {needed === "OUTROS" ? (
-                    <input
-                      type="text"
-                      className="w-full min-h-12 rounded-xl border-2 border-border bg-card p-3 text-sm font-bold text-foreground outline-none focus:border-info-solid"
-                      value={note}
-                      placeholder="Indique o que é preciso…"
-                      onChange={(e) => setRemeasure("OUTROS", e.target.value)}
-                    />
+                    <p className="px-1 text-xs font-bold text-muted-foreground">
+                      Resposta anterior: {formatRemeasureAnswer(needed, note)}. Escolha Sim ou Não.
+                    </p>
                   ) : null}
                 </>
               )}
@@ -662,6 +675,18 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
             />
 
           ))}
+
+          {!isAdmin && !readOnly ? (
+            <button
+              type="button"
+              data-tour="tech-measurements-add-product-bottom"
+              onClick={addGroup}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-strong bg-card px-4 py-3 text-xs font-black uppercase tracking-wider text-foreground transition-all hover:border-primary hover:bg-muted active:scale-[0.99]"
+            >
+              <Plus className="h-4 w-4 text-primary" aria-hidden />
+              Adicionar outro produto nesta obra
+            </button>
+          ) : null}
 
         </div>
 

@@ -134,14 +134,14 @@ export default function Login() {
           <p className="ds-title mt-3 text-sm tracking-[0.15em] text-muted-foreground">{APP_NAME}</p>
         </div>
         <div className="rounded-2xl border-2 border-border-strong bg-card p-6 sm:p-8">
-          <div className="mb-6 flex flex-col items-center text-center">
-            <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl border-2 border-border-strong bg-ink">
+          <div className="mb-5 flex justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-ink">
               <Image
                 src={APP_LOGO_PATH}
                 alt=""
-                width={72}
-                height={72}
-                className="h-14 w-14 object-contain"
+                width={40}
+                height={40}
+                className="h-9 w-9 object-contain"
                 priority
               />
             </div>

@@ -15,8 +15,8 @@ import {
   formatMosquitoOpeningDisplay,
   formatStoreChannelDisplay,
 } from "@/lib/measurements/extendedFields";
-import { formatEsteiraMeasureTarget } from "@/lib/measurements/exteriorInstall";
 import { formatRemeasureAnswer } from "@/lib/measurements/labels";
+import { formatRtsCommandsSummary } from "@/lib/measurements/rtsCommands";
 import { storedWidthHeightMm } from "@/lib/measurements/lineModes";
 import {
   COMPACT_PLACEMENT_OPTIONS,
@@ -49,6 +49,8 @@ type GroupDetails = {
   manualType?: string;
   rtsCommandMode?: string;
   rtsChannelCount?: string;
+  rtsCommandCount?: string;
+  rtsCommandChannels?: string;
   rtsMotorBrand?: string;
   otherRtsMotorBrand?: string;
   mosquitoOpening?: string;
@@ -85,8 +87,6 @@ function buildGroupExtraLocationBits(productType: string, details: GroupDetails)
   if (productType === "ESTORE_EXTERIOR" && details.exteriorInstallType?.trim()) {
     bits.push(`Montagem: ${getExteriorInstallTypeLabel(details.exteriorInstallType)}`);
   }
-  const esteira = formatEsteiraMeasureTarget(details.esteiraMeasureTarget);
-  if (esteira) bits.push(esteira);
   if (
     productType === "ESTORE_EXTERIOR" &&
     isExteriorParcialInstall(details.exteriorInstallType)
@@ -122,10 +122,15 @@ function buildGroupExtraLocationBits(productType: string, details: GroupDetails)
     bits.push(`Manual: ${labelFromOptions(details.manualType, MANUAL_TYPE_OPTIONS) ?? details.manualType}`);
   }
   if (details.activation === "MOTOR_RTS") {
-    const mode = labelFromOptions(details.rtsCommandMode, RTS_COMMAND_MODE_OPTIONS);
-    if (mode) bits.push(`RTS: ${mode}`);
-    if (details.rtsCommandMode === "VARIOS_CANAIS" && details.rtsChannelCount?.trim()) {
-      bits.push(`Canais: ${details.rtsChannelCount.trim()}`);
+    if (details.rtsCommandCount?.trim()) {
+      const summary = formatRtsCommandsSummary(details);
+      if (summary) bits.push(`RTS: ${summary}`);
+    } else {
+      const mode = labelFromOptions(details.rtsCommandMode, RTS_COMMAND_MODE_OPTIONS);
+      if (mode) bits.push(`RTS: ${mode}`);
+      if (details.rtsCommandMode === "VARIOS_CANAIS" && details.rtsChannelCount?.trim()) {
+        bits.push(`Canais: ${details.rtsChannelCount.trim()}`);
+      }
     }
     const brand = labelFromOptions(details.rtsMotorBrand, RTS_MOTOR_BRAND_OPTIONS);
     if (brand) {
@@ -153,6 +158,7 @@ type MeasurementRow = {
   skylightExteriorWidth?: string;
   skylightExteriorHeight?: string;
   depth?: string;
+  storeCommand?: string;
   storeChannel?: string;
   storeChannelOther?: string;
 };
@@ -187,7 +193,11 @@ function buildLegacyLocation(
     row.width,
     row.height
   );
-  const channel = formatStoreChannelDisplay(row.storeChannel, row.storeChannelOther);
+  const channel = formatStoreChannelDisplay(
+    row.storeChannel,
+    row.storeChannelOther,
+    row.storeCommand
+  );
   const exteriorBits = [
     row.skylightExteriorHeight || row.skylightExteriorWidth
       ? `Ext. ${row.skylightExteriorHeight || "—"}×${row.skylightExteriorWidth || "—"} mm`

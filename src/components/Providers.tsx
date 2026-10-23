@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import type { AppColorTheme } from "@/lib/theme/colorTheme";
 import HapticGestureBridge from "@/components/HapticGestureBridge";
 import RouteNavigationOverlay from "@/components/ui/RouteNavigationOverlay";
+import AppLaunchSplash from "@/components/AppLaunchSplash";
 
 type ProvidersProps = {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ export default function Providers({ children, initialTheme = "light" }: Provider
           <ConfirmProvider>
             <HapticGestureBridge />
             <RouteNavigationOverlay />
+            <AppLaunchSplash />
             {children}
           </ConfirmProvider>
         </ToastProvider>

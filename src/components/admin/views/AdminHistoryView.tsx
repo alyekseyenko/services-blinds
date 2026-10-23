@@ -56,39 +56,39 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
       className="h-full flex flex-col bg-muted overflow-hidden animate-in fade-in duration-500"
       data-tour="admin-history"
     >
-      <div className="shrink-0 flex flex-col gap-3 border-b border-border bg-card p-4 md:flex-row md:items-center md:justify-between lg:gap-4 lg:p-5">
+      <div className="shrink-0 flex flex-col gap-3 border-b border-border bg-card p-3 md:flex-row md:items-center md:justify-between md:p-4 lg:gap-4 lg:p-5">
         <div className="min-w-0">
-          <h2 className="ds-title text-xl tracking-tighter text-foreground lg:text-2xl">
+          <h2 className="ds-title text-lg tracking-tighter text-foreground md:text-xl lg:text-2xl">
             Histórico de Intervenções
           </h2>
-          <p className="mt-0.5 text-xs font-black uppercase tracking-[0.15em] text-muted-foreground lg:text-xs lg:tracking-[0.2em]">
-            Registo Geral de Serviços Concluídos, Cancelados e Incompletos
+          <p className="mt-0.5 text-xs font-semibold text-muted-foreground md:font-black md:uppercase md:tracking-[0.15em] lg:tracking-[0.2em]">
+            Concluídos, cancelados e incompletos
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 lg:gap-3">
-          <div className="px-4 py-2 bg-success-surface rounded-2xl border border-success-border flex items-center gap-2.5">
-            <div className="w-2 h-2 bg-success-solid rounded-full animate-pulse" />
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:gap-3">
+          <div className="flex min-h-10 items-center gap-2 rounded-xl border border-success-border bg-success-surface px-3 py-1.5 sm:rounded-2xl sm:px-4 sm:py-2">
+            <div className="h-2 w-2 shrink-0 rounded-full bg-success-solid animate-pulse" />
             <span className="text-xs font-black uppercase text-success-fg">
-              {historyData?.summary.completed ?? 0} Concluídos
+              {historyData?.summary.completed ?? 0} OK
             </span>
           </div>
-          <div className="px-4 py-2 bg-warning-surface rounded-2xl border border-warning-border flex items-center gap-2.5">
-            <div className="w-2 h-2 bg-warning-solid rounded-full" />
+          <div className="flex min-h-10 items-center gap-2 rounded-xl border border-warning-border bg-warning-surface px-3 py-1.5 sm:rounded-2xl sm:px-4 sm:py-2">
+            <div className="h-2 w-2 shrink-0 rounded-full bg-warning-solid" />
             <span className="text-xs font-black uppercase text-warning-solid">
-              {historyData?.summary.incomplete ?? 0} Incompletos
+              {historyData?.summary.incomplete ?? 0} Inc.
             </span>
           </div>
-          <div className="px-4 py-2 bg-danger-surface rounded-2xl border border-danger-border flex items-center gap-2.5">
-            <div className="w-2 h-2 bg-danger-solid rounded-full" />
+          <div className="flex min-h-10 items-center gap-2 rounded-xl border border-danger-border bg-danger-surface px-3 py-1.5 sm:rounded-2xl sm:px-4 sm:py-2">
+            <div className="h-2 w-2 shrink-0 rounded-full bg-danger-solid" />
             <span className="text-xs font-black uppercase text-danger-fg">
-              {historyData?.summary.cancelled ?? 0} Cancelados
+              {historyData?.summary.cancelled ?? 0} Canc.
             </span>
           </div>
           {(historyData?.summary.onSiteDurationSampleCount ?? 0) > 0 ? (
-            <div className="px-4 py-2 bg-info-surface rounded-2xl border border-info-border flex items-center gap-2.5">
-              <Clock className="h-3.5 w-3.5 text-info-solid" aria-hidden />
-              <span className="text-xs font-black uppercase text-info-fg">
-                Média no local: {historyData?.summary.onSiteDurationFormattedAvg}
+            <div className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-info-border bg-info-surface px-3 py-1.5 sm:col-span-1 sm:rounded-2xl sm:px-4 sm:py-2">
+              <Clock className="h-3.5 w-3.5 shrink-0 text-info-solid" aria-hidden />
+              <span className="truncate text-xs font-black uppercase text-info-fg">
+                Média: {historyData?.summary.onSiteDurationFormattedAvg}
               </span>
             </div>
           ) : null}
@@ -195,7 +195,7 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
                 type="button"
                 disabled={historyPage <= 1}
                 onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-muted-foreground font-black text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
+                className="flex min-h-12 items-center gap-1.5 rounded-xl border border-border px-4 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="w-4 h-4" /> Anterior
               </button>
@@ -203,7 +203,7 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
                 type="button"
                 disabled={historyPage >= (historyData?.totalPages ?? 1)}
                 onClick={() => setHistoryPage((p) => p + 1)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-muted-foreground font-black text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
+                className="flex min-h-12 items-center gap-1.5 rounded-xl border border-border px-4 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Seguinte <ChevronRight className="w-4 h-4" />
               </button>

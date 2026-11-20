@@ -10,14 +10,11 @@ const MAX_LINES = 600;
  * Quando um ficheiro cai abaixo de MAX_LINES, remova-o deste mapa.
  */
 const LEGACY_LINE_LIMITS: Record<string, number> = {
-  "src/components/features/measurements/MeasurementTable.tsx": 1013,
   "src/lib/ceo/metrics.ts": 977,
   "src/lib/crm/opportunities.ts": 970,
   "src/hooks/useSyncQueue.ts": 930,
   "src/lib/measurements/repo.ts": 909,
-  "src/components/features/measurements/ProductGroupCard.tsx": 873,
   "src/actions/measurements-actions.ts": 792,
-  "src/components/features/measurements/MeasurementsForm.tsx": 731,
   "src/lib/crm/contract.ts": 658,
   "src/components/warehouse/PreparationCard.tsx": 602,
 };

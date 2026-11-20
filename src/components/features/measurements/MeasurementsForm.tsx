@@ -1,33 +1,28 @@
 "use client";
 
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo } from "react";
 
-import { Plus, Ruler, Zap, Loader2 } from "lucide-react";
+import { Plus, Ruler, Loader2 } from "lucide-react";
 
 import { Task } from "@/types";
 import type { MeasurementsPayload } from "@/lib/schemas";
-import { productGroupsToMeasurementsPayload } from "@/lib/measurementsUtils";
 import { summarizeMeasurementsFormProgress } from "@/lib/measurementCompleteness";
 import { canAutoSubmitMeasurementsDraft } from "@/lib/measurements/draftStatus";
-import { formatRemeasureAnswer } from "@/lib/measurements/labels";
+import {
+  buildMeasurementsFocusedStatus,
+  formatMeasurementsProgressSummary,
+  getFormRemeasureState,
+} from "@/lib/measurements/formStatusHelpers";
 
 import { useMeasurements } from "@/hooks/useMeasurements";
+import { useMeasurementsFormSave } from "@/hooks/measurements/useMeasurementsFormSave";
 
 import { ProductGroupCard } from "./ProductGroupCard";
 import type { MeasurementsFocusedStatus } from "./MeasurementsFocusStatusBar";
-
-
+import { MeasurementsFormHeader } from "./form/MeasurementsFormHeader";
+import { MeasurementsRemeasureCard } from "./form/MeasurementsRemeasureCard";
 
 import { useToast } from "@/components/ui/ToastContext";
-
-import { toUserMessage } from "@/lib/userMessages";
-
-import { hapticConfirmAfterAsync, hapticTap } from "@/lib/haptics";
-import { cueClick } from "@/lib/feedbackCue";
-
-import { isTransientSyncError } from "@/lib/sync/syncQueuePolicy";
-
-
 
 export type MeasurementsFormHandle = {
   save: () => Promise<void>;
@@ -37,336 +32,140 @@ export type MeasurementsFormHandle = {
   canAutoSubmitDraft: () => boolean;
 };
 
-
-
 export type MeasurementsSaveBarMode = "external" | "inline";
 
-
-
 interface MeasurementsFormProps {
-
   task?: Task;
-
   opportunityId?: string;
-
-  onSave?: (data: MeasurementsPayload & { updatedAt?: string }) => Promise<{ success: boolean; error?: string; queued?: boolean }>;
-
+  onSave?: (data: MeasurementsPayload & { updatedAt?: string }) => Promise<{
+    success: boolean;
+    error?: string;
+    queued?: boolean;
+  }>;
   isAdmin?: boolean;
-
   /** Visita concluída / só leitura (técnico) — não confundir com painel admin. */
   readOnly?: boolean;
-
   /** external = barra fixa no pai (drawer); inline = botão no fim do formulário (sheet) */
-
   saveBarMode?: MeasurementsSaveBarMode;
-
   /** Esconde cabeçalhos do formulário (modo ecrã inteiro no drawer). */
-
   focusedLayout?: boolean;
-
   onDirtyChange?: (dirty: boolean) => void;
-
   /** Modo ecrã inteiro: estado agrupado no cabeçalho do drawer (em vez de linhas soltas no formulário). */
   onFocusedStatusChange?: (status: MeasurementsFocusedStatus) => void;
-
   /** Edição admin: começa nesta ficha e não recarrega o rascunho do técnico. */
   seedPayload?: MeasurementsPayload | null;
-
 }
-
-
 
 export function MeasurementsSaveButton({
-
   onClick,
-
   loading,
-
   className = "",
-
   dataTour,
-
 }: {
-
   onClick: () => void;
-
   loading: boolean;
-
   className?: string;
-
   dataTour?: string;
-
 }) {
-
   return (
-
     <button
-
       type="button"
-
       onClick={onClick}
-
       disabled={loading}
-
       lang="pt-PT"
-
       data-tour={dataTour}
-
       className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-border-strong bg-primary px-4 py-3 text-sm font-black text-primary-foreground transition-all active:scale-[0.99] hover:bg-primary-hover disabled:opacity-50 ${className}`}
-
     >
-
       {loading ? (
-
         <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-
       ) : (
-
         <Ruler className="h-5 w-5 text-foreground" aria-hidden />
-
       )}
-
       Guardar medições
-
     </button>
-
   );
-
 }
 
-
-
 const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProps>(
-
   function MeasurementsForm(
-
     {
-
       task,
-
       opportunityId,
-
       onSave,
-
       isAdmin = false,
-
       readOnly = false,
-
       saveBarMode = "external",
-
       focusedLayout = false,
-
       onDirtyChange,
-
       onFocusedStatusChange,
-
       seedPayload,
-
     },
-
     ref
-
   ) {
-
     const toast = useToast();
 
-    const [loading, setLoading] = useState(false);
-
     const {
-
       productGroups,
-
       lastLocalSave,
-
       DRAFT_KEY,
-
       addGroup,
-
       cloneGroup,
-
       removeGroup,
-
       toggleGroup,
       collapseAllGroups,
-
       updateGroupType,
-
       updateGroupDetails,
-
       setRemeasure,
-
       cloneRow,
-
       addRow,
-
       removeRow,
-
       updateMeasurement,
-
       clearDraft,
-
       setLastLocalSave,
-
       isDirty,
-
     } = useMeasurements(task, opportunityId, seedPayload);
+
+    const { loading, handleSave } = useMeasurementsFormSave({
+      onSave,
+      productGroups,
+      clearDraft,
+      setLastLocalSave,
+      collapseAllGroups,
+      toast,
+    });
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
     }, [isDirty, onDirtyChange]);
 
-    const handleSave = useCallback(async () => {
-
-      if (!onSave) return;
-
-      cueClick();
-      hapticTap();
-
-      setLoading(true);
-
-      try {
-
-        const payload = productGroupsToMeasurementsPayload(productGroups);
-        const data: MeasurementsPayload & { updatedAt: string } = {
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        };
-
-        const result = await onSave(data);
-
-
-
-        if (result && result.success) {
-
-          hapticConfirmAfterAsync("success");
-          cueClick();
-
-          clearDraft();
-
-          setLastLocalSave(null);
-
-          collapseAllGroups();
-
-          if (result.queued) {
-
-            toast.info(
-
-              "Medições guardadas no telemóvel",
-
-              "Serão enviadas quando houver rede. O escritório verá a ficha em Medições após sincronizar."
-
-            );
-
-          } else {
-
-            toast.success(
-
-              "Medições guardadas",
-
-              "Ficha disponível no escritório (Medições). Produtos sincronizados com o CRM."
-
-            );
-
-          }
-
-        } else {
-
-          hapticConfirmAfterAsync("error");
-          cueClick();
-          const err = result?.error || "O servidor não confirmou a gravação.";
-
-          toast.error("Erro ao guardar medições", toUserMessage(err, err));
-
-        }
-
-      } catch (e: unknown) {
-
-        const raw = e instanceof Error ? e.message : "";
-
-        if (isTransientSyncError(raw) || !raw) {
-
-          toast.warning(
-
-            "Rascunho protegido",
-
-            "Erro de ligação com o servidor. O rascunho continua no telemóvel por segurança."
-
-          );
-
-        } else {
-
-          toast.error("Erro ao guardar medições", toUserMessage(e, "Não foi possível guardar as medições."));
-
-        }
-
-      } finally {
-
-        setLoading(false);
-
-      }
-
-    }, [onSave, productGroups, clearDraft, setLastLocalSave, collapseAllGroups, toast]);
-
-
-
     useImperativeHandle(
-
       ref,
-
       () => ({
-
         save: handleSave,
-
         isSaving: loading,
-
         addGroup,
-
         hasUnsavedChanges: isDirty,
-
         canAutoSubmitDraft: () => canAutoSubmitMeasurementsDraft(productGroups, isDirty),
-
       }),
-
       [handleSave, loading, addGroup, isDirty, productGroups]
-
     );
 
-
-
-    const hasDraft = typeof window !== "undefined" && localStorage.getItem(DRAFT_KEY);
-
-    const formProgress = useMemo(
-      () => summarizeMeasurementsFormProgress(productGroups),
-      [productGroups]
-    );
+    const hasDraft = typeof window !== "undefined" && Boolean(localStorage.getItem(DRAFT_KEY));
 
     const progressSummary = useMemo(() => {
-      const { productCount, windowCount, incompleteRows } = formProgress;
-      const products =
-        productCount === 1 ? "1 produto" : `${productCount} produtos`;
-      const windows =
-        windowCount === 1 ? "1 janela" : `${windowCount} janelas`;
-      const incomplete =
-        incompleteRows === 0
-          ? null
-          : incompleteRows === 1
-            ? "1 incompleta"
-            : `${incompleteRows} incompletas`;
-      return [products, windows, incomplete].filter(Boolean).join(" · ");
-    }, [formProgress]);
+      const formProgress = summarizeMeasurementsFormProgress(productGroups);
+      return formatMeasurementsProgressSummary(formProgress);
+    }, [productGroups]);
 
-    const focusedStatus = useMemo((): MeasurementsFocusedStatus => {
-      let draftLabel: string | null = null;
-      let draftTone: "success" | "warning" | null = null;
-      if (lastLocalSave) {
-        draftLabel = `Rascunho · ${lastLocalSave}`;
-        draftTone = "success";
-      } else if (hasDraft) {
-        draftLabel = "Rascunho ativo";
-        draftTone = "warning";
-      }
-      return { progressSummary, draftLabel, draftTone };
-    }, [progressSummary, lastLocalSave, hasDraft]);
+    const focusedStatus = useMemo(
+      (): MeasurementsFocusedStatus =>
+        buildMeasurementsFocusedStatus({
+          progressSummary,
+          lastLocalSave,
+          hasDraft: Boolean(hasDraft),
+        }),
+      [progressSummary, lastLocalSave, hasDraft]
+    );
 
     useEffect(() => {
       if (!focusedLayout || isAdmin || !onFocusedStatusChange) return;
@@ -375,320 +174,58 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
     const showInlineSave = !isAdmin && onSave && saveBarMode === "inline";
 
-
+    const remeasure = useMemo(
+      () => getFormRemeasureState(productGroups, isAdmin || readOnly),
+      [productGroups, isAdmin, readOnly]
+    );
 
     return (
-
       <div
-
         data-tour="tech-measurements-form"
-
         className={`${focusedLayout ? "space-y-3" : "space-y-4 lg:space-y-6"} mx-auto w-full max-w-6xl animate-in fade-in duration-500 ${saveBarMode === "external" ? "pb-2" : "pb-4"}`}
-
       >
-
-        {focusedLayout && !isAdmin && !onFocusedStatusChange ? (
-          <p
-            className="text-center text-xs font-bold text-muted-foreground"
-            data-tour="tech-measurements-progress"
-          >
-            {progressSummary}
-          </p>
-        ) : null}
-
-        {focusedLayout && !isAdmin && !onFocusedStatusChange && (lastLocalSave || hasDraft) ? (
-          <p className="text-center text-xs font-bold text-muted-foreground">
-            {lastLocalSave ? (
-              <span className="text-success-fg">Rascunho guardado às {lastLocalSave}</span>
-            ) : (
-              <span data-tour="tech-measurements-draft-status" className="text-warning-solid">
-                Rascunho ativo no telemóvel
-              </span>
-            )}
-          </p>
-        ) : null}
-
-
-
-        {!isAdmin && !focusedLayout ? (
-
-          <div
-
-            className="flex items-center justify-between gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2.5 shadow-sm lg:hidden"
-
-          >
-
-            <div className="min-w-0">
-
-              <h3 className="text-sm font-black text-foreground tracking-tight">Medições de estores</h3>
-
-              <div className="flex flex-wrap items-center gap-2">
-
-                {lastLocalSave ? (
-
-                  <span className="text-xs font-bold text-success-fg">
-
-                    Rascunho · {lastLocalSave}
-
-                  </span>
-
-                ) : hasDraft ? (
-
-                  <span
-
-                    data-tour="tech-measurements-draft-status"
-
-                    className="text-xs font-bold text-warning-solid"
-
-                  >
-
-                    Rascunho ativo
-
-                  </span>
-
-                ) : (
-
-                  <span className="text-xs font-bold text-muted-foreground">
-
-                    {productGroups.length} produto{productGroups.length === 1 ? "" : "s"}
-
-                  </span>
-
-                )}
-
-              </div>
-
-            </div>
-
-            {onSave ? (
-
-              <button
-
-                type="button"
-
-                data-tour="tech-measurements-add-product"
-
-                onClick={addGroup}
-
-                className="flex min-h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-ink px-3 py-2 text-xs font-black uppercase tracking-wide text-ink-foreground active:scale-95"
-
-              >
-
-                <Plus className="h-4 w-4 text-primary" aria-hidden />
-
-                Produto
-
-              </button>
-
-            ) : null}
-
-          </div>
-
-        ) : null}
-
-
-
-        <div
-
-          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-muted border-2 border-border rounded-3xl ${
-
-            focusedLayout ? "hidden" : !isAdmin ? "hidden lg:flex" : ""
-
-          }`}
-
-        >
-
-          <div className="flex items-center gap-3">
-
-            <div className="p-3.5 bg-info-surface text-info-solid rounded-2xl">
-
-              <Ruler className="w-6 h-6 animate-pulse" />
-
-            </div>
-
-            <div className="space-y-1">
-
-              <h3 className="ds-title text-lg tracking-tight text-foreground">
-
-                {isAdmin ? "Gestão de medidas" : "Medições de estores"}
-
-              </h3>
-
-              <div className="flex flex-wrap items-center gap-2">
-
-                <span className="text-xs text-muted-foreground font-bold">Relatório técnico</span>
-
-                {lastLocalSave && !isAdmin && (
-
-                  <span className="text-xs bg-success-surface/80 text-success-fg px-2 py-0.5 rounded-lg font-bold">
-
-                    Gravado automaticamente às {lastLocalSave}
-
-                  </span>
-
-                )}
-
-                {!isAdmin && hasDraft && !lastLocalSave && (
-
-                  <span
-
-                    data-tour="tech-measurements-draft-status"
-
-                    className="text-xs bg-warning-surface text-warning-solid px-2 py-0.5 rounded-lg font-bold flex items-center gap-1"
-
-                  >
-
-                    <Zap className="w-2.5 h-2.5 text-warning-solid" /> Rascunho ativo
-
-                  </span>
-
-                )}
-
-              </div>
-
-            </div>
-
-          </div>
-
-
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-
-            {isAdmin && hasDraft && task && (!task.report || !task.report.includes("[MEASUREMENTS]")) && (
-
-              <button
-
-                onClick={handleSave}
-
-                disabled={loading}
-
-                className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-3 bg-danger-solid text-ink-foreground rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-danger-solid/90 transition-all shadow-md animate-pulse min-h-12"
-
-                title="Enviar medidas que ficaram esquecidas no telemóvel"
-
-              >
-
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ruler className="w-4 h-4" />}
-
-                Sincronizar
-
-              </button>
-
-            )}
-
-            {!isAdmin && onSave && (
-
-              <button
-
-                type="button"
-
-                data-tour="tech-measurements-add-product"
-
-                onClick={addGroup}
-
-                className="hidden lg:flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-3 bg-ink hover:bg-ink/90 text-ink-foreground rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 min-h-12"
-
-              >
-
-                <Plus className="w-4 h-4 text-primary" /> Novo produto
-
-              </button>
-
-            )}
-
-          </div>
-
-        </div>
-
-
-
-        {(() => {
-          const answer = productGroups.find((g) => g.details.remeasureNeeded)?.details;
-          const needed = answer?.remeasureNeeded ?? "";
-          const note = answer?.remeasureNote ?? "";
-          const locked = isAdmin || readOnly;
-          return (
-            <div className="rounded-2xl border-2 border-border bg-card p-4 space-y-3">
-              <p className="text-sm font-black text-foreground">Medidas Retificadas</p>
-              {locked ? (
-                <p className="text-sm font-bold text-foreground">
-                  {formatRemeasureAnswer(needed, note) || "—"}
-                </p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(
-                      [
-                        { value: "SIM", label: "Sim" },
-                        { value: "NAO", label: "Não" },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        aria-pressed={needed === opt.value}
-                        onClick={() => setRemeasure(needed === opt.value ? "" : opt.value)}
-                        className={`min-h-12 rounded-xl border-2 px-3 text-xs font-black uppercase ${
-                          needed === opt.value
-                            ? "border-primary bg-primary/15 text-foreground"
-                            : "border-border bg-card text-muted-foreground"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {needed === "OUTROS" ? (
-                    <p className="px-1 text-xs font-bold text-muted-foreground">
-                      Resposta anterior: {formatRemeasureAnswer(needed, note)}. Escolha Sim ou Não.
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          );
-        })()}
+        <MeasurementsFormHeader
+          isAdmin={isAdmin}
+          focusedLayout={focusedLayout}
+          onFocusedStatusChange={Boolean(onFocusedStatusChange)}
+          progressSummary={progressSummary}
+          lastLocalSave={lastLocalSave}
+          hasDraft={Boolean(hasDraft)}
+          productGroupCount={productGroups.length}
+          onSave={Boolean(onSave)}
+          addGroup={addGroup}
+          task={task}
+          loading={loading}
+          onAdminSync={handleSave}
+        />
+
+        <MeasurementsRemeasureCard
+          needed={remeasure.needed}
+          note={remeasure.note}
+          locked={remeasure.locked}
+          onSetRemeasure={setRemeasure}
+        />
 
         <div className="space-y-4">
-
           {productGroups.map((group, gIdx) => (
-
             <ProductGroupCard
-
               key={group.id}
-
               group={group}
-
               gIdx={gIdx}
-
               isAdmin={isAdmin}
-
               readOnly={readOnly}
-
               onToggleGroup={toggleGroup}
-
               onCloneGroup={cloneGroup}
-
               onRemoveGroup={removeGroup}
-
               onUpdateGroupType={updateGroupType}
-
               onUpdateGroupDetails={updateGroupDetails}
-
               onUpdateMeasurement={updateMeasurement}
-
               onCloneRow={cloneRow}
-
               onAddRow={addRow}
-
               onRemoveRow={removeRow}
-
               voiceObservationsTourAnchor={gIdx === 0 && !isAdmin && !readOnly}
-
             />
-
           ))}
-
           {!isAdmin && !readOnly ? (
             <button
               type="button"
@@ -700,31 +237,16 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
               Adicionar outro produto nesta obra
             </button>
           ) : null}
-
         </div>
 
-
-
-        {showInlineSave && (
-
+        {showInlineSave ? (
           <div className="pt-2">
-
             <MeasurementsSaveButton onClick={handleSave} loading={loading} />
-
           </div>
-
-        )}
-
+        ) : null}
       </div>
-
     );
-
   }
-
 );
 
-
-
 export default MeasurementsForm;
-
-

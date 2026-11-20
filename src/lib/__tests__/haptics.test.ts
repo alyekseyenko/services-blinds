@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CLIENT_PREF_KEYS } from "@/lib/clientPreferences";
 import {
   hapticConfirmAfterAsync,
   hapticMeasurementCaptured,
@@ -9,10 +10,35 @@ import {
   resetHapticThrottleForTests,
 } from "../haptics";
 
+function createStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.has(key) ? store.get(key)! : null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value);
+    },
+  };
+}
+
 describe("haptics", () => {
   const vibrate = vi.fn(() => true);
 
   beforeEach(() => {
+    vi.stubGlobal("localStorage", createStorage());
     vi.stubGlobal("navigator", { vibrate });
     vibrate.mockClear();
     resetHapticThrottleForTests();
@@ -55,5 +81,11 @@ describe("haptics", () => {
     vibrate.mockClear();
     hapticConfirmAfterAsync("success");
     expect(vibrate).toHaveBeenCalled();
+  });
+
+  it("não vibra quando a preferência de vibração está desligada", () => {
+    localStorage.setItem(CLIENT_PREF_KEYS.FEEDBACK_VIBRATION, "off");
+    hapticTap();
+    expect(vibrate).not.toHaveBeenCalled();
   });
 });

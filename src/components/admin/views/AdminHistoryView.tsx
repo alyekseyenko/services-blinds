@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Loader2,
   CheckCircle,
@@ -14,10 +14,13 @@ import {
   Clock,
 } from "lucide-react";
 import { useSync } from "@/hooks/useSync";
+import { useHistoryListFilters } from "@/hooks/useHistoryListFilters";
+import { HistoryListFilters } from "@/components/visits/HistoryListFilters";
 import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
 import { isTaskCompleted } from "@/lib/crm/contract";
 import type { Opportunity } from "@/types/admin";
 import { NOT_AVAILABLE_LABEL } from "@/lib/ui/ptPtDisplay";
+import { historyFilterQuery } from "@/lib/visits/historyFilters";
 
 interface HistoryPageData {
   items: Opportunity[];
@@ -41,10 +44,24 @@ export interface AdminHistoryViewProps {
 
 export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryViewProps) {
   const [historyPage, setHistoryPage] = useState(1);
+  const filters = useHistoryListFilters();
 
-  const { data: historyData, isLoading: loadingHistory } = useSync<HistoryPageData>(
-    `/api/opportunities/history?page=${historyPage}`
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [filters.datePreset, filters.from, filters.to, filters.outcomes.join(",")]);
+
+  const historyUrl = useMemo(
+    () =>
+      `/api/opportunities/history${historyFilterQuery({
+        page: historyPage,
+        from: filters.range.from,
+        to: filters.range.to,
+        outcomes: filters.outcomes,
+      })}`,
+    [historyPage, filters.range.from, filters.range.to, filters.outcomes]
   );
+
+  const { data: historyData, isLoading: loadingHistory } = useSync<HistoryPageData>(historyUrl);
 
   const historyOpportunities = useMemo<Opportunity[]>(
     () => normalizeOpportunityList(historyData?.items ?? []),
@@ -93,6 +110,22 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
             </div>
           ) : null}
         </div>
+      </div>
+
+      <div className="shrink-0 border-b border-border bg-card px-3 pb-3 md:px-4 lg:px-5">
+        <HistoryListFilters
+          datePreset={filters.datePreset}
+          onDatePresetChange={filters.setPreset}
+          from={filters.from}
+          to={filters.to}
+          onFromChange={filters.setFrom}
+          onToChange={filters.setTo}
+          outcomes={filters.outcomes}
+          onToggleOutcome={filters.toggleOutcome}
+          onClear={filters.clear}
+          resultCount={historyData?.total}
+          totalCount={undefined}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-6">
@@ -149,7 +182,7 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
                     </span>
                     <span className="flex items-center gap-1.5">
                       <CalendarIcon className="w-3 h-3" />
-                      {new Date(opp.scheduledAt || opp.dueDate || 0).toLocaleDateString("pt-PT")}
+                      {new Date(opp.historyAt || opp.scheduledAt || opp.dueDate || 0).toLocaleDateString("pt-PT")}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <MapPin className="w-3 h-3" /> {opp.addressCity || NOT_AVAILABLE_LABEL}
@@ -179,7 +212,9 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
           <div className="h-64 flex flex-col items-center justify-center bg-card rounded-[3rem] border-2 border-dashed border-border">
             <History className="w-12 h-12 text-muted-foreground/30 mb-4" />
             <p className="text-muted-foreground font-black text-xs uppercase tracking-[0.2em]">
-              Sem registos históricos no período atual
+              {filters.isFiltered
+                ? "Sem registos neste filtro"
+                : "Sem registos históricos no período atual"}
             </p>
           </div>
         )}

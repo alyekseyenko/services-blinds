@@ -14,6 +14,7 @@ export const AGENDA_KIND_LABEL_PT: Record<AgendaDiffKind, string> = {
   servico_extra: "Serviço extra",
   armazem_pronto: "Armazém pronto",
   medicoes_guardadas: "Medições",
+  urgente: "Urgente",
 };
 
 export function appendAgendaProgressTrail(

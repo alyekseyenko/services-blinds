@@ -118,6 +118,50 @@ function openExternalNavigation(nativeUrl: string | null, webUrl: string): void 
   window.location.href = webUrl;
 }
 
+/** Rota do dia: Google Maps com todas as paragens. O Waze só aceita um destino. */
+export function buildGoogleDayRouteUrl(
+  stops: Array<[number, number]>,
+  origin?: { lat: number; lng: number } | null
+): string | null {
+  const points = stops.filter((stop) => hasValidCoordinates(stop));
+  if (points.length === 0) return null;
+
+  const pair = (lat: number, lng: number) => `${lat},${lng}`;
+  const originPair =
+    origin && Number.isFinite(origin.lat) && Number.isFinite(origin.lng)
+      ? pair(origin.lat, origin.lng)
+      : null;
+
+  if (!originPair && points.length === 1) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${pair(points[0][0], points[0][1])}&travelmode=driving`;
+  }
+
+  const start = originPair ?? pair(points[0][0], points[0][1]);
+  const end = pair(points[points.length - 1][0], points[points.length - 1][1]);
+  const middle = (originPair ? points.slice(0, -1) : points.slice(1, -1)).map((stop) =>
+    pair(stop[0], stop[1])
+  );
+  const waypoints = middle.slice(0, 9).join("|");
+  const base = `https://www.google.com/maps/dir/?api=1&origin=${start}&destination=${end}&travelmode=driving`;
+  return waypoints ? `${base}&waypoints=${encodeURIComponent(waypoints)}` : base;
+}
+
+export function openDayRoute(
+  provider: "google" | "waze",
+  stops: Array<[number, number]>,
+  origin?: { lat: number; lng: number } | null
+): void {
+  const points = stops.filter((stop) => hasValidCoordinates(stop));
+  if (points.length === 0) return;
+  if (provider === "waze") {
+    openNavigation("waze", "", points[0]);
+    return;
+  }
+  const url = buildGoogleDayRouteUrl(points, origin);
+  if (!url || typeof window === "undefined") return;
+  window.location.href = url;
+}
+
 export function openNavigation(
   provider: "google" | "waze",
   address: string,

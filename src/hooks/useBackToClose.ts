@@ -30,6 +30,9 @@ export function useBackToClose(open: boolean, onClose: () => void, overlayKey?: 
         ignorePopRef.current = false;
         return;
       }
+      // A nested sheet (serviço extra) also pushes history. Closing it calls
+      // history.back(), which must not close the visit drawer still underneath.
+      if (window.history.state?.__fieldopsOverlay === key) return;
       pushedRef.current = false;
       onCloseRef.current();
     };

@@ -19,6 +19,7 @@ export const AgendaDiffKindSchema = z.enum([
   "servico_extra",
   "armazem_pronto",
   "medicoes_guardadas",
+  "urgente",
 ]);
 
 export const OnSiteServiceSnapshotSchema = z.object({
@@ -30,10 +31,12 @@ export const OnSiteServiceSnapshotSchema = z.object({
 export const AgendaNotificationVisitSchema = z.object({
   clientName: z.string().optional(),
   nsi: z.string().optional(),
+  serviceNumber: z.string().optional(),
   visitTitle: z.string().optional(),
   technicianName: z.string().optional(),
   dueAtIso: z.string().optional(),
   serviceType: z.string().optional(),
+  urgent: z.boolean().optional(),
 });
 
 export const AgendaTimelineEntrySchema = z.object({
@@ -50,6 +53,7 @@ export const AgendaSnapshotItemSchema = z.object({
   label: z.string(),
   clientName: z.string().optional(),
   nsi: z.string().optional(),
+  serviceNumber: z.string().optional(),
   visitTitle: z.string().optional(),
   opportunityId: z.string().optional(),
   technicianName: z.string().optional(),
@@ -58,6 +62,7 @@ export const AgendaSnapshotItemSchema = z.object({
   onSiteServices: z.array(OnSiteServiceSnapshotSchema).optional(),
   statusNote: z.string().optional(),
   serviceType: z.string().optional(),
+  urgent: z.boolean().optional(),
 });
 
 export const InAppNotificationSchema = z.object({

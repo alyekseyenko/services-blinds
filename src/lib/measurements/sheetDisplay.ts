@@ -170,7 +170,8 @@ function rowHasDistinctStore(row: MeasurementSheetRow): boolean {
 
 /** Colunas da ficha, Excel e PDF — altura antes da largura; só o que o produto pede. */
 export function measurementLineColumnPlan(
-  group: MeasurementSheetGroup
+  group: MeasurementSheetGroup,
+  options?: { includePrice?: boolean }
 ): MeasurementLineColumnPlan {
   const mode = group.dimensionMode ?? "store";
   const distinctStore = mode === "opening" && group.rows.some(rowHasDistinctStore);
@@ -249,7 +250,9 @@ export function measurementLineColumnPlan(
   if (showFix) columns.push({ key: "fixation", header: "Fixação" });
   if (showCmd) columns.push({ key: "controls", header: "Comandos" });
   if (showNotes) columns.push({ key: "notes", header: "Notas" });
-  columns.push({ key: "price", header: "Preço (€)" });
+  if (options?.includePrice !== false) {
+    columns.push({ key: "price", header: "Preço (€)" });
+  }
 
   return { columns, openingIsPrimary };
 }

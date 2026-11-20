@@ -23,6 +23,7 @@ export const CRMTaskSchema = z.object({
   title: z.string(),
   status: TaskStatusSchema,
   dueAt: z.string().or(z.date()),
+  horaDeFim: z.string().or(z.date()).optional().nullable(),
   moradaDaReparacao: z.object({
     addressStreet1: z.string().optional().nullable(),
     addressCity: z.string().optional().nullable(),
@@ -45,14 +46,22 @@ export interface AppTask {
   title: string;
   status: string;
   dueDate: Date;
+  /** Calendário do técnico: fim do bloco (CRM ou +1 h). */
+  visitEndAt?: Date;
   address: string;
+  /** Rua, cidade e código postal. Sem andar. Usado no GPS. */
+  navigationAddress?: string;
   coordinates: [number, number] | null;
   client: string;
+  /** NIF da pessoa associada (Twenty `nif`). */
+  clientNif?: string | null;
   clientPhone?: string | null;
   clientPhones?: string[];
   report: string;
   opportunityId?: string;
   nsi?: string;
+  /** Número de serviço automático do Twenty (`numeroDeServico`). */
+  serviceNumber?: string;
   stage?: string;
   serviceType?: string;
   scheduledBy: string;

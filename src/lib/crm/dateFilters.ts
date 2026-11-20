@@ -26,12 +26,23 @@ export function isTerminalHistoryStatus(status: string | null | undefined): bool
   return TERMINAL_HISTORY_STATUSES.has(status || "");
 }
 
-export function sortOpportunitiesByRecentDate<T extends { scheduledAt?: Date | string | null; dueDate?: Date | string | null }>(
-  items: T[]
-): T[] {
-  return [...items].sort((a, b) => {
-    const dateA = new Date(a.scheduledAt || a.dueDate || 0).getTime();
-    const dateB = new Date(b.scheduledAt || b.dueDate || 0).getTime();
-    return dateB - dateA;
-  });
+function historyStamp(item: {
+  historyAt?: Date | string | null;
+  scheduledAt?: Date | string | null;
+  dueDate?: Date | string | null;
+}): number {
+  const raw = item.historyAt || item.scheduledAt || item.dueDate || 0;
+  const time = new Date(raw).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+/** Newest visit first. historyAt is the scheduled visit, not the day the CRM record was created. */
+export function sortOpportunitiesByRecentDate<
+  T extends {
+    historyAt?: Date | string | null;
+    scheduledAt?: Date | string | null;
+    dueDate?: Date | string | null;
+  },
+>(items: T[]): T[] {
+  return [...items].sort((a, b) => historyStamp(b) - historyStamp(a));
 }

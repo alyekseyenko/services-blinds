@@ -30,6 +30,43 @@ describe("diffAgendaSnapshots", () => {
     expect(events[0].kind).toBe("nova");
   });
 
+  it("avisa visita urgente quando a marcação passa a urgente", () => {
+    const events = diffAgendaSnapshots(
+      [{ id: "1", dueAt: "2026-01-01T10:00:00Z", status: "AGENDADO", label: "Cliente A" }],
+      [
+        {
+          id: "1",
+          dueAt: "2026-01-01T10:00:00Z",
+          status: "AGENDADO",
+          label: "Cliente A",
+          urgent: true,
+        },
+      ]
+    );
+    expect(events.map((event) => event.kind)).toContain("urgente");
+    expect(formatAgendaDiffToast(events.find((event) => event.kind === "urgente")!).title).toBe(
+      "Visita urgente"
+    );
+  });
+
+  it("nova visita urgente usa o título urgente", () => {
+    const events = diffAgendaSnapshots(
+      [],
+      [
+        {
+          id: "1",
+          dueAt: "2026-01-01T10:00:00Z",
+          status: "AGENDADO",
+          label: "Cliente A",
+          urgent: true,
+        },
+      ]
+    );
+    expect(events[0].kind).toBe("nova");
+    expect(events[0].urgent).toBe(true);
+    expect(formatAgendaDiffToast(events[0]).title).toBe("Visita urgente");
+  });
+
   it("detects new visits", () => {
     const events = diffAgendaSnapshots(
       [],
@@ -237,5 +274,22 @@ describe("diffAgendaSnapshots", () => {
     expect(copy.description).toContain("Maria Silva");
     expect(copy.description).toContain("NSI 12345");
     expect(copy.description).toContain("Medição");
+    expect(item.label).toContain("NSI 12345");
+    expect(item.serviceNumber).toBeUndefined();
+  });
+
+  it("mostra o número de serviço ao lado do NSI", () => {
+    const item = buildAgendaSnapshotItem({
+      id: "1",
+      dueAt: "2026-06-15T14:30:00.000Z",
+      status: "AGENDADO",
+      client: "Maria Silva",
+      nsi: "12345",
+      serviceNumber: "71",
+      visitTitle: "Medição estores",
+    });
+    expect(item.serviceNumber).toBe("71");
+    expect(item.label).toContain("N.º 71");
+    expect(item.label).toContain("NSI 12345");
   });
 });

@@ -77,17 +77,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: "#ccc",
   },
-  colIdx: { width: "5%" },
-  colDiv: { width: "16%" },
-  colQty: { width: "6%" },
-  colW: { width: "11%" },
-  colH: { width: "11%" },
-  colFix: { width: "12%" },
-  colCmd: { width: "11%" },
-  colNotes: { width: "14%" },
-  colOpeningLxA: { width: "10%" },
-  colOpeningSummary: { width: "18%" },
-  colPrice: { width: "8%" },
   detailsBox: {
     marginBottom: 6,
     padding: 6,
@@ -179,6 +168,10 @@ export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
         <View style={styles.metaRow}>
           <Text style={styles.metaLabel}>Cliente</Text>
           <Text style={styles.metaValue}>{sheet.clientName}</Text>
+          <Text style={styles.metaLabel}>N.º serviço</Text>
+          <Text style={styles.metaValue}>{sheet.serviceNumber || "—"}</Text>
+        </View>
+        <View style={styles.metaRow}>
           <Text style={styles.metaLabel}>NSI</Text>
           <Text style={styles.metaValue}>{sheet.nsi || "—"}</Text>
         </View>
@@ -198,35 +191,35 @@ export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
         </View>
         {sheet.remeasureLabel?.trim() ? (
           <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Retificação</Text>
+            <Text style={styles.metaLabel}>Medidas Retificadas</Text>
             <Text style={styles.metaValue}>{sheet.remeasureLabel}</Text>
           </View>
         ) : null}
 
         {sheet.groups.map((group, gi) => {
-          const plan = measurementLineColumnPlan(group);
+          const plan = measurementLineColumnPlan(group, { includePrice: true });
           const cellStyle = { flexGrow: 1, flexBasis: 0, fontSize: 7 };
           return (
-          <View key={`g-${gi}`}>
-            <Text style={styles.groupTitle}>{group.productLabel}</Text>
-            <GroupProductDetailsPdf entries={getMeasurementGroupDetailEntries(group)} />
-            <View style={styles.tableHeader}>
-              {plan.columns.map((col) => (
-                <Text key={col.key} style={[styles.cell, cellStyle]}>
-                  {col.header}
-                </Text>
-              ))}
-            </View>
-            {group.rows.map((row) => (
-              <View key={`r-${gi}-${row.index}`} style={styles.tableRow}>
+            <View key={`g-${gi}`}>
+              <Text style={styles.groupTitle}>{group.productLabel}</Text>
+              <GroupProductDetailsPdf entries={getMeasurementGroupDetailEntries(group)} />
+              <View style={styles.tableHeader}>
                 {plan.columns.map((col) => (
                   <Text key={col.key} style={[styles.cell, cellStyle]}>
-                    {measurementLineColumnValue(row, col.key, plan.openingIsPrimary)}
+                    {col.header}
                   </Text>
                 ))}
               </View>
-            ))}
-          </View>
+              {group.rows.map((row) => (
+                <View key={`r-${gi}-${row.index}`} style={styles.tableRow}>
+                  {plan.columns.map((col) => (
+                    <Text key={col.key} style={[styles.cell, cellStyle]}>
+                      {measurementLineColumnValue(row, col.key, plan.openingIsPrimary)}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+            </View>
           );
         })}
 

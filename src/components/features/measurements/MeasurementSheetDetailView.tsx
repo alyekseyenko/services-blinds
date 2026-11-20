@@ -14,7 +14,9 @@ import { useToast } from "@/components/ui/ToastContext";
 import { toUserMessage } from "@/lib/userMessages";
 import { Panel } from "@/components/ui/Panel";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
+import { formatMeasurementVersionStamp } from "@/lib/measurements/versionStamp";
 import { updateMeasurementSheetPricesAction } from "@/actions/measurements-actions";
+import { AdminMeasurementRevision } from "@/components/features/measurements/AdminMeasurementRevision";
 
 type Props = {
   sheet: MeasurementSheet;
@@ -27,6 +29,8 @@ type Props = {
   onPricesSaved?: () => void;
   /** Quando true, o padding exterior fica a cargo da página (scroll no main). */
   embedded?: boolean;
+  /** Telemóvel: linhas em cartões, sem Excel/PDF nem coluna de preço. */
+  phoneLayout?: boolean;
 };
 
 async function downloadExport(opportunityId: string, format: "xlsx" | "pdf") {
@@ -61,6 +65,7 @@ export default function MeasurementSheetDetailView({
   canEditPrices = false,
   onPricesSaved,
   embedded = false,
+  phoneLayout = false,
 }: Props) {
   const toast = useToast();
   const [headerOpen, setHeaderOpen] = useState(true);
@@ -68,6 +73,7 @@ export default function MeasurementSheetDetailView({
   const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [savingPrices, setSavingPrices] = useState(false);
+  const [editingMeasurements, setEditingMeasurements] = useState(false);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -89,10 +95,10 @@ export default function MeasurementSheetDetailView({
   useEffect(() => {
     const initial: Record<number, boolean> = {};
     sheet.groups.forEach((_, i) => {
-      initial[i] = true;
+      initial[i] = phoneLayout ? i === 0 : true;
     });
     setOpenGroups(initial);
-  }, [sheet.groups]);
+  }, [sheet.groups, phoneLayout]);
 
   useEffect(() => {
     if (!highlightLineId) return;
@@ -108,6 +114,11 @@ export default function MeasurementSheetDetailView({
       });
     }
   }, [highlightLineId, sheet.groups]);
+
+  const isLatestVersion = useMemo(() => {
+    if (!versionOptions?.length || sheet.version == null) return true;
+    return sheet.version >= Math.max(...versionOptions.map((opt) => opt.version));
+  }, [sheet.version, versionOptions]);
 
   const priceDirty = useMemo(() => {
     if (!canEditPrices) return false;
@@ -182,10 +193,16 @@ export default function MeasurementSheetDetailView({
               <dt className="ds-kicker">Cliente</dt>
               <dd className="text-sm font-bold">{sheet.clientName}</dd>
             </div>
+            {sheet.serviceNumber ? (
+              <div>
+                <dt className="ds-kicker">N.º serviço</dt>
+                <dd className="ds-num text-sm font-bold">{sheet.serviceNumber}</dd>
+              </div>
+            ) : null}
             {sheet.nsi ? (
               <div>
                 <dt className="ds-kicker">NSI</dt>
-                <dd className="text-sm font-bold">{sheet.nsi}</dd>
+                <dd className="ds-num text-sm font-bold">{sheet.nsi}</dd>
               </div>
             ) : null}
             <div className="sm:col-span-2">
@@ -204,24 +221,35 @@ export default function MeasurementSheetDetailView({
                 <dd className="text-sm font-bold">{sheet.technicianName}</dd>
               </div>
             ) : null}
+            {sheet.recordedAtIso ? (
+              <div>
+                <dt className="ds-kicker">Nesta versão</dt>
+                <dd className="text-sm font-bold">
+                  {formatMeasurementVersionStamp(sheet.recordedAtIso)}
+                </dd>
+              </div>
+            ) : null}
             {sheet.visitDateIso ? (
               <div>
-                <dt className="ds-kicker">Data da visita</dt>
+                <dt className="ds-kicker">Visita marcada</dt>
                 <dd className="text-sm font-bold">
-                  {new Date(sheet.visitDateIso).toLocaleString("pt-PT")}
+                  {formatMeasurementVersionStamp(sheet.visitDateIso)}
                 </dd>
               </div>
             ) : null}
             {sheet.remeasureLabel?.trim() ? (
               <div className="sm:col-span-2">
-                <dt className="ds-kicker">Retificação de medidas</dt>
+                <dt className="ds-kicker">Medidas Retificadas</dt>
                 <dd className="text-sm font-bold">{sheet.remeasureLabel}</dd>
               </div>
             ) : null}
             {sheet.version ? (
               <div>
                 <dt className="ds-kicker">Versão</dt>
-                <dd className="text-sm font-bold">v{sheet.version}</dd>
+                <dd className="text-sm font-bold">
+                  v{sheet.version}
+                  {sheet.editedByName?.trim() ? ` · Editado por ${sheet.editedByName.trim()}` : ""}
+                </dd>
               </div>
             ) : null}
             <div>
@@ -235,13 +263,19 @@ export default function MeasurementSheetDetailView({
       </Panel>
 
       {versionOptions && versionOptions.length > 1 && onSelectVersion ? (
-        <div className="flex flex-wrap gap-2">
+        <div
+          className={
+            phoneLayout
+              ? "flex gap-2 overflow-x-auto pb-1"
+              : "flex flex-wrap gap-2"
+          }
+        >
           {versionOptions.map((opt) => (
             <button
               key={opt.version}
               type="button"
               onClick={() => onSelectVersion(opt.version)}
-              className={`min-h-10 rounded-xl border-2 px-3 py-2 text-xs font-black uppercase tracking-wider ${
+              className={`min-h-12 shrink-0 rounded-xl border-2 px-3 py-2 text-left text-xs font-bold ${
                 sheet.version === opt.version
                   ? "border-primary-ink bg-primary-surface text-primary-ink"
                   : "border-border bg-card text-foreground"
@@ -273,6 +307,29 @@ export default function MeasurementSheetDetailView({
         </div>
       ) : null}
 
+      {canEditPrices && isLatestVersion && !phoneLayout ? (
+        editingMeasurements ? (
+          <AdminMeasurementRevision
+            opportunityId={exportOpportunityId}
+            clientName={sheet.clientName}
+            onCancel={() => setEditingMeasurements(false)}
+            onSaved={() => {
+              setEditingMeasurements(false);
+              onPricesSaved?.();
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingMeasurements(true)}
+            className="flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-border-strong bg-card px-4 text-sm font-black text-foreground"
+          >
+            Editar medições
+          </button>
+        )
+      ) : null}
+
+      {phoneLayout || editingMeasurements ? null : (
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
           type="button"
@@ -293,13 +350,17 @@ export default function MeasurementSheetDetailView({
           PDF
         </button>
       </div>
+      )}
 
+      {editingMeasurements ? null : (
       <div className="space-y-3">
         {sheet.groups.map((group, gi) => {
           const detailEntries = getMeasurementGroupDetailEntries(group);
           const { gridEntries, observations } =
             partitionMeasurementGroupDetailEntries(detailEntries);
-          const plan = measurementLineColumnPlan(group);
+          const plan = measurementLineColumnPlan(group, {
+            includePrice: canEditPrices && !phoneLayout,
+          });
           const isOpen = openGroups[gi] ?? true;
           return (
             <Panel key={`${group.productType}-${gi}`} className="overflow-hidden p-0">
@@ -337,6 +398,31 @@ export default function MeasurementSheetDetailView({
                       ) : null}
                     </dl>
                   ) : null}
+                  {phoneLayout ? (
+                    <div className="space-y-2">
+                      {group.rows.map((row) => (
+                        <div
+                          key={row.lineId ?? row.index}
+                          id={row.lineId ? `measurement-line-${row.lineId}` : undefined}
+                          className="rounded-xl border border-border bg-card p-3"
+                        >
+                          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Linha {row.index}
+                          </p>
+                          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                            {plan.columns.map((col) => (
+                              <div key={col.key} className={col.key === "notes" ? "col-span-2" : undefined}>
+                                <dt className="text-xs font-bold text-muted-foreground">{col.header}</dt>
+                                <dd className="text-sm font-bold text-foreground">
+                                  {measurementLineColumnValue(row, col.key, plan.openingIsPrimary) || "—"}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-xs">
                       <thead>
@@ -392,12 +478,14 @@ export default function MeasurementSheetDetailView({
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
               ) : null}
             </Panel>
           );
         })}
       </div>
+      )}
     </div>
   );
 }

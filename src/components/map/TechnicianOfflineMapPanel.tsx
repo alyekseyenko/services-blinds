@@ -9,6 +9,7 @@ interface TechnicianOfflineMapPanelProps {
     title?: string;
     client?: string;
     address?: string;
+    navigationAddress?: string;
     coordinates?: [number, number] | null;
     clientPhone?: string;
     clientPhones?: string[];
@@ -72,7 +73,10 @@ export function TechnicianOfflineMapPanel({ tasks, onTaskSelect }: TechnicianOff
                   </a>
                 )}
                 {task.address && (
-                  <NavigationChooser address={task.address} coordinates={task.coordinates} />
+                  <NavigationChooser
+                    address={task.navigationAddress || task.address}
+                    coordinates={task.coordinates}
+                  />
                 )}
               </div>
             </li>

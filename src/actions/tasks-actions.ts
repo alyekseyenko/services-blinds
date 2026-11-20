@@ -8,6 +8,7 @@ import { updateTaskStatus } from "@/lib/crm/tasks";
 import { toUserMessage } from "@/lib/userMessages";
 import { resolveActionErrorCode } from "@/lib/sync/syncQueuePolicy";
 import { toOccurredAtIso } from "@/lib/visits/offlineStatusSync";
+import type { RepairPaymentNote } from "@/lib/visits/repairPayment";
 
 export async function completeTaskAction(
   taskId: string,
@@ -66,7 +67,8 @@ export async function syncUpdateTaskStatusAction(
   photos: string[] = [],
   clientRequestId?: string,
   occurredAtMs?: number,
-  visitArrivedAtMs?: number
+  visitArrivedAtMs?: number,
+  paymentNotes?: RepairPaymentNote[]
 ): Promise<ActionResponse<void>> {
   try {
     const access = await assertCanMutateTask(taskId);
@@ -100,7 +102,8 @@ export async function syncUpdateTaskStatusAction(
       photosResult.data,
       clientRequestId,
       occurredAtIso,
-      visitArrivedAtIso
+      visitArrivedAtIso,
+      paymentNotes
     );
     return { success: true };
   } catch (error: unknown) {

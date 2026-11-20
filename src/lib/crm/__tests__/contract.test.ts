@@ -86,6 +86,12 @@ describe('CRM Contract Layer', () => {
       expect(toTwentyTaskStatus('Em Curso')).toBe('EM_CURSO');
     });
 
+    it('mapeia aliases em inglês para o enum do Twenty', () => {
+      expect(toTwentyTaskStatus('DONE')).toBe(CRM_TASK_STATUS.CONCLUIDO);
+      expect(toTwentyTaskStatus('Completed')).toBe(CRM_TASK_STATUS.CONCLUIDO);
+      expect(toTwentyTaskStatus('Concluído')).toBe(CRM_TASK_STATUS.CONCLUIDO);
+    });
+
     it('identifica tarefas activas e em curso', () => {
       expect(isTaskActive('Agendado')).toBe(true);
       expect(isTaskActive('EM CURSO')).toBe(true);
@@ -140,6 +146,7 @@ describe('CRM Contract Layer', () => {
       expect(isMeasurementService(null, 'Medição de Estores')).toBe(true);
       expect(isMeasurementService('ENTRADA', null)).toBe(true);
       expect(isMeasurementService('INSTALACAO')).toBe(false);
+      expect(isMeasurementService('ORCAMENTAR', 'mdidas')).toBe(true);
     });
 
     it('identifica instalação por estágio ou título', () => {

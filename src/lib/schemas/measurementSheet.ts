@@ -54,14 +54,19 @@ export const MeasurementSheetSchema = z.object({
   opportunityId: z.string(),
   clientName: z.string(),
   nsi: z.string().optional(),
+  serviceNumber: z.string().optional(),
   address: z.string(),
   serviceLabel: z.string().optional(),
   technicianName: z.string().optional(),
+  /** Admin que criou esta versão ao editar a ficha. */
+  editedByName: z.string().optional(),
   visitDateIso: z.string().optional(),
+  /** Momento em que esta versão da ficha foi gravada. */
+  recordedAtIso: z.string().optional(),
   groups: z.array(MeasurementSheetGroupSchema),
   sheetId: z.string().uuid().optional(),
   version: z.number().int().positive().optional(),
-  /** Resposta à pergunta inicial «Retificação de medidas». */
+  /** Resposta à pergunta inicial «Medidas Retificadas». */
   remeasureLabel: z.string().optional(),
 });
 

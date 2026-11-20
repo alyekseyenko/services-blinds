@@ -4,6 +4,7 @@ import {
   measurementProductSectionShouldDefaultOpen,
   measurementProductSectionSummary,
   measurementWindowsSectionMeta,
+  nextExclusiveSection,
 } from "@/lib/measurements/groupFormSectionMeta";
 import type { MeasurementRow, ProductGroup } from "@/types";
 
@@ -84,5 +85,11 @@ describe("groupFormSectionMeta", () => {
     );
     expect(meta.summary).toBe("1/2 prontas");
     expect(meta.statusBadge.tone).toBe("warning");
+  });
+
+  it("abre um tópico e fecha os outros", () => {
+    expect(nextExclusiveSection(1, 2, true)).toBe(2);
+    expect(nextExclusiveSection(2, 2, false)).toBe(null);
+    expect(nextExclusiveSection(3, 1, false)).toBe(3);
   });
 });

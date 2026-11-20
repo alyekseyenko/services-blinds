@@ -217,7 +217,12 @@ export default function AdminCommandPalette({
                 ) : (
                   <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {serviceResults.map((opp) => {
-                      const meta = [opp.title, opp.addressCity, opp.nsi ? `NSI ${opp.nsi}` : null]
+                      const meta = [
+                        opp.title,
+                        opp.addressCity,
+                        opp.serviceNumber ? `N.º ${opp.serviceNumber}` : null,
+                        opp.nsi && opp.nsi !== "N/A" ? `NSI ${opp.nsi}` : null,
+                      ]
                         .filter(Boolean)
                         .join(" · ");
                       return (

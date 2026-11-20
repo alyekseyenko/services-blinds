@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/ToastContext";
 import { toUserMessage } from "@/lib/userMessages";
 
 import { hapticConfirmAfterAsync, hapticTap } from "@/lib/haptics";
+import { cueClick } from "@/lib/feedbackCue";
 
 import { isTransientSyncError } from "@/lib/sync/syncQueuePolicy";
 
@@ -67,6 +68,9 @@ interface MeasurementsFormProps {
 
   /** Modo ecrã inteiro: estado agrupado no cabeçalho do drawer (em vez de linhas soltas no formulário). */
   onFocusedStatusChange?: (status: MeasurementsFocusedStatus) => void;
+
+  /** Edição admin: começa nesta ficha e não recarrega o rascunho do técnico. */
+  seedPayload?: MeasurementsPayload | null;
 
 }
 
@@ -156,6 +160,8 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       onFocusedStatusChange,
 
+      seedPayload,
+
     },
 
     ref
@@ -181,6 +187,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
       removeGroup,
 
       toggleGroup,
+      collapseAllGroups,
 
       updateGroupType,
 
@@ -202,7 +209,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       isDirty,
 
-    } = useMeasurements(task, opportunityId);
+    } = useMeasurements(task, opportunityId, seedPayload);
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
@@ -212,6 +219,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       if (!onSave) return;
 
+      cueClick();
       hapticTap();
 
       setLoading(true);
@@ -231,10 +239,13 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
         if (result && result.success) {
 
           hapticConfirmAfterAsync("success");
+          cueClick();
 
           clearDraft();
 
           setLastLocalSave(null);
+
+          collapseAllGroups();
 
           if (result.queued) {
 
@@ -260,6 +271,8 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
         } else {
 
+          hapticConfirmAfterAsync("error");
+          cueClick();
           const err = result?.error || "O servidor não confirmou a gravação.";
 
           toast.error("Erro ao guardar medições", toUserMessage(err, err));
@@ -292,7 +305,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
       }
 
-    }, [onSave, productGroups, clearDraft, setLastLocalSave, toast]);
+    }, [onSave, productGroups, clearDraft, setLastLocalSave, collapseAllGroups, toast]);
 
 
 
@@ -409,7 +422,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
               <h3 className="text-sm font-black text-foreground tracking-tight">Medições de estores</h3>
 
-              <div className="flex flex-wrap items-center gap-1">
+              <div className="flex flex-wrap items-center gap-2">
 
                 {lastLocalSave ? (
 
@@ -501,7 +514,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
 
               </h3>
 
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
 
                 <span className="text-xs text-muted-foreground font-bold">Relatório técnico</span>
 
@@ -596,7 +609,7 @@ const MeasurementsForm = forwardRef<MeasurementsFormHandle, MeasurementsFormProp
           const locked = isAdmin || readOnly;
           return (
             <div className="rounded-2xl border-2 border-border bg-card p-4 space-y-3">
-              <p className="text-sm font-black text-foreground">Retificação de medidas</p>
+              <p className="text-sm font-black text-foreground">Medidas Retificadas</p>
               {locked ? (
                 <p className="text-sm font-bold text-foreground">
                   {formatRemeasureAnswer(needed, note) || "—"}

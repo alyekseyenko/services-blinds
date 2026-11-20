@@ -60,8 +60,11 @@ export const CRM_OBJECTS = {
 export const CRM_FIELDS = {
   opportunity: {
     nsi: 'nsi',
+    serviceNumber: 'numeroDeServico',
     serviceAddress: 'moradaDeServico',
     importantNotes: 'notasImportantes',
+    followUpDate: 'dataDeFollowUp',
+    reminderDate: 'dataDeLembrete',
     clientAvailability: 'disponibilidadeDoCliente',
     clientRating: 'avaliacaoDoCliente',
     clientFeedback: 'feedbackDoCliente',
@@ -73,6 +76,7 @@ export const CRM_FIELDS = {
     scheduledBy: 'scheduledBy',
     clientAvailability: 'disponibilidadeDoCliente',
     body: 'bodyV2',
+    scheduleEndAt: 'horaDeFim',
   },
   address: {
     street1: 'addressStreet1',
@@ -268,8 +272,37 @@ export function normalizeTaskStatus(status?: string | null): string {
   return normalizeString(status).replace(/\s+/g, '_');
 }
 
+/** Valores aceites pelo enum `status` de tasks no Twenty (pt-PT). */
+export const TWENTY_TASK_STATUS_VALUES = [
+  CRM_TASK_STATUS.INCOMPLETO,
+  CRM_TASK_STATUS.CONCLUIDO,
+  CRM_TASK_STATUS.CANCELADO,
+  CRM_TASK_STATUS.AGENDADO,
+  CRM_TASK_STATUS.POR_AGENDAR,
+  "REMEDICAO",
+  CRM_TASK_STATUS.EM_CURSO,
+] as const;
+
+const TWENTY_TASK_STATUS_WRITE_ALIASES: Record<string, string> = {
+  DONE: CRM_TASK_STATUS.CONCLUIDO,
+  COMPLETED: CRM_TASK_STATUS.CONCLUIDO,
+  SCHEDULED: CRM_TASK_STATUS.AGENDADO,
+  CANCELLED: CRM_TASK_STATUS.CANCELADO,
+  CANCELED: CRM_TASK_STATUS.CANCELADO,
+  INCOMPLETE: CRM_TASK_STATUS.INCOMPLETO,
+  IN_PROGRESS: CRM_TASK_STATUS.EM_CURSO,
+  TO_SCHEDULE: CRM_TASK_STATUS.POR_AGENDAR,
+  UNSCHEDULED: CRM_TASK_STATUS.POR_AGENDAR,
+};
+
+/** Estado para mutações GraphQL — nunca enviar aliases em inglês (ex. DONE). */
 export function toTwentyTaskStatus(status: string): string {
-  return normalizeTaskStatus(status);
+  const normalized = normalizeTaskStatus(status);
+  const mapped = TWENTY_TASK_STATUS_WRITE_ALIASES[normalized] ?? normalized;
+  if ((TWENTY_TASK_STATUS_VALUES as readonly string[]).includes(mapped)) {
+    return mapped;
+  }
+  return mapped;
 }
 
 export function clientAvailabilityForStatus(
@@ -418,8 +451,32 @@ export function isMeasurementService(stage?: string | null, title?: string | nul
   const normTitle = normalizeString(title);
   if (isAssistanceService(normStage, normTitle)) return false;
   if (isRemediationStage(normStage)) return true;
-  if (normTitle.includes('MEDIDA') || normTitle.includes('MEDICAO')) return true;
+  if (
+    normTitle.includes('MEDIDA') ||
+    normTitle.includes('MEDICAO') ||
+    normTitle.includes('MDIDA')
+  ) {
+    return true;
+  }
   return STAGE_GROUPS.MEASUREMENT.includes(normStage);
+}
+
+/** Visita já fechada que ainda deve abrir a ficha (etapa passou a orçamentar, ou o nome é «mdidas»). */
+export function closedVisitCanOpenMeasurementSheet(input: {
+  status?: string | null;
+  stage?: string | null;
+  title?: string | null;
+  name?: string | null;
+  serviceType?: string | null;
+}): boolean {
+  if (isTaskActive(input.status)) return false;
+  const type = normalizeString(input.serviceType);
+  if (type === 'TIRAR_MEDIDAS' || type === 'REMEDICAO') return true;
+  if (isMeasurementService(input.stage, input.title)) return true;
+  if (isMeasurementService(input.stage, input.name)) return true;
+  if (isMeasurementService(input.stage, input.serviceType)) return true;
+  const stage = normalizeString(input.stage);
+  return stage === CRM_STAGES.ORCAMENTAR;
 }
 
 export function isInstallationService(stage?: string | null, title?: string | null): boolean {

@@ -7,6 +7,9 @@ export type MeasurementSheetRow = {
   client_request_id: string | null;
   technician_name: string | null;
   technician_user_id: string | null;
+  edited_by_name?: string | null;
+  deleted_at?: Date | null;
+  deleted_by_name?: string | null;
   client_name: string;
   nsi: string | null;
   address: string;
@@ -68,4 +71,6 @@ export type MeasurementSheetListEntry = {
   unitCount: number;
   /** Soma das linhas quando todas têm preço válido; caso contrário `null`. */
   totalPriceEur: number | null;
+  deletedAt?: string | null;
+  deletedByName?: string | null;
 };

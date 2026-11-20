@@ -50,6 +50,9 @@ next-env.d.ts
 .env.local
 .env.production.local
 
+# Ministral Discord bot (token + Riot-linked data in mounted volume)
+/ministral/config.json
+
 # dados internos / dumps / scripts locais com PII
 /scratch/
 /src/scratch/

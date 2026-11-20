@@ -128,6 +128,10 @@ function getMetadataUrl(): string {
   return `${env.TWENTY_API_URL.replace(/\/$/, "")}/metadata`;
 }
 
+export function getTwentyMetadataUrl(): string {
+  return getMetadataUrl();
+}
+
 let cachedTwentyAuthOrigin: string | null = null;
 
 function normalizeOrigin(url: string): string {

@@ -37,6 +37,17 @@ describe("crmCache", () => {
     expect(await cacheGet("crm:admin:history")).toBeNull();
   });
 
+  it("fresh compute ignores the stored value", async () => {
+    await cacheSet("crm:admin:opportunities", [1], 60);
+    const value = await cacheGetOrCompute(
+      "crm:admin:opportunities",
+      60,
+      async () => [2],
+      { fresh: true }
+    );
+    expect(value).toEqual([2]);
+  });
+
   it("dedupes concurrent cacheGetOrCompute calls", async () => {
     let runs = 0;
     const compute = vi.fn(async () => {

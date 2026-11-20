@@ -4,7 +4,6 @@ import {
   MeasurementGroupExtrasSchema,
   MeasurementLineExtrasSchema,
 } from "../measurements/extendedFields";
-
 // --- Enums and Shared Types ---
 export const OpportunityStageEnum = z.enum([
   CRM_STAGES.ENTRADA,
@@ -101,6 +100,7 @@ export const VisitServiceSchema = z.object({
   opportunityId: z.string().uuid(),
   name: z.string(),
   nsi: z.string().optional(),
+  serviceNumber: z.string().optional(),
   stage: z.string().optional(),
   serviceType: z.string(),
   mode: VisitServiceModeEnum,
@@ -108,25 +108,72 @@ export const VisitServiceSchema = z.object({
   createdOnSite: z.boolean().optional(),
   clientRequestId: z.string().optional(),
   pendingSync: z.boolean().optional(),
+  paymentMethod: z.string().optional(),
+  paymentDetail: z.string().max(500).optional(),
 });
 
-export const CreateVisitServicePayloadSchema = z.object({
-  taskId: z.string().uuid(),
-  clientRequestId: z.string().min(8).max(64),
-  serviceType: ExtraServiceTypeEnum,
-  mode: VisitServiceModeEnum.optional(),
-  notes: z.string().max(4000).optional(),
-  measurements: MeasurementsPayloadSchema.optional(),
-});
+const ExtraServicePaymentMethodEnum = z.enum([
+  "tpa_local",
+  "tpa_sede",
+  "transferencia",
+  "numerario_local",
+  "numerario_sede",
+  "outros",
+]);
 
-export const UpdateVisitServicePayloadSchema = z.object({
-  taskId: z.string().uuid(),
-  opportunityId: z.string().uuid(),
-  serviceType: ExtraServiceTypeEnum,
-  mode: VisitServiceModeEnum.optional(),
-  notes: z.string().max(4000).optional(),
-  measurements: MeasurementsPayloadSchema.optional(),
-});
+function extraRepairPaymentRefine(
+  val: {
+    serviceType: string;
+    mode?: "now" | "later";
+    paymentMethod?: string;
+    paymentDetail?: string;
+  },
+  ctx: z.RefinementCtx
+) {
+  const mode = val.mode ?? "now";
+  if (val.serviceType !== "REPARACAO" || mode === "later") return;
+  if (!val.paymentMethod) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["paymentMethod"],
+      message: "Indique a forma de pagamento da reparação extra feita agora.",
+    });
+    return;
+  }
+  if (val.paymentMethod === "outros" && !val.paymentDetail?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["paymentDetail"],
+      message: "Descreva o motivo quando escolhe Outros.",
+    });
+  }
+}
+
+export const CreateVisitServicePayloadSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    clientRequestId: z.string().min(8).max(64),
+    serviceType: ExtraServiceTypeEnum,
+    mode: VisitServiceModeEnum.optional(),
+    notes: z.string().max(4000).optional(),
+    measurements: MeasurementsPayloadSchema.optional(),
+    paymentMethod: ExtraServicePaymentMethodEnum.optional(),
+    paymentDetail: z.string().max(500).optional(),
+  })
+  .superRefine(extraRepairPaymentRefine);
+
+export const UpdateVisitServicePayloadSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    opportunityId: z.string().uuid(),
+    serviceType: ExtraServiceTypeEnum,
+    mode: VisitServiceModeEnum.optional(),
+    notes: z.string().max(4000).optional(),
+    measurements: MeasurementsPayloadSchema.optional(),
+    paymentMethod: ExtraServicePaymentMethodEnum.optional(),
+    paymentDetail: z.string().max(500).optional(),
+  })
+  .superRefine(extraRepairPaymentRefine);
 
 export const DeleteVisitServicePayloadSchema = z.object({
   taskId: z.string().uuid(),

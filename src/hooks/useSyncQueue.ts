@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, SyncQueueItem } from '@/lib/db';
+import { db, SyncQueueItem, type VisitPhotoQueueItem } from '@/lib/db';
+import {
+  countVisitPhotoQueue,
+  handleVisitPhotoQueueFailure,
+  uploadVisitPhotoQueueItem,
+} from '@/lib/visits/visitPhotoQueue';
 import { isBrowserOnline } from '@/lib/networkOnline';
 import { isOnboardingDemoEntity } from '@/lib/demo/demoIds';
 import { syncUpdateTaskStatusAction } from '@/actions/tasks-actions';
@@ -17,6 +22,7 @@ import {
 } from '@/lib/sync/syncQueuePolicy';
 import type { ActionErrorCode } from '@/lib/types/action-response';
 import { resolveVisitArrivedAtMs } from '@/lib/visits/offlineStatusSync';
+import type { RepairPaymentNote } from '@/lib/visits/repairPayment';
 import { isStaleServerActionError, STALE_CLIENT_USER_MESSAGE } from '@/lib/staleClientError';
 
 const JITTER_MIN_MS = 50;
@@ -167,9 +173,10 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     try {
       const pending = await db.syncQueue.where('status').equals('pending').count();
       const failed = await db.syncQueue.where('status').equals('failed').count();
-      setPendingCount(pending);
-      setFailedCount(failed);
-      await reportTelemetry(pending, failed);
+      const photoCounts = await countVisitPhotoQueue();
+      setPendingCount(pending + photoCounts.pending);
+      setFailedCount(failed + photoCounts.failed);
+      await reportTelemetry(pending + photoCounts.pending, failed + photoCounts.failed);
     } catch (e) {
       console.warn("Could not read syncQueue counts:", e);
     }
@@ -194,7 +201,8 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         item.payload.photos || [],
         clientRequestId,
         item.timestamp,
-        visitArrivedAt
+        visitArrivedAt,
+        Array.isArray(item.payload.paymentNotes) ? item.payload.paymentNotes : undefined
         )
       );
       if (!statusResult.success) {
@@ -340,6 +348,34 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     [notifyQueueFailure, toast]
   );
 
+  const processVisitPhotoQueue = useCallback(async (): Promise<boolean> => {
+    const pendingPhotos = await db.visitPhotoQueue.where('status').equals('pending').toArray();
+    pendingPhotos.sort((a, b) => a.capturedAt - b.capturedAt);
+    let syncedAny = false;
+
+    for (const item of pendingPhotos) {
+      if (!isBrowserOnline()) break;
+      if (item.nextRetryAt && Date.now() < item.nextRetryAt) continue;
+
+      try {
+        await uploadVisitPhotoQueueItem(item);
+        if (item.id) {
+          await db.visitPhotoQueue.delete(item.id);
+          syncedAny = true;
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Erro desconhecido';
+        const errorCode =
+          error instanceof Error
+            ? (error as Error & { errorCode?: ActionErrorCode }).errorCode
+            : undefined;
+        console.error('[VisitPhotoQueue] Falha ao enviar foto:', error);
+        await handleVisitPhotoQueueFailure(item as VisitPhotoQueueItem, message, errorCode);
+      }
+    }
+    return syncedAny;
+  }, []);
+
   const processQueue = useCallback(async () => {
     if (queuePausedReasonRef.current) return;
     if (syncingRef.current || typeof window === 'undefined' || !isBrowserOnline()) return;
@@ -352,6 +388,10 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       let syncedAny = false;
 
       try {
+        if (await processVisitPhotoQueue()) {
+          syncedAny = true;
+        }
+
         const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
         pendingItems.sort((a, b) => (a.id || 0) - (b.id || 0));
 
@@ -442,7 +482,13 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     };
 
     await withSyncQueueLock(run);
-  }, [refreshCounts, processQueueItem, handleQueueItemFailure, technicianId]);
+  }, [
+    refreshCounts,
+    processQueueItem,
+    handleQueueItemFailure,
+    technicianId,
+    processVisitPhotoQueue,
+  ]);
 
   const retryFailed = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -455,6 +501,18 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
             retries: 0,
             lastError: undefined,
             payload: { ...item.payload, nextRetryAt: undefined },
+          });
+        }
+      }
+      const failedPhotos = await db.visitPhotoQueue.where('status').equals('failed').toArray();
+      for (const photo of failedPhotos) {
+        if (photo.id) {
+          await db.visitPhotoQueue.update(photo.id, {
+            status: 'pending',
+            retries: 0,
+            lastError: undefined,
+            nextRetryAt: undefined,
+            transientAttempts: 0,
           });
         }
       }
@@ -551,7 +609,8 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     status: string,
     reason: string,
     photos: string[],
-    opportunityId?: string
+    opportunityId?: string,
+    paymentNotes?: RepairPaymentNote[]
   ) => {
     if (isOnboardingDemoEntity({ id: taskId })) {
       return { success: true, queued: false };
@@ -576,6 +635,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       opportunityId,
       clientRequestId,
       occurredAt,
+      ...(paymentNotes?.length ? { paymentNotes } : {}),
       ...(visitArrivedAt !== undefined ? { visitArrivedAt } : {}),
     });
     const buildItem = (occurredAt: number, visitArrivedAt?: number): SyncQueueItem => ({
@@ -590,7 +650,16 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     if (isBrowserOnline()) {
       try {
         const direct = await withSyncQueueLock(async () =>
-          syncUpdateTaskStatusAction(taskId, status, reason, photos, clientRequestId)
+          syncUpdateTaskStatusAction(
+            taskId,
+            status,
+            reason,
+            photos,
+            clientRequestId,
+            undefined,
+            undefined,
+            paymentNotes
+          )
         );
         if (!direct.success) {
           if (isPermanentSyncFailure(direct.error || '', direct.errorCode)) {
@@ -852,6 +921,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     enqueueNote,
     enqueueVisitService,
     processQueue,
+    processVisitPhotoQueue,
     retryFailed,
     retryFailedItem,
     refreshCounts,

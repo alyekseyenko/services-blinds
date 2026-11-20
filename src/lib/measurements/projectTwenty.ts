@@ -12,12 +12,7 @@ function buildAppLineUrl(sheetId: string, lineId: string): string {
   return `${base}/medicoes/${sheetId}?linha=${encodeURIComponent(lineId)}`;
 }
 
-export async function projectTwentyProdutosForSheet(sheetId: string): Promise<void> {
-  const sheet = await getSheetById(sheetId);
-  if (!sheet?.sheetId) return;
-
-  const opportunityId = sheet.opportunityId;
-
+export async function deleteProjectedTwentyProdutos(opportunityId: string): Promise<number> {
   const findQuery = `
     query findItems($oppId: UUID!) {
       ${SI.queryName}(filter: { ${F.opportunityRelationId}: { eq: $oppId } }) {
@@ -29,18 +24,21 @@ export async function projectTwentyProdutosForSheet(sheetId: string): Promise<vo
     findQuery,
     { oppId: opportunityId }
   );
-  const existingIds =
-    existingData?.[SI.queryName]?.edges?.map((e) => e.node.id) ?? [];
+  const existingIds = existingData?.[SI.queryName]?.edges?.map((edge) => edge.node.id) ?? [];
+  await Promise.all(
+    existingIds.map((id) =>
+      crmFetch(`mutation deleteItem($id: UUID!) { ${SI.mutationDelete}(id: $id) { id } }`, { id })
+    )
+  );
+  return existingIds.length;
+}
 
-  if (existingIds.length > 0) {
-    await Promise.all(
-      existingIds.map((id) =>
-        crmFetch(`mutation deleteItem($id: UUID!) { ${SI.mutationDelete}(id: $id) { id } }`, {
-          id,
-        })
-      )
-    );
-  }
+export async function projectTwentyProdutosForSheet(sheetId: string): Promise<void> {
+  const sheet = await getSheetById(sheetId);
+  if (!sheet?.sheetId) return;
+
+  const opportunityId = sheet.opportunityId;
+  await deleteProjectedTwentyProdutos(opportunityId);
 
   for (const group of sheet.groups) {
     for (const row of group.rows) {

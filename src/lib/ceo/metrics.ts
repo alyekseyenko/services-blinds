@@ -7,17 +7,14 @@ import {
   CRM_TASK_STATUS,
   parseCrmClientRating,
   CRM_ADDRESS_GRAPHQL_FIELDS,
-  deriveWorkflowMarkerKey,
-  isTaskTerminal,
 } from "@/lib/crm/contract";
-import { pickRepresentativeTaskForOpportunity } from "@/lib/crm/opportunities";
+import { formatServiceNumber } from "@/lib/crm/serviceNumber";
 import {
+  buildFairServiceTypeDurations,
   buildTechnicianOnSiteDurationRows,
-  durationFromVisitSiteTimes,
+  collectOnSiteDurationSamplesFromOpportunities,
   summarizeOnSiteDurations,
-  type OnSiteDurationSample,
 } from "@/lib/visitOnSiteDurationStats";
-import { parseVisitSiteTimes } from "@/lib/visitSiteTimes";
 import { recentYears, yearToUtcRange } from "@/lib/crm/dateFilters";
 import { fetchAllGraphqlPages } from "@/lib/crm/graphqlPagination";
 import { HQ_COORDINATES } from "@/lib/hq";
@@ -35,7 +32,7 @@ import {
 const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   [CRM_STAGES.ENTRADA]: { label: "Entrada / Pedido", color: "#64748b" },
   [CRM_STAGES.TIRAR_MEDIDAS]: { label: "Visita de Medição", color: "#3b82f6" },
-  REMEDICAO: { label: "Retificação Medidas", color: "#a855f7" },
+  REMEDICAO: { label: "Medidas Retificadas", color: "#a855f7" },
   [CRM_STAGES.ORCAMENTAR]: { label: "Orçamentação", color: "#6366f1" },
   [CRM_STAGES.PROPOSTA]: { label: "Proposta Enviada", color: "#8b5cf6" },
   [CRM_STAGES.MANUTENCAO]: { label: "Manutenção", color: "#64748b" },
@@ -99,14 +96,24 @@ const formatEUR = (val: number): string => {
   return `${Math.round(val).toLocaleString("pt-PT")} €`;
 };
 
+function formatCrmDateOnly(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const day = String(value).slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return null;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
 const CEO_OPP_NODE_FIELDS = `
   id
   name
   nsi
+  numeroDeServico
   stage
   avaliacaoDoCliente
   feedbackDoCliente
   dataDeFollowUp
+  dataDeLembrete
   pointOfContact {
     id
     name {
@@ -130,6 +137,7 @@ const CEO_OPP_NODE_FIELDS = `
       node {
         task {
           id
+          title
           status
           technicianName
           dueAt
@@ -168,6 +176,11 @@ async function fetchCeoYearSample(): Promise<number[]> {
   } catch {
     return recentYears(8);
   }
+}
+
+/** Todas as oportunidades recentes — usado nos benchmarks de tempo no local (sem filtrar por ano). */
+export async function fetchOpportunityNodesForOnSiteBenchmarks() {
+  return fetchCeoOpportunityNodes(null);
 }
 
 async function fetchCeoOpportunityNodes(activeYear: number | null): Promise<any[]> {
@@ -561,6 +574,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
         id: node.id,
         name: node.name || "Serviço Sem Nome",
         nsi: node.nsi != null ? String(node.nsi) : null,
+        serviceNumber: formatServiceNumber(node.numeroDeServico) ?? null,
         stage: stageNorm,
         stageLabel: stageInfo.label,
         serviceType: serviceTypeStr,
@@ -786,10 +800,13 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
         id: opp.id,
         clientName: opp.name || "Cliente Sem Nome",
         nsi: opp.nsi != null ? String(opp.nsi) : null,
+        serviceNumber: formatServiceNumber(opp.numeroDeServico) ?? null,
         stage: stageNorm,
         stageLabel: stageInfo.label,
         followUpDate: opp.dataDeFollowUp,
         formattedFollowUpDate: fDate.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" }),
+        reminderDate: opp.dataDeLembrete ?? null,
+        formattedReminderDate: formatCrmDateOnly(opp.dataDeLembrete),
         daysRemaining: diffDays,
         urgencyStatus,
         contactPhone,
@@ -830,25 +847,8 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
       ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)) 
       : 0;
 
-    const onSiteSamples: OnSiteDurationSample[] = [];
-    filteredOpps.forEach((node) => {
-      const tasks =
-        node.taskTargets?.edges
-          ?.map((e: { node?: { task?: { status?: string; technicianName?: string; bodyV2?: { markdown?: string } } } }) =>
-            e.node?.task
-          )
-          .filter(Boolean) || [];
-      const task = pickRepresentativeTaskForOpportunity(tasks);
-      if (!task || !isTaskTerminal(task.status)) return;
-      const times = parseVisitSiteTimes(task.bodyV2?.markdown);
-      const serviceType = deriveWorkflowMarkerKey(node.stage, node.name || "");
-      const sample = durationFromVisitSiteTimes(
-        times,
-        serviceType,
-        task.technicianName ?? undefined
-      );
-      if (sample) onSiteSamples.push(sample);
-    });
+    const onSiteSamples = collectOnSiteDurationSamplesFromOpportunities(filteredOpps);
+    const fairServiceTypeDurations = buildFairServiceTypeDurations(onSiteSamples);
     const fleetOnSiteSummary = summarizeOnSiteDurations(onSiteSamples);
     const technicianOnSiteDurations = buildTechnicianOnSiteDurationRows(onSiteSamples);
     const onSiteDuration = {
@@ -895,6 +895,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
       topTechnicians,
       technicianRankings,
       onSiteDuration,
+      fairServiceTypeDurations,
       technicianOnSiteDurations,
       upcomingFollowUps,
       servicesList,
@@ -966,6 +967,7 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
       topTechnicians: [],
       technicianRankings: [],
       onSiteDuration: { sampleCount: 0, avgMinutes: 0, formattedAvg: "—" },
+      fairServiceTypeDurations: [],
       technicianOnSiteDurations: [],
       upcomingFollowUps: [],
       servicesList: [],

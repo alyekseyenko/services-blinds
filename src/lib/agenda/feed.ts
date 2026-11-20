@@ -5,6 +5,8 @@ import { fetchAllGraphqlPages } from "@/lib/crm/graphqlPagination";
 import { fetchAdminOpportunities } from "@/lib/crm/opportunities";
 import { parseVisitServicesMarker } from "@/lib/crm/visitServicesMarker";
 import { extractTaskStatusNote } from "@/lib/agenda/taskStatusNote";
+import { isUrgentVisitMarkdown } from "@/lib/crm/urgentSchedulingUi";
+import { formatServiceNumber } from "@/lib/crm/serviceNumber";
 import {
   AdminAgendaFeedSchema,
   type AdminAgendaFeedFromSchema,
@@ -35,6 +37,7 @@ const AGENDA_TASK_NODE_FIELDS = `
           id
           name
           nsi
+          numeroDeServico
           stage
           pointOfContact {
             name {
@@ -89,6 +92,7 @@ type RawTaskNode = {
           id: string;
           name?: string | null;
           nsi?: number | string | null;
+          numeroDeServico?: number | string | null;
           stage?: string | null;
           pointOfContact?: {
             name?: { firstName?: string | null; lastName?: string | null };
@@ -99,10 +103,16 @@ type RawTaskNode = {
   } | null;
 };
 
-function buildPipelineLabel(client: string, nsi: string, title: string): string {
+function buildPipelineLabel(
+  client: string,
+  nsi: string,
+  title: string,
+  serviceNumber?: string
+): string {
   return (
     [
       client && client !== "Cliente" ? client : null,
+      serviceNumber ? `N.º ${serviceNumber}` : null,
       nsi ? `NSI ${nsi}` : null,
       title || null,
     ]
@@ -145,12 +155,14 @@ export function mapAgendaFeedTaskNode(node: RawTaskNode): AdminAgendaFeedFromSch
     scheduledBy: node.scheduledBy ?? undefined,
     client: client || undefined,
     nsi: nsi || undefined,
+    serviceNumber: formatServiceNumber(primaryOpp?.numeroDeServico),
     visitTitle: node.title?.trim() || primaryOpp?.name?.trim() || undefined,
     opportunityId: primaryOpp?.id,
     onSiteOpportunityIds,
     onSiteServices: onSiteServices.length > 0 ? onSiteServices : undefined,
     statusNote,
     serviceType: deriveWorkflowMarkerKey(primaryOpp?.stage, node.title?.trim()),
+    urgent: isUrgentVisitMarkdown(node.bodyV2?.markdown) || undefined,
   };
 }
 
@@ -273,7 +285,7 @@ async function buildPipelineItems(): Promise<AdminAgendaFeedFromSchema["pipeline
     items.push({
       opportunityId: opp.twentyId,
       stage: opp.stage,
-      label: buildPipelineLabel(client, nsi, opp.title || ""),
+      label: buildPipelineLabel(client, nsi, opp.title || "", opp.serviceNumber),
     });
   }
   return items;
@@ -291,10 +303,11 @@ async function fetchAdminAgendaFeedFromCrm(): Promise<AdminAgendaFeedFromSchema>
   return parsed.data;
 }
 
-export async function fetchAdminAgendaFeed(): Promise<AdminAgendaFeedFromSchema> {
+export async function fetchAdminAgendaFeed(options?: { fresh?: boolean }): Promise<AdminAgendaFeedFromSchema> {
   return cacheGetOrCompute(
     CRM_CACHE_KEYS.adminAgendaFeed,
     ADMIN_AGENDA_FEED_TTL_SEC,
-    fetchAdminAgendaFeedFromCrm
+    fetchAdminAgendaFeedFromCrm,
+    options
   );
 }

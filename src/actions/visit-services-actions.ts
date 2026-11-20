@@ -13,6 +13,8 @@ import {
 } from "@/lib/crm/visitServices";
 import { assertCanMutateTask } from "@/lib/auth/taskAccess";
 import { getAppSession } from "@/lib/auth/session.server";
+import { isTaskInProgress } from "@/lib/crm/contract";
+import { getTaskStatusForPublicPortal } from "@/lib/crm/tasks";
 import { toUserMessage } from "@/lib/userMessages";
 
 async function assertCanManageVisit(
@@ -39,6 +41,14 @@ export async function createVisitServiceAction(
     const auth = await assertCanManageVisit(parsed.data.taskId);
     if (!auth.ok) {
       return { success: false, error: auth.error };
+    }
+
+    const taskStatus = await getTaskStatusForPublicPortal(parsed.data.taskId);
+    if (!isTaskInProgress(taskStatus)) {
+      return {
+        success: false,
+        error: "Registe a chegada ao local antes de adicionar um serviço extra.",
+      };
     }
 
     const payload = {

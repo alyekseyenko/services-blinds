@@ -21,9 +21,12 @@ export function filterCeoServices(
       const q = searchQuery.toLowerCase().trim();
       const matchesName = item.name.toLowerCase().includes(q);
       const matchesNsi = item.nsi ? item.nsi.toLowerCase().includes(q) : false;
+      const matchesServiceNumber = item.serviceNumber
+        ? item.serviceNumber.toLowerCase().includes(q)
+        : false;
       const matchesTech = item.technician ? item.technician.toLowerCase().includes(q) : false;
       const matchesType = item.serviceType ? item.serviceType.toLowerCase().includes(q) : false;
-      if (!matchesName && !matchesNsi && !matchesTech && !matchesType) {
+      if (!matchesName && !matchesNsi && !matchesServiceNumber && !matchesTech && !matchesType) {
         return false;
       }
     }

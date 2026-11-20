@@ -2,7 +2,6 @@ import {
   joinCsvCodes,
   parseCsvCodes,
 } from "@/lib/measurements/extendedFields";
-
 export const EXTERIOR_INSTALL_TYPE_VALUES = ["COMPLETO", "PARCIAL"] as const;
 export type ExteriorInstallType = (typeof EXTERIOR_INSTALL_TYPE_VALUES)[number];
 

@@ -7,20 +7,24 @@ import { formatVisitServiceTypeLabel } from "@/lib/visits/serviceTypeLabel";
 export type AgendaNotificationVisit = {
   clientName?: string;
   nsi?: string;
+  serviceNumber?: string;
   visitTitle?: string;
   technicianName?: string;
   dueAtIso?: string;
   serviceType?: string;
+  urgent?: boolean;
 };
 
 export function buildVisitFromAgendaEvent(event: AgendaDiffEvent): AgendaNotificationVisit {
   return {
     clientName: event.clientName,
     nsi: event.nsi,
+    serviceNumber: event.serviceNumber,
     visitTitle: event.visitTitle?.trim() || undefined,
     technicianName: event.technicianName,
     dueAtIso: event.dueAt,
     serviceType: event.serviceType,
+    urgent: event.urgent || undefined,
   };
 }
 

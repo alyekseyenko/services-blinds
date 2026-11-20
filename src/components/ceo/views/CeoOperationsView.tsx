@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { HQ_LABEL } from "@/lib/branding";
 import type { CeoMetrics } from "@/lib/schemas/ceoMetrics";
+import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
 
 export interface CeoOperationsViewProps {
   metrics: CeoMetrics;
@@ -120,20 +121,29 @@ export default function CeoOperationsView({ metrics, selectedYear }: CeoOperatio
             </div>
 
             <div className="brutal-panel rounded-2xl p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                <div className="min-w-0 space-y-3">
                   <h2 className="ds-title flex items-center gap-2 text-xl tracking-tight text-foreground">
                     <Clock className="w-5 h-5 text-info-solid" />
                     Tempo no local por técnico e tipo de serviço
                   </h2>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                    Da marcação «Cheguei ao local» até ao encerramento na app · média da frota:{" "}
-                    {metrics.onSiteDuration.formattedAvg}
-                    {metrics.onSiteDuration.sampleCount > 0
-                      ? ` (${metrics.onSiteDuration.sampleCount} visitas)`
-                      : ""}
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                    Da marcação «Cheguei ao local» até ao encerramento na app
                   </p>
+                  {metrics.fairServiceTypeDurations.length > 0 ? (
+                    <ul className="space-y-1.5 text-xs font-medium text-muted-foreground">
+                      {metrics.fairServiceTypeDurations.map((row) => (
+                        <li key={row.serviceType} className="flex flex-wrap items-baseline gap-1">
+                          <span className="font-black text-foreground">{row.serviceLabel}</span>
+                          <span>· tempo médio</span>
+                          <span className="ds-num font-black text-info-fg">{row.formattedRecommended}</span>
+                          <span className="font-medium">({row.sampleCount} visitas)</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
+                <FairOnSiteDurationHelpButton />
               </div>
 
               {metrics.technicianOnSiteDurations.length === 0 ? (

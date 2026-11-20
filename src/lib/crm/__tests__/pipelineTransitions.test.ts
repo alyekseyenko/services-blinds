@@ -4,6 +4,7 @@ import {
   assertAllowedTransition,
   applyOpportunityStageTransition,
   getVisitServiceStage,
+  getOnSiteVisitServiceStage,
   PIPELINE_STAGE_CONFLICT_MESSAGE,
   resolveStageAfterSchedule,
   resolveStageAfterTaskStatusChange,
@@ -53,6 +54,12 @@ describe("pipelineTransitions", () => {
   it("getVisitServiceStage maps extra service types", () => {
     expect(getVisitServiceStage("REPARACAO")).toBe(CRM_STAGES.REPARACAO);
     expect(getVisitServiceStage("TIRAR_MEDIDAS")).toBe(CRM_STAGES.TIRAR_MEDIDAS);
+  });
+
+  it("reparação extra feita agora entra em cobrança; agendar depois fica em reparação", () => {
+    expect(getOnSiteVisitServiceStage("REPARACAO", "now")).toBe(CRM_STAGES.PAGAMENTO_TOTAL);
+    expect(getOnSiteVisitServiceStage("REPARACAO", "later")).toBe(CRM_STAGES.REPARACAO);
+    expect(getOnSiteVisitServiceStage("MANUTENCAO", "now")).toBe(CRM_STAGES.MANUTENCAO);
   });
 
   describe("assertAllowedTransition", () => {

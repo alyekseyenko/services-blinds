@@ -40,10 +40,16 @@ export interface Opportunity {
   title: string;
   client: string;
   address: string;
+  /** Rua, cidade e código postal, sem andar. O pin e o GPS usam esta linha. */
+  navigationAddress?: string;
   coordinates: [number, number] | null;
   stage: string;
   status: string;
   scheduledAt: string | Date | null;
+  /** Fim opcional da visita no Twenty (`horaDeFim` da task). */
+  scheduledEndAt?: string | Date | null;
+  /** Data da visita para o histórico. dueDate no mapa admin continua a ser a criação do serviço. */
+  historyAt?: string | Date | null;
   dueDate: Date | null;
   hasScheduledTask: boolean;
   hasPendingProposal?: boolean;
@@ -55,9 +61,12 @@ export interface Opportunity {
   addressCity?: string;
   report?: string;
   nsi?: string;
+  /** Número de serviço automático do Twenty. O NSI continua manual. */
+  serviceNumber?: string;
   serviceType?: string | string[];
   createdOnSite?: boolean;
   technician?: string;
+  technicianId?: string | null;
   scheduledBy?: string;
   start?: Date;
   end?: Date;
@@ -65,6 +74,8 @@ export interface Opportunity {
   delayDays?: number;
   pointOfContactPhone?: string;
   pointOfContactPhones?: string[];
+  /** NIF da pessoa de contacto (Twenty `nif`). */
+  clientNif?: string | null;
   amount?: number;
   technicianReport?: string;
   clientRating?: number;

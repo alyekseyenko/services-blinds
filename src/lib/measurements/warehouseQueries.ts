@@ -8,6 +8,7 @@ type CrmPrepOpportunity = {
   id: string;
   name: string;
   nsi: string;
+  serviceNumber?: string;
   createdAt: string;
   client: string;
   taskId?: string;
@@ -49,6 +50,7 @@ export async function fetchLatestMeasurementLinesForOpportunities(
        SELECT opportunity_id, MAX(version) AS version
        FROM measurement_sheet
        WHERE opportunity_id = ANY($1::uuid[])
+         AND deleted_at IS NULL
        GROUP BY opportunity_id
      )
      SELECT
@@ -133,6 +135,7 @@ export function mergeCrmPrepWithMeasurementLines(
       id: opp.id,
       title: opp.name,
       nsi: opp.nsi,
+      serviceNumber: opp.serviceNumber,
       client: opp.client,
       createdAt: opp.createdAt,
       measurements: groups.length > 0 ? { groups } : undefined,
@@ -155,6 +158,7 @@ export async function fetchCeoWarehouseItemStatsFromDb(): Promise<CeoWarehouseIt
     `WITH latest AS (
        SELECT opportunity_id, MAX(version) AS version
        FROM measurement_sheet
+       WHERE deleted_at IS NULL
        GROUP BY opportunity_id
      )
      SELECT ml.is_prepared, ml.warehouse_state

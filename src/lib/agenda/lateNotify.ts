@@ -62,6 +62,7 @@ export function detectLateVisits(
       status: item.status,
       clientName: item.clientName,
       nsi: item.nsi,
+      serviceNumber: item.serviceNumber,
       visitTitle: item.visitTitle,
       opportunityId: item.opportunityId,
       technicianName: item.technicianName,

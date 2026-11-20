@@ -14,8 +14,12 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const forceRegeocode = searchParams.get('regeocode');
 
-    const throttled = await runMaintenanceThrottled(() =>
-      runOpportunityMaintenance(forceRegeocode)
+    const scope = searchParams.get("scope");
+    const lane = scope === "missing" ? "missing" : "full";
+
+    const throttled = await runMaintenanceThrottled(
+      () => runOpportunityMaintenance(forceRegeocode),
+      lane
     );
     if (throttled.skipped) {
       return NextResponse.json({

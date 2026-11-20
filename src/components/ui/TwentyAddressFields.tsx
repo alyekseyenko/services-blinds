@@ -44,7 +44,7 @@ function FieldLabel({ children }: { children: string }) {
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} className="text-xs font-semibold text-danger-fg" role="alert">
+    <p id={id} className="text-sm font-semibold text-danger-fg" role="alert">
       {message}
     </p>
   );

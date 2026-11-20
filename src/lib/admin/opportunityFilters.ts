@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/mapFilterConfig";
 import { isOpportunityPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
+import { resolveCalendarEventEnd } from "@/lib/visits/calendarVisitSpan";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 
 export interface MapFilterOptions {
@@ -93,6 +94,10 @@ export function filterMapOpportunities(
 
   filtered = filtered.filter((opp) => {
     const stageNorm = normalizeString(opp.stage);
+    // Entrada is the holding stage before an operational type is chosen.
+    // It stays off every map tab, including when an older visit is still active.
+    if (stageNorm === CRM_STAGES.ENTRADA) return false;
+
     const needsScheduling =
       STAGE_GROUPS.NEEDS_SCHEDULING.includes(stageNorm) || stageNorm.includes("REMED");
 
@@ -148,11 +153,14 @@ export function filterCalendarOpportunities(
 ): Opportunity[] {
   let filtered = opportunities
     .filter((opp) => opp.scheduledAt && isTaskBlockingSchedule(opp.status))
-    .map((opp) => ({
-      ...opp,
-      start: opp.scheduledAt as Date,
-      end: new Date(new Date(opp.scheduledAt as Date).getTime() + 60 * 60 * 1000),
-    }));
+    .map((opp) => {
+      const start = opp.scheduledAt as Date;
+      return {
+        ...opp,
+        start,
+        end: resolveCalendarEventEnd(start, opp.scheduledEndAt) as Date,
+      };
+    });
 
   if (selectedTechnician !== "all") {
     filtered = filtered.filter((opp) => opp.technician === selectedTechnician);

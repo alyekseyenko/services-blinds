@@ -36,14 +36,26 @@ export function formatTaskStatusPt(status?: string | null): string {
   }
 }
 
+export function buildTechnicianArrivedNotePt(
+  technicianName: string | null | undefined
+): { title: string; body: string } {
+  const tech = technicianName?.trim() || "Técnico";
+  return {
+    title: "Chegada ao local do cliente",
+    body: `${tech} chegou ao local do cliente.`,
+  };
+}
+
 export function buildTechnicianLeftSiteNotePt(
   technicianName: string | null | undefined,
-  closedStatus: string
+  closedStatus: string,
+  paymentLabel?: string | null
 ): { title: string; body: string } {
   const tech = technicianName?.trim() || "Técnico";
   const estado = formatTaskStatusPt(closedStatus);
+  const payment = paymentLabel?.trim() ? ` Forma de pagamento: ${paymentLabel.trim()}.` : "";
   return {
     title: "Saída do local do cliente",
-    body: `${tech} saiu do local do cliente. Visita encerrada como: ${estado}.`,
+    body: `${tech} saiu do local do cliente. Visita encerrada como: ${estado}.${payment}`,
   };
 }

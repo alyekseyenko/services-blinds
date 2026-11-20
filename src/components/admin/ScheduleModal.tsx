@@ -11,6 +11,19 @@ import {
 } from "@/lib/admin/schedulingHours";
 import { cn } from "@/lib/cn";
 import type { ScheduleForm } from "@/lib/admin/scheduleForm";
+import {
+  dueAtFromScheduleDateAndTime,
+  findScheduleConflicts,
+} from "@/lib/admin/routeScheduleSlots";
+import {
+  isScheduleEndAfterStart,
+  resolveCalendarEventEnd,
+  SCHEDULE_DAY_PRESETS,
+  type ScheduleDayPresetKey,
+} from "@/lib/visits/calendarVisitSpan";
+import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
+import { fairDurationForOpportunity } from "@/lib/admin/fairDurationDisplay";
+import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
 
 export type { ScheduleForm } from "@/lib/admin/scheduleForm";
 
@@ -25,6 +38,8 @@ interface ScheduleModalProps {
   isScheduling: boolean;
   handleScheduleVisit: () => Promise<void> | void;
   isOnboardingDemoSchedule?: boolean;
+  fairServiceTypeDurations?: FairServiceTypeDuration[];
+  fairBenchmarksReady?: boolean;
 }
 
 const fieldClass =
@@ -43,35 +58,67 @@ export default function ScheduleModal({
   isScheduling,
   handleScheduleVisit,
   isOnboardingDemoSchedule = false,
+  fairServiceTypeDurations = [],
+  fairBenchmarksReady = false,
 }: ScheduleModalProps) {
   const isDesktopLg = useMediaMinWidth(1024);
   const conflict = useMemo(() => {
     if (!scheduleForm.date || !scheduleForm.technicianId || !scheduleForm.time) return null;
-
-    const selectedTime = new Date(
-      `${scheduleForm.date.replace(/-/g, "/")} ${scheduleForm.time}`
-    ).getTime();
-
-    return opportunities.find((opp) => {
-      if (!opp.scheduledAt || opp.status === "Cancelado" || opp.status === "Concluído")
-        return false;
-      if (schedulingOpportunityId && opp.twentyId === schedulingOpportunityId) return false;
-
-      const isSameTech =
-        opp.technician === workspaceMembers.find((m) => m.id === scheduleForm.technicianId)?.name;
-      if (!isSameTech) return false;
-
-      const oppTime = new Date(opp.scheduledAt).getTime();
-      const diffHours = Math.abs(selectedTime - oppTime) / (1000 * 60 * 60);
-      return diffHours < 2;
-    });
+    const dueAt = dueAtFromScheduleDateAndTime(scheduleForm.date, scheduleForm.time);
+    if (!dueAt) return null;
+    const endTime = scheduleForm.endTime?.trim();
+    const proposedEnd = endTime
+      ? dueAtFromScheduleDateAndTime(scheduleForm.date, endTime)
+      : null;
+    const endAt = resolveCalendarEventEnd(
+      dueAt,
+      proposedEnd && isScheduleEndAfterStart(dueAt, proposedEnd) ? proposedEnd : null
+    );
+    const technicianName =
+      workspaceMembers.find((member) => member.id === scheduleForm.technicianId)?.name || "";
+    return (
+      findScheduleConflicts(
+        [{ title: scheduleForm.title, dueAt, endAt, opportunityId: schedulingOpportunityId }],
+        opportunities,
+        technicianName,
+        {
+          excludeOpportunityIds: schedulingOpportunityId ? [schedulingOpportunityId] : [],
+          technicianId: scheduleForm.technicianId,
+        }
+      )[0] ?? null
+    );
   }, [
     scheduleForm.date,
     scheduleForm.technicianId,
     scheduleForm.time,
+    scheduleForm.endTime,
+    scheduleForm.title,
     opportunities,
     workspaceMembers,
     schedulingOpportunityId,
+  ]);
+
+  const schedulingOpportunity = useMemo(
+    () =>
+      schedulingOpportunityId
+        ? opportunities.find((row) => row.twentyId === schedulingOpportunityId)
+        : undefined,
+    [opportunities, schedulingOpportunityId]
+  );
+
+  const fairTypeDuration = useMemo(() => {
+    if (!fairBenchmarksReady) return undefined;
+    const input = schedulingOpportunity ?? {
+      title: scheduleForm.title,
+      serviceType: undefined,
+      stage: undefined,
+    };
+    return fairDurationForOpportunity(fairServiceTypeDurations, input);
+  }, [
+    fairBenchmarksReady,
+    fairServiceTypeDurations,
+    schedulingOpportunity,
+    scheduleForm.title,
   ]);
 
   const selectedDateTime =
@@ -88,6 +135,33 @@ export default function ScheduleModal({
   }, [scheduleForm.date, scheduleForm.time]);
 
   const isInvalidTime = scheduleForm.time ? !isAdminScheduleTimeStringValid(scheduleForm.time) : false;
+
+  const visitStart = useMemo(() => {
+    if (!scheduleForm.date || !scheduleForm.time) return null;
+    return dueAtFromScheduleDateAndTime(scheduleForm.date, scheduleForm.time);
+  }, [scheduleForm.date, scheduleForm.time]);
+
+  const visitEnd = useMemo(() => {
+    const endTime = scheduleForm.endTime?.trim();
+    if (!scheduleForm.date || !endTime) return null;
+    return dueAtFromScheduleDateAndTime(scheduleForm.date, endTime);
+  }, [scheduleForm.date, scheduleForm.endTime]);
+
+  const invalidEndTime = Boolean(
+    scheduleForm.endTime?.trim() &&
+      visitStart &&
+      visitEnd &&
+      !isScheduleEndAfterStart(visitStart, visitEnd)
+  );
+
+  const applyPreset = (key: ScheduleDayPresetKey) => {
+    const preset = SCHEDULE_DAY_PRESETS[key];
+    setScheduleForm({
+      ...scheduleForm,
+      time: preset.start,
+      endTime: preset.end,
+    });
+  };
 
   const cannotConfirm =
     isScheduling ||
@@ -143,8 +217,30 @@ export default function ScheduleModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          {fairBenchmarksReady ? (
+            <p className="flex items-center gap-2 rounded-lg border border-info-border bg-info-surface px-2.5 py-2 text-xs font-medium text-info-fg">
+              <Clock className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">
+                {fairTypeDuration ? (
+                  <>
+                    {fairTypeDuration.serviceLabel} · tempo médio na equipa:{" "}
+                    <span className="ds-num font-black text-foreground">
+                      {fairTypeDuration.formattedRecommended}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Tempo médio indisponível para este tipo (menos de 5 visitas concluídas com tempo
+                    registado na app).
+                  </span>
+                )}
+              </span>
+              <FairOnSiteDurationHelpButton compact />
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-1">
               <label className={cn(labelClass, "flex items-center gap-1")}>
                 <Calendar className="h-3 w-3" aria-hidden />
                 Data
@@ -160,7 +256,7 @@ export default function ScheduleModal({
             <div className="space-y-1.5">
               <label className={cn(labelClass, "flex items-center gap-1")}>
                 <Clock className="h-3 w-3" aria-hidden />
-                Hora
+                Hora de início
               </label>
               <input
                 type="time"
@@ -169,7 +265,42 @@ export default function ScheduleModal({
                 className={fieldClass}
               />
             </div>
+            <div className="space-y-1.5">
+              <label className={cn(labelClass, "flex items-center gap-1")}>
+                <Clock className="h-3 w-3" aria-hidden />
+                Hora de fim
+                <span className="font-medium normal-case tracking-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </label>
+              <input
+                type="time"
+                value={scheduleForm.endTime}
+                onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })}
+                className={fieldClass}
+              />
+            </div>
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(SCHEDULE_DAY_PRESETS) as ScheduleDayPresetKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => applyPreset(key)}
+                className="min-h-12 rounded-lg border border-border bg-muted px-3 text-xs font-black uppercase text-foreground transition-colors hover:border-primary hover:bg-card"
+              >
+                {SCHEDULE_DAY_PRESETS[key].label}
+              </button>
+            ))}
+          </div>
+
+          {invalidEndTime && (
+            <p className="rounded-lg border border-warning-border bg-warning-surface px-2.5 py-2 text-xs font-semibold text-warning-fg">
+              A hora de fim tem de ser posterior ao início, no mesmo dia. Ao confirmar, o
+              calendário mantém o bloco de 1 hora.
+            </p>
+          )}
 
           {(isInvalidTime || businessHoursWarning) && scheduleForm.time && (
             <p
@@ -216,17 +347,16 @@ export default function ScheduleModal({
             </div>
           </div>
 
-          {conflict?.scheduledAt && (
+          {conflict && (
             <p className="flex gap-2 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-2 text-xs font-medium text-warning-fg">
               <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               <span>
-                Sobreposição com «{conflict.title}» às{" "}
-                {new Date(conflict.scheduledAt).toLocaleTimeString("pt-PT", {
+                Sobreposição com «{conflict.conflictingTitle}» (início às{" "}
+                {conflict.conflictingTime.toLocaleTimeString("pt-PT", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
-                .
-                {scheduleForm.urgent ? " Modo urgente: pode continuar." : ""}
+                ). Pode agendar na mesma.
               </span>
             </p>
           )}
@@ -247,7 +377,7 @@ export default function ScheduleModal({
             <span className="text-xs font-semibold text-foreground">
               <span className="font-black uppercase tracking-wide text-warning-fg">Urgente</span>
               <span className="mt-0.5 block font-medium text-muted-foreground">
-                Permite sobreposição na agenda do técnico.
+                A visita fica marcada como prioritária.
               </span>
             </span>
           </label>

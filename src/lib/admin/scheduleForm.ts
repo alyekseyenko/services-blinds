@@ -2,6 +2,8 @@ export interface ScheduleForm {
   title: string;
   date: string;
   time: string;
+  /** Optional end time (HH:MM). Empty keeps the one-hour calendar block. */
+  endTime: string;
   technicianId: string;
   urgent: boolean;
   notes: string;

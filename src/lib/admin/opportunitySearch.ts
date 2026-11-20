@@ -17,6 +17,7 @@ function searchableFields(opp: Opportunity): string[] {
     opp.addressCity,
     opp.technician,
     opp.nsi,
+    opp.serviceNumber,
     opp.twentyId,
     opp.taskId,
     opp.pointOfContactEmail,
@@ -47,6 +48,7 @@ export function scoreOpportunitySearchMatch(opp: Opportunity, query: string): nu
   const city = String(opp.addressCity ?? "").toLowerCase();
   const technician = String(opp.technician ?? "").toLowerCase();
   const nsi = opportunityNsiText(opp).toLowerCase();
+  const serviceNumber = String(opp.serviceNumber ?? "").trim().toLowerCase();
 
   let score = 0;
 
@@ -58,6 +60,8 @@ export function scoreOpportunitySearchMatch(opp: Opportunity, query: string): nu
   if (title.includes(q)) score = Math.max(score, 52);
   if (address.includes(q) || city.includes(q)) score = Math.max(score, 42);
   if (technician.startsWith(q) || technician.includes(q)) score = Math.max(score, 36);
+  if (serviceNumber && serviceNumber === q) score = Math.max(score, 30);
+  if (serviceNumber.startsWith(q)) score = Math.max(score, 24);
   if (nsi && nsi === q) score = Math.max(score, 28);
   if (nsi.startsWith(q)) score = Math.max(score, 22);
   if (score === 0 && opportunityMatchesSearch(opp, q)) score = 10;

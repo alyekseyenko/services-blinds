@@ -17,6 +17,7 @@ import {
   measurementSheetBackLabel,
   parseMeasurementSheetBackContext,
 } from "@/lib/measurements/sheetPageBack";
+import { measurementVersionButtonLabel } from "@/lib/measurements/versionStamp";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
 import { useSession } from "next-auth/react";
 import { canAccessAdminPanel } from "@/lib/auth/rbac";
@@ -67,7 +68,14 @@ export default function MedicoesSheetPage() {
 
   const [sheet, setSheet] = useState<MeasurementSheet | null>(null);
   const [versions, setVersions] = useState<
-    Array<{ sheetId: string; version: number; createdAt: string; technicianName?: string }>
+    Array<{
+      sheetId: string;
+      version: number;
+      createdAt: string;
+      visitAt?: string;
+      technicianName?: string;
+      editedByName?: string;
+    }>
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +118,7 @@ export default function MedicoesSheetPage() {
       versions.map((v) => ({
         sheetId: v.sheetId,
         version: v.version,
-        label: `v${v.version}`,
+        label: measurementVersionButtonLabel(v.version, v.createdAt, v.editedByName),
       })),
     [versions]
   );
@@ -136,9 +144,13 @@ export default function MedicoesSheetPage() {
             <h1 className="text-xl font-black text-foreground">Ficha de medições</h1>
             <p className="text-sm font-medium text-muted-foreground">
               {sheet
-                ? sheet.nsi
-                  ? `NSI ${sheet.nsi} · ${sheet.clientName}`
-                  : sheet.clientName
+                ? [
+                    sheet.serviceNumber ? `N.º ${sheet.serviceNumber}` : null,
+                    sheet.nsi ? `NSI ${sheet.nsi}` : null,
+                    sheet.clientName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
                 : "Detalhe da medição"}
             </p>
           </div>

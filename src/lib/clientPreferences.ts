@@ -7,6 +7,10 @@ export const CLIENT_PREF_KEYS = {
   COLOR_THEME: "app_color_theme",
   /** Alto contraste para uso ao sol (técnico). Valores: "high" | ausente. */
   FIELD_CONTRAST: "field_contrast",
+  /** Som de avisos e cliques importantes. Valores: "on" | "off". */
+  FEEDBACK_SOUND: "feedback_sound_enabled",
+  /** Vibração tátil. Valores: "on" | "off". */
+  FEEDBACK_VIBRATION: "feedback_vibration_enabled",
 } as const;
 
 const PRESERVED_ON_LOGOUT: string[] = [
@@ -16,6 +20,8 @@ const PRESERVED_ON_LOGOUT: string[] = [
   CLIENT_PREF_KEYS.PWA_INSTALL_DISMISSED_AT,
   CLIENT_PREF_KEYS.COLOR_THEME,
   CLIENT_PREF_KEYS.FIELD_CONTRAST,
+  CLIENT_PREF_KEYS.FEEDBACK_SOUND,
+  CLIENT_PREF_KEYS.FEEDBACK_VIBRATION,
 ];
 
 /** How long "Not now" suppresses the PWA install banner before it may reappear. */

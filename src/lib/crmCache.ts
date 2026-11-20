@@ -162,15 +162,20 @@ export async function cacheSet(
 export async function cacheGetOrCompute<T>(
   key: string,
   ttlSec: number,
-  compute: () => Promise<T>
+  compute: () => Promise<T>,
+  options?: { fresh?: boolean }
 ): Promise<T> {
-  const existing = inFlight.get(key) as Promise<T> | undefined;
-  if (existing) return existing;
+  if (!options?.fresh) {
+    const existing = inFlight.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+  }
 
   const prefix = logicalKeyPrefix(key);
   const promise = (async () => {
-    const cached = await cacheGet<T>(key);
-    if (cached !== null) return cached;
+    if (!options?.fresh) {
+      const cached = await cacheGet<T>(key);
+      if (cached !== null) return cached;
+    }
 
     const redis = await getRedisClient();
     const genBefore = await resolveCacheGeneration(redis, prefix);
@@ -181,6 +186,8 @@ export async function cacheGetOrCompute<T>(
     }
     return value;
   })();
+
+  if (options?.fresh) return promise;
 
   inFlight.set(key, promise);
   try {
@@ -211,8 +218,12 @@ export async function invalidateAdminCrmCache(): Promise<void> {
   await cacheInvalidatePrefix("crm:admin:");
 }
 
-export function adminHistoryPageCacheKey(page: number, pageSize: number): string {
-  return `${CRM_CACHE_KEYS.adminHistoryPagePrefix}:${page}:${pageSize}`;
+export function adminHistoryPageCacheKey(
+  page: number,
+  pageSize: number,
+  scope = ""
+): string {
+  return `${CRM_CACHE_KEYS.adminHistoryPagePrefix}:${page}:${pageSize}${scope ? `:${scope}` : ""}`;
 }
 
 export function ceoMetricsYearCacheKey(year: number | "all"): string {

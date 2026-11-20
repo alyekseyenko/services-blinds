@@ -3,6 +3,22 @@ import { pickRepresentativeTaskForOpportunity } from "../opportunities";
 import { CRM_TASK_STATUS } from "../contract";
 
 describe("pickRepresentativeTaskForOpportunity", () => {
+  it("uma visita agendada nova ganha a uma conclusão antiga da mesma oportunidade", () => {
+    const picked = pickRepresentativeTaskForOpportunity([
+      {
+        id: "done",
+        status: CRM_TASK_STATUS.CONCLUIDO,
+        dueAt: "2026-09-01T09:00:00.000Z",
+      },
+      {
+        id: "again",
+        status: CRM_TASK_STATUS.AGENDADO,
+        dueAt: "2026-11-12T09:00:00.000Z",
+      },
+    ]);
+    expect(picked?.id).toBe("again");
+  });
+
   it("prefere tarefa concluída quando existe reagendamento pendente", () => {
     const picked = pickRepresentativeTaskForOpportunity([
       {

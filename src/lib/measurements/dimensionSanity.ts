@@ -1,6 +1,5 @@
 import type { MeasurementRow } from "@/types";
 import type { LineDimensionMode } from "@/lib/measurements/lineModes";
-
 const LOW_MM_MAX = 249;
 const HIGH_MM_MIN = 5001;
 const SKYLIGHT_DEPTH_HIGH_MM = 1001;

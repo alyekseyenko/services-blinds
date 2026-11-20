@@ -23,7 +23,7 @@ import { cn } from "@/lib/cn";
 const DIVISION_LIST_MAX_PX = 208;
 
 const fieldClass =
-  "min-h-12 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-semibold text-foreground outline-none focus:border-primary";
+  "min-h-12 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-semibold text-foreground outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/25";
 
 type DivisionPickerProps = {
   productType: ProductType;
@@ -127,7 +127,7 @@ export function MeasurementDivisionPicker({
               type="button"
               aria-pressed={divisionCode === q.code}
               className={cn(
-                "ds-chip min-h-10 px-3 text-xs font-black",
+                "ds-chip min-h-12 px-3 text-xs font-black outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
                 divisionCode === q.code && "border-primary bg-primary/15 text-foreground"
               )}
               onClick={() => pick(q.code)}
@@ -160,7 +160,7 @@ export function MeasurementDivisionPicker({
           type="button"
           tabIndex={-1}
           disabled={disabled}
-          className="absolute right-1 top-1/2 flex min-h-10 min-w-10 -translate-y-1/2 items-center justify-center text-muted-foreground"
+          className="absolute right-1 top-1/2 flex min-h-12 min-w-12 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
           aria-label="Abrir lista de divisões"
           onClick={(e) => {
             e.preventDefault();
@@ -191,7 +191,7 @@ export function MeasurementDivisionPicker({
                   <button
                     type="button"
                     className={cn(
-                      "flex min-h-11 w-full px-3 py-2 text-left text-xs font-bold transition-colors hover:bg-muted",
+                      "flex min-h-12 w-full px-3 py-2 text-left text-xs font-bold transition-colors hover:bg-muted",
                       divisionCode === opt.value && "bg-primary/10 text-foreground"
                     )}
                     onMouseDown={(e) => e.preventDefault()}

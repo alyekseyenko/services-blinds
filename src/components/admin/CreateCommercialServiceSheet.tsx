@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, User } from "lucide-react";
+import { FormAlert } from "@/components/ui/FormAlert";
 import { Sheet } from "@/components/ui/Sheet";
 import { TwentyAddressFields } from "@/components/ui/TwentyAddressFields";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,35 @@ const emptyAddress = (): AdminServiceAddress => ({
 const fieldClass =
   "min-h-12 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-semibold text-foreground outline-none focus:border-primary";
 
+type ServiceFormErrors = {
+  client?: string;
+  serviceType?: string;
+  addressStreet1?: string;
+  addressCity?: string;
+  nsi?: string;
+  form?: string;
+};
+
+function serviceErrorMessages(errors: ServiceFormErrors): string[] {
+  const seen = new Set<string>();
+  const messages: string[] = [];
+  for (const message of Object.values(errors)) {
+    if (!message || seen.has(message)) continue;
+    seen.add(message);
+    messages.push(message);
+  }
+  return messages;
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-sm font-semibold text-danger-fg" role="alert">
+      {message}
+    </p>
+  );
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -57,6 +87,15 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [clientCreateOpen, setClientCreateOpen] = useState(false);
+  const [formErrors, setFormErrors] = useState<ServiceFormErrors>({});
+  const [errorTick, setErrorTick] = useState(0);
+  const formErrorsRef = useRef(formErrors);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const clientSectionRef = useRef<HTMLElement>(null);
+  const typeSectionRef = useRef<HTMLElement>(null);
+  const addressSectionRef = useRef<HTMLElement>(null);
+  const nsiFieldRef = useRef<HTMLLabelElement>(null);
+  formErrorsRef.current = formErrors;
 
   const resetForm = useCallback(() => {
     setClientCreateOpen(false);
@@ -68,13 +107,48 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
     setNsi("");
     setTitleSuffix("");
     setNotes("");
+    setFormErrors({});
   }, []);
+
+  const clearError = useCallback((key: keyof ServiceFormErrors) => {
+    setFormErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const publishErrors = useCallback(
+    (errors: ServiceFormErrors, title: string) => {
+      const messages = serviceErrorMessages(errors);
+      setFormErrors(errors);
+      setErrorTick((tick) => tick + 1);
+      toast.error(title, messages.join(" · ") || "Verifique os dados do formulário.");
+    },
+    [toast]
+  );
 
   useEffect(() => {
     if (!open) {
       resetForm();
     }
   }, [open, resetForm]);
+
+  useEffect(() => {
+    if (errorTick === 0) return;
+    const errors = formErrorsRef.current;
+    const target = errors.client
+      ? clientSectionRef.current
+      : errors.serviceType
+        ? typeSectionRef.current
+        : errors.nsi
+          ? nsiFieldRef.current
+          : errors.addressStreet1 || errors.addressCity
+            ? addressSectionRef.current
+            : alertRef.current;
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [errorTick]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +173,7 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
 
   const pickClient = async (client: AdminClientSearchHit) => {
     setSelectedClient(client);
+    clearError("client");
     setClientQuery(client.displayName);
     setClientHits([]);
     setAddressLoading(true);
@@ -128,24 +203,31 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
   };
 
   const handleSubmit = async (openScheduleAfter: boolean) => {
+    const errors: ServiceFormErrors = {};
     if (!selectedClient) {
-      toast.error("Selecione ou crie um cliente.");
-      return;
+      errors.client = "Selecione ou crie um cliente.";
     }
     if (!serviceType) {
-      toast.error("Selecione o tipo de serviço.");
-      return;
+      errors.serviceType = "Selecione o tipo de serviço.";
     }
-    if (!address.addressStreet1.trim() || !address.addressCity.trim()) {
-      toast.error("Morada incompleta", "Indique rua e localidade do serviço.");
-      return;
+    if (!address.addressStreet1.trim()) {
+      errors.addressStreet1 = "Indique a rua do serviço.";
+    }
+    if (!address.addressCity.trim()) {
+      errors.addressCity = "Indique a localidade do serviço.";
     }
 
     const nsiTrim = nsi.trim();
     if (nsiTrim && (!/^\d+$/.test(nsiTrim) || Number(nsiTrim) <= 0)) {
-      toast.error("NSI inválido", "Indique um número inteiro positivo ou deixe em branco.");
+      errors.nsi = "Indique um número inteiro positivo ou deixe o NSI em branco.";
+    }
+
+    if (!selectedClient || !serviceType || serviceErrorMessages(errors).length > 0) {
+      publishErrors(errors, "Dados por corrigir");
       return;
     }
+
+    setFormErrors({});
 
     setSubmitting(true);
     try {
@@ -159,7 +241,10 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
         notes: notes.trim() || undefined,
       });
       if (!res.success || !res.data) {
-        toast.error("Não foi possível criar", res.error || "Erro desconhecido.");
+        publishErrors(
+          { form: res.error || "Erro desconhecido." },
+          "Não foi possível criar"
+        );
         return;
       }
       toast.success(
@@ -188,6 +273,7 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
     >
       <div className="flex flex-col px-4 pb-6 pt-4">
         <section
+          ref={clientSectionRef}
           className="space-y-3 border-b border-border pb-6"
           data-tour="admin-create-service-client"
         >
@@ -216,8 +302,10 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
           ) : clientCreateOpen ? (
             <AdminCreateClientForm
               initialFirstName={guessFirstNameFromQuery(clientQuery)}
+              pinActions={false}
               onCreated={(client) => {
                 setClientCreateOpen(false);
+                clearError("client");
                 void pickClient(client);
               }}
               onCancel={() => setClientCreateOpen(false)}
@@ -233,10 +321,19 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                 <input
                   type="search"
                   value={clientQuery}
-                  onChange={(e) => setClientQuery(e.target.value)}
+                  onChange={(e) => {
+                    setClientQuery(e.target.value);
+                    clearError("client");
+                  }}
                   placeholder="Nome ou e-mail do cliente…"
-                  className={cn(fieldClass, "pl-10")}
+                  className={cn(
+                    fieldClass,
+                    "pl-10",
+                    formErrors.client && "border-danger-border bg-danger-surface/40"
+                  )}
                   autoComplete="off"
+                  aria-invalid={Boolean(formErrors.client)}
+                  aria-describedby={formErrors.client ? "service-client-error" : undefined}
                 />
                 {clientLoading ? (
                   <Loader2
@@ -290,21 +387,34 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
               ) : null}
             </>
           )}
+          <FieldError id="service-client-error" message={formErrors.client} />
         </section>
 
         <section
+          ref={typeSectionRef}
           className="space-y-3 border-b border-border py-6"
           data-tour="admin-create-service-type"
         >
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Tipo de serviço
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-2 sm:grid-cols-2",
+              formErrors.serviceType && "rounded-xl border-2 border-danger-border bg-danger-surface/30 p-2"
+            )}
+            role="group"
+            aria-invalid={Boolean(formErrors.serviceType)}
+            aria-describedby={formErrors.serviceType ? "service-type-error" : undefined}
+          >
             {ADMIN_COMMERCIAL_SERVICE_OPTIONS.map((opt) => (
               <button
                 key={opt.type}
                 type="button"
-                onClick={() => setServiceType(opt.type)}
+                onClick={() => {
+                  setServiceType(opt.type);
+                  clearError("serviceType");
+                }}
                 className={cn(
                   "min-h-12 rounded-xl border-2 px-3 py-2 text-left text-sm font-bold transition-colors",
                   serviceType === opt.type
@@ -316,9 +426,10 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
               </button>
             ))}
           </div>
+          <FieldError id="service-type-error" message={formErrors.serviceType} />
           <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
             <p className="text-xs font-bold text-muted-foreground">Detalhes opcionais</p>
-            <label className="block space-y-1.5">
+            <label ref={nsiFieldRef} className="block space-y-1.5">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 NSI
               </span>
@@ -327,12 +438,21 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                 inputMode="numeric"
                 pattern="[0-9]*"
                 value={nsi}
-                onChange={(e) => setNsi(e.target.value.replace(/\D/g, ""))}
-                placeholder="Número do serviço (opcional)"
-                className={fieldClass}
+                onChange={(e) => {
+                  setNsi(e.target.value.replace(/\D/g, ""));
+                  clearError("nsi");
+                }}
+                placeholder="NSI (opcional)"
+                className={cn(
+                  fieldClass,
+                  formErrors.nsi && "border-danger-border bg-danger-surface/40"
+                )}
+                aria-invalid={Boolean(formErrors.nsi)}
+                aria-describedby={formErrors.nsi ? "service-nsi-error" : undefined}
               />
+              <FieldError id="service-nsi-error" message={formErrors.nsi} />
               <span className="block text-xs font-medium leading-snug text-muted-foreground">
-                Em branco: o Twenty atribui o próximo NSI.
+                O NSI continua manual. O número de serviço é outro campo e o Twenty atribui-o sozinho.
               </span>
             </label>
             <label className="block space-y-1.5">
@@ -351,6 +471,7 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
         </section>
 
         <section
+          ref={addressSectionRef}
           className="space-y-3 border-b border-border py-6"
           data-tour="admin-create-service-address"
         >
@@ -367,8 +488,16 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
           </div>
           <TwentyAddressFields
             value={address}
-            onChange={(next) => setAddress((prev) => ({ ...prev, ...next }))}
+            onChange={(next) => {
+              setAddress((prev) => ({ ...prev, ...next }));
+              if (next.addressStreet1 !== address.addressStreet1) clearError("addressStreet1");
+              if (next.addressCity !== address.addressCity) clearError("addressCity");
+            }}
             disabled={addressLoading}
+            fieldErrors={{
+              addressStreet1: formErrors.addressStreet1,
+              addressCity: formErrors.addressCity,
+            }}
           />
         </section>
 
@@ -388,7 +517,15 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
           />
         </section>
 
-        <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t-2 border-border-strong bg-card px-4 py-4 sm:flex-row">
+        <div
+          ref={alertRef}
+          className="sticky bottom-0 z-10 -mx-4 space-y-3 border-t-2 border-border-strong bg-card px-4 py-4"
+        >
+          <FormAlert
+            title={formErrors.form ? "Não foi possível criar" : "Dados por corrigir"}
+            messages={serviceErrorMessages(formErrors)}
+          />
+          <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             type="button"
             variant="outline"
@@ -407,6 +544,7 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
           >
             Criar e agendar
           </Button>
+          </div>
         </div>
       </div>
     </Sheet>

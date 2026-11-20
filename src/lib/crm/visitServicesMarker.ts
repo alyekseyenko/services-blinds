@@ -1,5 +1,6 @@
 import { stripVisitSiteTimesMarker } from "@/lib/visitSiteTimes";
 import { deriveWorkflowMarkerKey } from "./contract";
+import { formatServiceNumber } from "./serviceNumber";
 import type { ExtraServiceType, VisitService, VisitServiceMode } from "@/lib/schemas";
 
 export const VISIT_SERVICES_REGEX = /<!--\s*\[VISIT_SERVICES\]([\s\S]*?)\s*-->/;
@@ -11,6 +12,8 @@ export interface VisitServiceMarkerRecord {
   serviceType: ExtraServiceType;
   mode: VisitServiceMode;
   createdAt: string;
+  paymentMethod?: string;
+  paymentDetail?: string;
 }
 
 export function parseVisitServicesMarker(markdown?: string | null): VisitServiceMarkerRecord[] {
@@ -43,6 +46,16 @@ export function writeVisitServicesMarker(markdown: string, records: VisitService
   return base ? `${base}\n\n${marker}` : marker;
 }
 
+/** Replace existing row with same clientRequestId, or append — keeps idempotent retries from duplicating JSON rows. */
+export function upsertVisitServiceMarkerRecord(
+  markdown: string,
+  record: VisitServiceMarkerRecord
+): string {
+  const existing = parseVisitServicesMarker(markdown);
+  const without = existing.filter((r) => r.clientRequestId !== record.clientRequestId);
+  return writeVisitServicesMarker(markdown, [...without, record]);
+}
+
 export function buildVisitServicesFromTaskNode(node: {
   bodyV2?: { markdown?: string | null } | null;
   taskTargets?: { edges?: Array<{ node?: { targetOpportunity?: any } }> };
@@ -51,7 +64,13 @@ export function buildVisitServicesFromTaskNode(node: {
   const markerByOpp = new Map(markerRecords.map((r) => [r.opportunityId, r]));
   const edges = node.taskTargets?.edges || [];
 
-  const opps: Array<{ id: string; name?: string; nsi?: number | string; stage?: string }> = [];
+  const opps: Array<{
+    id: string;
+    name?: string;
+    nsi?: number | string;
+    numeroDeServico?: number | string | null;
+    stage?: string;
+  }> = [];
   for (const edge of edges) {
     const opp = edge.node?.targetOpportunity;
     if (opp?.id) opps.push(opp);
@@ -72,12 +91,15 @@ export function buildVisitServicesFromTaskNode(node: {
         opportunityId: opp.id,
         name: opp.name || "Service",
         nsi: opp.nsi != null ? String(opp.nsi) : undefined,
+        serviceNumber: formatServiceNumber(opp.numeroDeServico),
         stage: opp.stage,
         serviceType,
         mode,
         isPrimary,
         createdOnSite: !!meta,
         clientRequestId: meta?.clientRequestId,
+        paymentMethod: meta?.paymentMethod,
+        paymentDetail: meta?.paymentDetail,
       };
     })
     .sort((a, b) => {

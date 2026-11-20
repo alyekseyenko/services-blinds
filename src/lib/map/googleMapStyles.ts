@@ -7,7 +7,7 @@ export const OPERATIONS_MAP_CANVAS = "#e8eaef";
  */
 export const OPERATIONS_MAP_STYLES = [
   { elementType: "geometry", stylers: [{ color: OPERATIONS_MAP_CANVAS }] },
-  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "on" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#525252" }] },
   { elementType: "labels.text.stroke", stylers: [{ color: OPERATIONS_MAP_CANVAS }] },
 
@@ -75,8 +75,13 @@ export const OPERATIONS_MAP_STYLES = [
   },
   {
     featureType: "road",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#404040" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#f2f3f6" }],
   },
   {
     featureType: "road.highway",
@@ -105,13 +110,13 @@ export const OPERATIONS_MAP_STYLES = [
   },
   {
     featureType: "road.arterial",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#404040" }],
   },
   {
     featureType: "road.local",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#404040" }],
   },
 
   {

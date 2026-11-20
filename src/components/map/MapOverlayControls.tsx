@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Crosshair,
   Group,
@@ -27,6 +27,8 @@ interface MapOverlayControlsProps {
   onToggleClustering?: () => void;
   locationSharingEnabled?: boolean;
   onToggleLocationSharing?: () => void;
+  /** Vista técnico: Street View + satélite por cima dos controlos. */
+  stackedToolbar?: ReactNode;
 }
 
 export function MapOverlayControls({
@@ -37,10 +39,11 @@ export function MapOverlayControls({
   onRecenter,
   recenterLabel,
   clusteringAvailable = false,
-  clusteringEnabled = true,
+  clusteringEnabled = false,
   onToggleClustering,
   locationSharingEnabled = true,
   onToggleLocationSharing,
+  stackedToolbar,
 }: MapOverlayControlsProps) {
   const isDesktop = useMediaMinWidth(768);
   const compact = variant === "technician" && !isDesktop;
@@ -68,10 +71,11 @@ export function MapOverlayControls({
   if (compact) {
     return (
       <div
-        className={`pointer-events-none absolute right-3 z-20 ${bottomClass} md:right-4`}
+        className={`pointer-events-none absolute right-3 z-20 flex flex-col items-end gap-2 ${bottomClass} md:right-4`}
         aria-label="Controlos do mapa"
         data-tour="tech-map-controls"
       >
+        {stackedToolbar}
         {menuOpen ? (
           <button
             type="button"
@@ -180,10 +184,11 @@ export function MapOverlayControls({
 
   return (
     <div
-      className={`pointer-events-none absolute right-3 z-20 flex flex-col gap-2 ${bottomClass} md:right-4`}
+      className={`pointer-events-none absolute right-3 z-20 flex flex-col items-end gap-2 ${bottomClass} md:right-4`}
       aria-label="Controlos do mapa"
       data-tour={variant === "admin" ? "admin-map-controls" : "tech-map-controls"}
     >
+      {stackedToolbar}
       <button
         type="button"
         onClick={onFitBounds}

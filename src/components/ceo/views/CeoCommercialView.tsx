@@ -139,9 +139,14 @@ export default function CeoCommercialView({
 
                           {/* NSI & Contact Person */}
                           <div className="text-xs text-muted-foreground font-medium mb-3 flex items-center gap-2">
+                            {fu.serviceNumber ? (
+                              <span className="bg-muted ds-num font-black text-foreground px-1.5 py-0.5 rounded text-xs">
+                                N.º {fu.serviceNumber}
+                              </span>
+                            ) : null}
                             {fu.nsi && (
                               <span className="bg-muted ds-num font-black text-foreground px-1.5 py-0.5 rounded text-xs">
-                                #{fu.nsi}
+                                NSI {fu.nsi}
                               </span>
                             )}
                             {fu.contactPerson && (
@@ -154,8 +159,13 @@ export default function CeoCommercialView({
                         <div className="pt-3 border-t border-border flex items-center justify-between text-xs">
                           <div>
                             <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                              {fu.formattedFollowUpDate}
+                              Follow-up {fu.formattedFollowUpDate}
                             </div>
+                            {fu.formattedReminderDate ? (
+                              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                Lembrete {fu.formattedReminderDate}
+                              </div>
+                            ) : null}
                             <div className="ds-num font-black text-foreground mt-0.5">
                               {fu.formattedAmount}
                             </div>

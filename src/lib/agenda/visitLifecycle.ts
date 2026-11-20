@@ -62,6 +62,7 @@ function kindToPhase(kind: AgendaDiffKind): VisitPhaseId {
     case "nova":
     case "reagendada":
     case "reatribuida":
+    case "urgente":
       return "agendada";
     case "em_curso":
       return "em_curso";
@@ -111,7 +112,13 @@ export function resolveVisitPhase(timeline: AgendaTimelineEntry[]): ResolvedVisi
 
   for (let i = timeline.length - 1; i >= 0; i--) {
     const entry = timeline[i];
-    if (entry.kind === "servico_extra" || entry.kind === "medicoes_guardadas") continue;
+    if (
+      entry.kind === "servico_extra" ||
+      entry.kind === "medicoes_guardadas" ||
+      entry.kind === "urgente"
+    ) {
+      continue;
+    }
     if (entry.kind === "atrasada") {
       const superseded = timeline.slice(i + 1).some(
         (e) => e.kind === "em_curso" || TERMINAL_KINDS.includes(e.kind)
@@ -192,6 +199,7 @@ export function timelineKindLabelPt(kind: AgendaDiffKind): string {
     servico_extra: "Serviço extra",
     armazem_pronto: "Armazém pronto",
     medicoes_guardadas: "Medições guardadas",
+    urgente: "Urgente",
   };
   return map[kind] ?? kind;
 }

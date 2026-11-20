@@ -32,6 +32,7 @@ type VoiceTextareaProps = {
   placeholder?: string;
   className?: string;
   textareaClassName?: string;
+  textareaId?: string;
   dataTour?: string;
 };
 
@@ -43,6 +44,7 @@ export function VoiceTextarea({
   placeholder,
   className = "",
   textareaClassName = "",
+  textareaId,
   dataTour,
 }: VoiceTextareaProps) {
   const toast = useToast();
@@ -269,6 +271,7 @@ export function VoiceTextarea({
     <div className={`flex flex-col gap-1.5 ${className}`} data-tour={dataTour}>
       <div className="flex items-end gap-2">
         <textarea
+          id={textareaId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

@@ -26,11 +26,10 @@ import {
   formatRtsCapacityWarningMessage,
 } from "@/lib/measurements/rtsChannelUsage";
 import { getDimensionSanityWarnings } from "@/lib/measurements/dimensionSanity";
-
 const MEASUREMENT_DIM_LABEL =
   "flex items-center justify-between px-1 text-sm font-bold text-foreground";
 const MEASUREMENT_DIM_INPUT =
-  "ds-num w-full min-h-14 rounded-xl border-2 border-border-strong bg-input p-3 text-xl font-black text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/25 md:text-2xl";
+  "ds-num w-full min-h-14 rounded-xl border-2 border-border-strong bg-input p-3 text-xl font-black text-foreground outline-none transition-all focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/25 md:text-2xl";
 const MEASUREMENT_DIM_READ =
   "ds-num rounded-xl border-2 border-border-strong bg-input p-3 text-xl font-black text-foreground md:text-2xl";
 import {
@@ -60,6 +59,8 @@ function DimField({
   placeholder,
   onChange,
   inputRef,
+  inputId,
+  ariaDescribedBy,
   enterKeyHint = "done",
   onEnterPress,
 }: {
@@ -69,6 +70,8 @@ function DimField({
   placeholder: string;
   onChange: (value: string) => void;
   inputRef?: Ref<HTMLInputElement>;
+  inputId?: string;
+  ariaDescribedBy?: string;
   enterKeyHint?: "next" | "done";
   onEnterPress?: () => void;
 }) {
@@ -81,7 +84,7 @@ function DimField({
 
   return (
     <div className="space-y-1">
-      <label className={MEASUREMENT_DIM_LABEL}>
+      <label className={MEASUREMENT_DIM_LABEL} htmlFor={inputId}>
         <span>{label}</span> <span className="text-sm font-bold text-primary-ink">mm</span>
       </label>
       {locked ? (
@@ -89,6 +92,7 @@ function DimField({
       ) : (
         <input
           ref={inputRef}
+          id={inputId}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
@@ -96,6 +100,7 @@ function DimField({
           className={MEASUREMENT_DIM_INPUT}
           value={value}
           placeholder={placeholder}
+          aria-describedby={ariaDescribedBy}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
           onKeyDown={handleKeyDown}
         />
@@ -104,10 +109,10 @@ function DimField({
   );
 }
 
-function DimensionSanityAlerts({ messages }: { messages: string[] }) {
+function DimensionSanityAlerts({ messages, id }: { messages: string[]; id: string }) {
   if (messages.length === 0) return null;
   return (
-    <div className="space-y-1 px-1" role="status">
+    <div id={id} className="space-y-1 px-1" role="status">
       {messages.map((msg) => (
         <p
           key={msg}
@@ -145,7 +150,7 @@ function MeasurementQtyStepper({
   const stepBtn =
     "flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-card text-lg font-black text-foreground active:scale-95";
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         className={stepBtn}
@@ -158,7 +163,7 @@ function MeasurementQtyStepper({
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
-        className="ds-num h-12 w-14 rounded-xl border-2 border-border-strong bg-card text-center text-sm font-black text-foreground outline-none focus:border-primary"
+        className="ds-num h-12 w-14 rounded-xl border-2 border-border-strong bg-card text-center text-sm font-black text-foreground outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/25"
         value={value}
         aria-label="Quantidade"
         onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
@@ -313,6 +318,11 @@ function MobileMeasurementRow({
   const primaryWidthField = usesOpeningFields ? "openingWidth" : "width";
   const heightLabel = lineDimensionHeightLabel(dimensionMode, "long");
   const widthLabel = lineDimensionWidthLabel(dimensionMode, "long");
+  const sanityAlertsId = `measurement-sanity-g${group.id}-r${rIdx}`;
+  const sanityAriaDescribedBy =
+    sanityWarnings.length > 0 ? sanityAlertsId : undefined;
+  const heightInputId = `measurement-h-g${group.id}-r${rIdx}`;
+  const widthInputId = `measurement-w-g${group.id}-r${rIdx}`;
 
   const divisionLabel = getDivisionLabel(row.divisionCode, row.divisionCustom)?.trim();
 
@@ -399,6 +409,8 @@ function MobileMeasurementRow({
               locked={fieldsLocked}
               placeholder="Ex: 1500"
               inputRef={heightInputRef}
+              inputId={heightInputId}
+              ariaDescribedBy={sanityAriaDescribedBy}
               enterKeyHint="next"
               onEnterPress={() => widthInputRef.current?.focus()}
               onChange={(value) => setField(primaryHeightField, value)}
@@ -409,12 +421,14 @@ function MobileMeasurementRow({
               locked={fieldsLocked}
               placeholder="Ex: 1200"
               inputRef={widthInputRef}
+              inputId={widthInputId}
+              ariaDescribedBy={sanityAriaDescribedBy}
               enterKeyHint="done"
               onEnterPress={() => widthInputRef.current?.blur()}
               onChange={(value) => setField(primaryWidthField, value)}
             />
           </div>
-          <DimensionSanityAlerts messages={sanityWarnings} />
+          <DimensionSanityAlerts messages={sanityWarnings} id={sanityAlertsId} />
           {dimensionMode === "opening" &&
           (row.height?.trim() || row.width?.trim()) &&
           (row.height !== row.openingHeight || row.width !== row.openingWidth) ? (
@@ -525,7 +539,7 @@ function MobileMeasurementRow({
                 triggerHaptic();
                 setExtrasOpen((v) => !v);
               }}
-              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-left"
+              className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
               aria-expanded={extrasOpen}
             >
               <span className="text-sm font-bold text-foreground">Mais nesta janela</span>
@@ -753,7 +767,7 @@ export function MeasurementTable({
                           group.id,
                           rIdx,
                           usesOpeningFields ? "openingHeight" : "height",
-                          e.target.value
+                          e.target.value.replace(/\D/g, "")
                         )
                       }
                     />
@@ -777,7 +791,7 @@ export function MeasurementTable({
                           group.id,
                           rIdx,
                           usesOpeningFields ? "openingWidth" : "width",
-                          e.target.value
+                          e.target.value.replace(/\D/g, "")
                         )
                       }
                     />
@@ -793,7 +807,14 @@ export function MeasurementTable({
                         value={row.skylightExteriorHeight ?? ""}
                         placeholder="Alt."
                         disabled={fieldsLocked}
-                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "skylightExteriorHeight", e.target.value)}
+                        onChange={(e) =>
+                          onUpdateMeasurement(
+                            group.id,
+                            rIdx,
+                            "skylightExteriorHeight",
+                            e.target.value.replace(/\D/g, "")
+                          )
+                        }
                       />
                     </td>
                     <td className="py-1 px-1">
@@ -804,7 +825,14 @@ export function MeasurementTable({
                         value={row.skylightExteriorWidth ?? ""}
                         placeholder="Larg."
                         disabled={fieldsLocked}
-                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "skylightExteriorWidth", e.target.value)}
+                        onChange={(e) =>
+                          onUpdateMeasurement(
+                            group.id,
+                            rIdx,
+                            "skylightExteriorWidth",
+                            e.target.value.replace(/\D/g, "")
+                          )
+                        }
                       />
                     </td>
                     <td className="py-1 px-1">
@@ -815,7 +843,14 @@ export function MeasurementTable({
                         value={row.depth ?? ""}
                         placeholder="Prof."
                         disabled={fieldsLocked}
-                        onChange={(e) => onUpdateMeasurement(group.id, rIdx, "depth", e.target.value)}
+                        onChange={(e) =>
+                          onUpdateMeasurement(
+                            group.id,
+                            rIdx,
+                            "depth",
+                            e.target.value.replace(/\D/g, "")
+                          )
+                        }
                       />
                     </td>
                   </>

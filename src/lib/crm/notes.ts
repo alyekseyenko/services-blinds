@@ -50,9 +50,7 @@ export async function createOpportunityNote(
           noteId: note.id,
           targetOpportunityId: opportunityId,
           createdBy,
-        }).catch((err) =>
-          console.error("[createOpportunityNote] Failed to link note to Opportunity:", err)
-        );
+        });
       }
       if (personId) {
         await crmRestCreate("noteTargets", {
@@ -101,9 +99,7 @@ export async function createOpportunityNote(
           noteId: note.id,
           targetOpportunityId: opportunityId,
         },
-      }).catch((err) =>
-        console.error("[createOpportunityNote] Failed to link note to Opportunity:", err)
-      );
+      });
     }
 
     if (personId) {

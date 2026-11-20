@@ -15,6 +15,7 @@ import {
   measurementsQuery,
   withMeasurementsTransaction,
 } from "./db/client";
+import { OUTBOX_MAX_ATTEMPTS } from "@/lib/measurements/outboxBackoff";
 import { sumMeasurementLinePrices } from "@/lib/measurements/measurementPriceTotal";
 import { buildMeasurementSheetFromDb } from "./toSheet";
 import type {
@@ -35,6 +36,7 @@ export type SaveSubmittedSheetInput = {
   clientRequestId?: string;
   technicianName?: string;
   technicianUserId?: string;
+  editedByName?: string;
   clientName: string;
   nsi?: string;
   address: string;
@@ -76,7 +78,7 @@ export async function getSheetById(sheetId: string): Promise<(MeasurementSheet &
 }) | null> {
   if (!isMeasurementsDbConfigured()) return null;
   const sheets = await measurementsQuery<MeasurementSheetRow>(
-    `SELECT * FROM measurement_sheet WHERE id = $1`,
+    `SELECT * FROM measurement_sheet WHERE id = $1 AND deleted_at IS NULL`,
     [sheetId]
   );
   const sheet = sheets[0];
@@ -91,7 +93,7 @@ export async function getLatestMeasurementsPayload(
   if (!isMeasurementsDbConfigured()) return null;
   const sheets = await measurementsQuery<MeasurementSheetRow>(
     `SELECT * FROM measurement_sheet
-     WHERE opportunity_id = $1
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
      ORDER BY version DESC
      LIMIT 1`,
     [opportunityId]
@@ -103,13 +105,43 @@ export async function getLatestMeasurementsPayload(
   return sheetRowsToMeasurementsPayload(groups, linesByGroup);
 }
 
+export async function getLatestSheetMeta(opportunityId: string): Promise<{
+  taskId: string;
+  version: number;
+  technicianName: string | null;
+  technicianUserId: string | null;
+} | null> {
+  if (!isMeasurementsDbConfigured()) return null;
+  const sheets = await measurementsQuery<{
+    task_id: string;
+    version: number;
+    technician_name: string | null;
+    technician_user_id: string | null;
+  }>(
+    `SELECT task_id, version, technician_name, technician_user_id
+     FROM measurement_sheet
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
+     ORDER BY version DESC
+     LIMIT 1`,
+    [opportunityId]
+  );
+  const sheet = sheets[0];
+  if (!sheet?.task_id) return null;
+  return {
+    taskId: sheet.task_id,
+    version: sheet.version,
+    technicianName: sheet.technician_name,
+    technicianUserId: sheet.technician_user_id,
+  };
+}
+
 export async function getLatestSheetByOpportunity(
   opportunityId: string
 ): Promise<(MeasurementSheet & { sheetId: string; version: number }) | null> {
   if (!isMeasurementsDbConfigured()) return null;
   const sheets = await measurementsQuery<MeasurementSheetRow>(
     `SELECT * FROM measurement_sheet
-     WHERE opportunity_id = $1
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
      ORDER BY version DESC
      LIMIT 1`,
     [opportunityId]
@@ -127,7 +159,7 @@ export async function getSheetByOpportunityVersion(
   if (!isMeasurementsDbConfigured()) return null;
   const sheets = await measurementsQuery<MeasurementSheetRow>(
     `SELECT * FROM measurement_sheet
-     WHERE opportunity_id = $1 AND version = $2`,
+     WHERE opportunity_id = $1 AND version = $2 AND deleted_at IS NULL`,
     [opportunityId, version]
   );
   const sheet = sheets[0];
@@ -136,13 +168,27 @@ export async function getSheetByOpportunityVersion(
   return buildMeasurementSheetFromDb(sheet, groups, linesByGroup);
 }
 
+export const MEASUREMENT_TRASH_DAYS = 90;
+
+export async function purgeExpiredMeasurementTrash(): Promise<void> {
+  if (!isMeasurementsDbConfigured()) return;
+  await measurementsQuery(
+    `DELETE FROM measurement_sheet
+     WHERE deleted_at IS NOT NULL
+       AND deleted_at < NOW() - INTERVAL '90 days'`
+  );
+}
+
 export async function listLatestMeasurementSheetsForAdmin(options?: {
   search?: string;
   limit?: number;
+  deleted?: boolean;
 }): Promise<MeasurementSheetListEntry[]> {
   if (!isMeasurementsDbConfigured()) return [];
+  await purgeExpiredMeasurementTrash();
 
   const limit = Math.min(Math.max(options?.limit ?? 100, 1), 500);
+  const deleted = options?.deleted === true;
   const search = options?.search?.trim();
 
   const params: unknown[] = [limit];
@@ -168,6 +214,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     technician_name: string | null;
     visit_at: Date | null;
     created_at: Date;
+    deleted_at: Date | null;
+    deleted_by_name: string | null;
     group_count: string;
     unit_count: string;
     line_prices: (string | null)[] | null;
@@ -175,7 +223,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     `WITH latest AS (
        SELECT DISTINCT ON (opportunity_id) *
        FROM measurement_sheet
-       ORDER BY opportunity_id, version DESC
+       WHERE ${deleted ? "deleted_at IS NOT NULL AND deleted_at >= NOW() - INTERVAL '90 days'" : "deleted_at IS NULL"}
+       ORDER BY opportunity_id, ${deleted ? "deleted_at DESC" : "version DESC"}
      )
      SELECT
        l.id,
@@ -187,6 +236,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
        l.technician_name,
        l.visit_at,
        l.created_at,
+       l.deleted_at,
+       l.deleted_by_name,
        (SELECT COUNT(*)::text FROM measurement_group g WHERE g.sheet_id = l.id) AS group_count,
        (SELECT COALESCE(SUM(ml.qty), 0)::text
         FROM measurement_line ml
@@ -198,7 +249,16 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
         WHERE mg.sheet_id = l.id) AS line_prices
      FROM latest l
      WHERE 1=1${searchClause}
-     ORDER BY l.created_at DESC
+       ${
+         deleted
+           ? `AND NOT EXISTS (
+                SELECT 1 FROM measurement_sheet active
+                WHERE active.opportunity_id = l.opportunity_id
+                  AND active.deleted_at IS NULL
+              )`
+           : ""
+       }
+     ORDER BY ${deleted ? "l.deleted_at DESC" : "l.created_at DESC"}
      LIMIT $1`,
     params
   );
@@ -216,22 +276,33 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     groupCount: Number(r.group_count) || 0,
     unitCount: Number(r.unit_count) || 0,
     totalPriceEur: sumMeasurementLinePrices(r.line_prices ?? []),
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
+    deletedByName: r.deleted_by_name,
   }));
 }
 
 export async function listSheetVersions(opportunityId: string): Promise<
-  Array<{ sheetId: string; version: number; createdAt: string; technicianName?: string }>
+  Array<{
+    sheetId: string;
+    version: number;
+    createdAt: string;
+    visitAt?: string;
+    technicianName?: string;
+    editedByName?: string;
+  }>
 > {
   if (!isMeasurementsDbConfigured()) return [];
   const rows = await measurementsQuery<{
     id: string;
     version: number;
     created_at: Date;
+    visit_at: Date | null;
     technician_name: string | null;
+    edited_by_name: string | null;
   }>(
-    `SELECT id, version, created_at, technician_name
+    `SELECT id, version, created_at, visit_at, technician_name, edited_by_name
      FROM measurement_sheet
-     WHERE opportunity_id = $1
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
      ORDER BY version DESC`,
     [opportunityId]
   );
@@ -239,7 +310,9 @@ export async function listSheetVersions(opportunityId: string): Promise<
     sheetId: r.id,
     version: r.version,
     createdAt: new Date(r.created_at).toISOString(),
+    visitAt: r.visit_at ? new Date(r.visit_at).toISOString() : undefined,
     technicianName: r.technician_name ?? undefined,
+    editedByName: r.edited_by_name?.trim() || undefined,
   }));
 }
 
@@ -293,7 +366,7 @@ async function getLatestSheetLinesForLock(
 ): Promise<Array<{ is_prepared: boolean; warehouse_state: string }>> {
   const sheetRes = await client.query<{ id: string }>(
     `SELECT id FROM measurement_sheet
-     WHERE opportunity_id = $1
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
      ORDER BY version DESC
      LIMIT 1`,
     [opportunityId]
@@ -310,9 +383,223 @@ async function getLatestSheetLinesForLock(
   return lines.rows;
 }
 
+export async function deleteMeasurementSheetsForOpportunity(
+  opportunityId: string,
+  deletedByName: string
+): Promise<
+  | { success: true; versions: number; clientName: string; latestVersion: number }
+  | { success: false; error: string }
+> {
+  if (!isMeasurementsDbConfigured()) {
+    return { success: false, error: "Base de dados de medições indisponível." };
+  }
+  try {
+    return await withMeasurementsTransaction(async (client) => {
+      const lines = await getLatestSheetLinesForLock(client, opportunityId);
+      if (opportunityHasWarehouseLock(lines)) {
+        throw new Error(WAREHOUSE_LOCK_ERROR_MESSAGE);
+      }
+      const meta = await client.query<{ client_name: string; version: number }>(
+        `SELECT client_name, version
+         FROM measurement_sheet
+         WHERE opportunity_id = $1 AND deleted_at IS NULL
+         ORDER BY version DESC`,
+        [opportunityId]
+      );
+      if (meta.rows.length === 0) {
+        throw new Error("Não há medições para apagar nesta obra.");
+      }
+      await client.query(
+        `UPDATE measurement_sheet
+         SET deleted_at = NOW(), deleted_by_name = $2
+         WHERE opportunity_id = $1 AND deleted_at IS NULL`,
+        [opportunityId, deletedByName]
+      );
+      return {
+        success: true as const,
+        versions: meta.rows.length,
+        clientName: meta.rows[0].client_name,
+        latestVersion: meta.rows[0].version,
+      };
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível apagar as medições.";
+    return { success: false, error: message };
+  }
+}
+
+export async function restoreMeasurementSheetsForOpportunity(
+  opportunityId: string
+): Promise<
+  | { success: true; versions: number; clientName: string; latestVersion: number }
+  | { success: false; error: string }
+> {
+  if (!isMeasurementsDbConfigured()) {
+    return { success: false, error: "Base de dados de medições indisponível." };
+  }
+  const rows = await measurementsQuery<{ client_name: string; version: number }>(
+    `UPDATE measurement_sheet
+     SET deleted_at = NULL, deleted_by_name = NULL
+     WHERE opportunity_id = $1 AND deleted_at IS NOT NULL
+     RETURNING client_name, version`,
+    [opportunityId]
+  );
+  if (rows.length === 0) {
+    return { success: false, error: "Não há medições para recuperar." };
+  }
+  return {
+    success: true,
+    versions: rows.length,
+    clientName: rows[0].client_name,
+    latestVersion: Math.max(...rows.map((row) => row.version)),
+  };
+}
+
 function parseRowNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+type LatestSheetRow = {
+  id: string;
+  version: number;
+  task_id: string;
+  edited_by_name: string | null;
+};
+
+/** Decides in-place technician update vs new version (unit-tested). */
+export function resolveTechnicianSheetSaveStrategy(input: {
+  editedByName?: string;
+  taskId: string;
+  latestSheet: {
+    id: string;
+    version: number;
+    taskId: string;
+    editedByName: string | null;
+  } | null;
+}): "insert" | "update" {
+  if (input.editedByName?.trim()) return "insert";
+  if (!input.latestSheet) return "insert";
+  if (input.latestSheet.taskId !== input.taskId) return "insert";
+  if (input.latestSheet.editedByName?.trim()) return "insert";
+  return "update";
+}
+
+async function loadLatestSheetRow(
+  client: PoolClient,
+  opportunityId: string
+): Promise<LatestSheetRow | null> {
+  const res = await client.query<LatestSheetRow>(
+    `SELECT id, version, task_id, edited_by_name
+     FROM measurement_sheet
+     WHERE opportunity_id = $1 AND deleted_at IS NULL
+     ORDER BY version DESC
+     LIMIT 1`,
+    [opportunityId]
+  );
+  return res.rows[0] ?? null;
+}
+
+async function insertPayloadGroupsAndLines(
+  client: PoolClient,
+  sheetId: string,
+  payload: MeasurementsPayload
+): Promise<void> {
+  let groupIndex = 0;
+  for (const group of payload.groups) {
+    const details = sanitizeGroupDetailsForType(
+      group.type as Parameters<typeof sanitizeGroupDetailsForType>[0],
+      group.details
+    );
+    const groupId = randomUUID();
+    const groupExtra = pickGroupExtras(details as Record<string, unknown>);
+    await client.query(
+      `INSERT INTO measurement_group (
+        id, sheet_id, sort_index, product_type, material, other_material,
+        model, ral, fabric, reference, activation, observations, group_extra
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
+      [
+        groupId,
+        sheetId,
+        groupIndex,
+        group.type,
+        details.material ?? null,
+        details.otherMaterial ?? null,
+        details.model ?? null,
+        details.ral ?? null,
+        details.fabric ?? null,
+        details.reference ?? null,
+        details.activation ?? null,
+        details.observations ?? null,
+        JSON.stringify(groupExtra),
+      ]
+    );
+
+    let lineIndex = 0;
+    for (const m of group.measurements) {
+      const synced = syncMeasurementRowLegacyFields({
+        qty: m.qty,
+        width: String(m.width ?? ""),
+        height: String(m.height ?? ""),
+        notes: m.notes ?? "",
+        fixation: m.fixation ?? "",
+        controls: m.controls ?? "",
+        price: m.price != null ? String(m.price) : "",
+        ...pickLineExtras(m as unknown as Record<string, unknown>),
+      });
+      const lineExtra = pickLineExtras(synced as unknown as Record<string, unknown>);
+      const storedDims = storedWidthHeightMm(synced);
+      const lineId = randomUUID();
+      await client.query(
+        `INSERT INTO measurement_line (
+          id, group_id, sort_index, qty, width_mm, height_mm,
+          division, fixation, controls, notes, price,
+          is_prepared, warehouse_state, line_extra
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)`,
+        [
+          lineId,
+          groupId,
+          lineIndex,
+          parseRowNumber(synced.qty),
+          storedDims.width,
+          storedDims.height,
+          synced.notes?.trim() || null,
+          synced.fixation?.trim() || null,
+          synced.controls?.trim() || null,
+          synced.lineNotes?.trim() || null,
+          synced.price != null && String(synced.price).trim() !== ""
+            ? String(synced.price)
+            : null,
+          false,
+          WAREHOUSE_STATUS.EM_PREPARACAO,
+          JSON.stringify(lineExtra),
+        ]
+      );
+      lineIndex += 1;
+    }
+    groupIndex += 1;
+  }
+}
+
+async function enqueueSheetProjectionOutbox(
+  client: PoolClient,
+  sheetId: string,
+  outboxPayload: Record<string, unknown>,
+  clientRequestId: string | null
+): Promise<void> {
+  await client.query(
+    `INSERT INTO measurements_outbox (id, sheet_id, event_type, payload, client_request_id)
+     VALUES ($1,$2,'project_twenty_produtos',$3::jsonb,$4),
+            ($5,$2,'n8n_measurements_report',$3::jsonb,$4)
+     ON CONFLICT (event_type, sheet_id, client_request_id) DO NOTHING`,
+    [
+      randomUUID(),
+      sheetId,
+      JSON.stringify(outboxPayload),
+      clientRequestId,
+      randomUUID(),
+    ]
+  );
 }
 
 export async function saveSubmittedSheet(
@@ -344,6 +631,67 @@ export async function saveSubmittedSheet(
         throw new Error(WAREHOUSE_LOCK_ERROR_MESSAGE);
       }
 
+      const outboxPayload = {
+        taskId: input.taskId,
+        opportunityId: input.opportunityId,
+        measurements: input.payload,
+        clientName: input.clientName,
+        nsi: input.nsi,
+        address: input.address,
+        clientRequestId: input.clientRequestId,
+      };
+      const clientRequestId = input.clientRequestId ?? null;
+
+      const latestRow = await loadLatestSheetRow(client, input.opportunityId);
+      const latestForStrategy = latestRow
+        ? {
+            id: latestRow.id,
+            version: latestRow.version,
+            taskId: latestRow.task_id,
+            editedByName: latestRow.edited_by_name,
+          }
+        : null;
+      const strategy = resolveTechnicianSheetSaveStrategy({
+        editedByName: input.editedByName,
+        taskId: input.taskId,
+        latestSheet: latestForStrategy,
+      });
+
+      if (strategy === "update" && latestRow) {
+        const sheetId = latestRow.id;
+        const version = latestRow.version;
+
+        await client.query(
+          `UPDATE measurement_sheet SET
+             technician_name = $2,
+             technician_user_id = $3,
+             client_name = $4,
+             nsi = $5,
+             address = $6,
+             service_label = $7,
+             visit_at = $8,
+             client_request_id = $9
+           WHERE id = $1`,
+          [
+            sheetId,
+            input.technicianName ?? null,
+            input.technicianUserId ?? null,
+            input.clientName,
+            input.nsi ?? null,
+            input.address,
+            input.serviceLabel ?? null,
+            input.visitAt ?? null,
+            clientRequestId,
+          ]
+        );
+
+        await client.query(`DELETE FROM measurement_group WHERE sheet_id = $1`, [sheetId]);
+        await insertPayloadGroupsAndLines(client, sheetId, input.payload);
+        await enqueueSheetProjectionOutbox(client, sheetId, outboxPayload, clientRequestId);
+
+        return { sheetId, version };
+      }
+
       const versionRes = await client.query<{ next: number }>(
         `SELECT COALESCE(MAX(version), 0) + 1 AS next
          FROM measurement_sheet WHERE opportunity_id = $1`,
@@ -356,14 +704,14 @@ export async function saveSubmittedSheet(
         `INSERT INTO measurement_sheet (
           id, opportunity_id, task_id, version, status, client_request_id,
           technician_name, technician_user_id, client_name, nsi, address,
-          service_label, visit_at
-        ) VALUES ($1,$2,$3,$4,'submitted',$5,$6,$7,$8,$9,$10,$11,$12)`,
+          service_label, visit_at, edited_by_name
+        ) VALUES ($1,$2,$3,$4,'submitted',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           sheetId,
           input.opportunityId,
           input.taskId,
           version,
-          input.clientRequestId ?? null,
+          clientRequestId,
           input.technicianName ?? null,
           input.technicianUserId ?? null,
           input.clientName,
@@ -371,107 +719,12 @@ export async function saveSubmittedSheet(
           input.address,
           input.serviceLabel ?? null,
           input.visitAt ?? null,
+          input.editedByName?.trim() || null,
         ]
       );
 
-      let groupIndex = 0;
-      for (const group of input.payload.groups) {
-        const details = sanitizeGroupDetailsForType(
-          group.type as Parameters<typeof sanitizeGroupDetailsForType>[0],
-          group.details
-        );
-        const groupId = randomUUID();
-        const groupExtra = pickGroupExtras(details as Record<string, unknown>);
-        await client.query(
-          `INSERT INTO measurement_group (
-            id, sheet_id, sort_index, product_type, material, other_material,
-            model, ral, fabric, reference, activation, observations, group_extra
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
-          [
-            groupId,
-            sheetId,
-            groupIndex,
-            group.type,
-            details.material ?? null,
-            details.otherMaterial ?? null,
-            details.model ?? null,
-            details.ral ?? null,
-            details.fabric ?? null,
-            details.reference ?? null,
-            details.activation ?? null,
-            details.observations ?? null,
-            JSON.stringify(groupExtra),
-          ]
-        );
-
-        let lineIndex = 0;
-        for (const m of group.measurements) {
-          const synced = syncMeasurementRowLegacyFields({
-            qty: m.qty,
-            width: String(m.width ?? ""),
-            height: String(m.height ?? ""),
-            notes: m.notes ?? "",
-            fixation: m.fixation ?? "",
-            controls: m.controls ?? "",
-            price: m.price != null ? String(m.price) : "",
-            ...pickLineExtras(m as unknown as Record<string, unknown>),
-          });
-          const lineExtra = pickLineExtras(synced as unknown as Record<string, unknown>);
-          const storedDims = storedWidthHeightMm(synced);
-          const lineId = randomUUID();
-          await client.query(
-            `INSERT INTO measurement_line (
-              id, group_id, sort_index, qty, width_mm, height_mm,
-              division, fixation, controls, notes, price,
-              is_prepared, warehouse_state, line_extra
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)`,
-            [
-              lineId,
-              groupId,
-              lineIndex,
-              parseRowNumber(synced.qty),
-              storedDims.width,
-              storedDims.height,
-              synced.notes?.trim() || null,
-              synced.fixation?.trim() || null,
-              synced.controls?.trim() || null,
-              synced.lineNotes?.trim() || null,
-              synced.price != null && String(synced.price).trim() !== ""
-                ? String(synced.price)
-                : null,
-              false,
-              WAREHOUSE_STATUS.EM_PREPARACAO,
-              JSON.stringify(lineExtra),
-            ]
-          );
-          lineIndex += 1;
-        }
-        groupIndex += 1;
-      }
-
-      const outboxPayload = {
-        taskId: input.taskId,
-        opportunityId: input.opportunityId,
-        measurements: input.payload,
-        clientName: input.clientName,
-        nsi: input.nsi,
-        address: input.address,
-        clientRequestId: input.clientRequestId,
-      };
-
-      await client.query(
-        `INSERT INTO measurements_outbox (id, sheet_id, event_type, payload, client_request_id)
-         VALUES ($1,$2,'project_twenty_produtos',$3::jsonb,$4),
-                ($5,$2,'n8n_measurements_report',$3::jsonb,$4)
-         ON CONFLICT (event_type, sheet_id, client_request_id) DO NOTHING`,
-        [
-          randomUUID(),
-          sheetId,
-          JSON.stringify(outboxPayload),
-          input.clientRequestId ?? null,
-          randomUUID(),
-        ]
-      );
+      await insertPayloadGroupsAndLines(client, sheetId, input.payload);
+      await enqueueSheetProjectionOutbox(client, sheetId, outboxPayload, clientRequestId);
 
       return { sheetId, version };
     });
@@ -512,14 +765,16 @@ export type PendingOutboxRow = {
   event_type: string;
   payload: Record<string, unknown>;
   client_request_id: string | null;
+  attempt_count?: number;
 };
 
 export async function fetchPendingOutboxEvents(limit = 20): Promise<PendingOutboxRow[]> {
   if (!isMeasurementsDbConfigured()) return [];
   return measurementsQuery<PendingOutboxRow>(
-    `SELECT id, sheet_id, event_type, payload, client_request_id
+    `SELECT id, sheet_id, event_type, payload, client_request_id, attempt_count
      FROM measurements_outbox
      WHERE processed_at IS NULL
+       AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
      ORDER BY created_at ASC
      LIMIT $1`,
     [limit]
@@ -528,15 +783,31 @@ export async function fetchPendingOutboxEvents(limit = 20): Promise<PendingOutbo
 
 export async function markOutboxProcessed(id: string): Promise<void> {
   await measurementsQuery(
-    `UPDATE measurements_outbox SET processed_at = NOW(), last_error = NULL WHERE id = $1`,
+    `UPDATE measurements_outbox SET processed_at = NOW(), last_error = NULL, attempt_count = 0, next_attempt_at = NULL WHERE id = $1`,
     [id]
   );
 }
 
 export async function markOutboxFailed(id: string, error: string): Promise<void> {
+  const truncated = error.slice(0, 2000);
   await measurementsQuery(
-    `UPDATE measurements_outbox SET last_error = $2 WHERE id = $1`,
-    [id, error.slice(0, 2000)]
+    `UPDATE measurements_outbox SET
+        attempt_count = attempt_count + 1,
+        last_error = $2,
+        processed_at = CASE WHEN attempt_count + 1 >= ${OUTBOX_MAX_ATTEMPTS} THEN NOW() ELSE NULL END,
+        next_attempt_at = CASE
+          WHEN attempt_count + 1 >= ${OUTBOX_MAX_ATTEMPTS} THEN NULL
+          ELSE NOW() + (
+            CASE (attempt_count + 1)
+              WHEN 1 THEN INTERVAL '1 minute'
+              WHEN 2 THEN INTERVAL '5 minutes'
+              WHEN 3 THEN INTERVAL '15 minutes'
+              ELSE INTERVAL '1 hour'
+            END
+          )
+        END
+      WHERE id = $1`,
+    [id, truncated]
   );
 }
 
@@ -574,11 +845,12 @@ export async function fetchAdminMeasurementsDashboardStats(): Promise<AdminMeasu
     `WITH latest AS (
        SELECT DISTINCT ON (opportunity_id) id, opportunity_id, version
        FROM measurement_sheet
+       WHERE deleted_at IS NULL
        ORDER BY opportunity_id, version DESC
      )
      SELECT
        (SELECT COUNT(*)::text FROM latest) AS obras,
-       (SELECT COUNT(*)::text FROM measurement_sheet) AS fichas,
+       (SELECT COUNT(*)::text FROM measurement_sheet WHERE deleted_at IS NULL) AS fichas,
        (SELECT COUNT(*)::text FROM latest WHERE version > 1) AS remedicoes,
        (SELECT COALESCE(SUM(ml.qty), 0)::text
         FROM measurement_line ml
@@ -591,7 +863,9 @@ export async function fetchAdminMeasurementsDashboardStats(): Promise<AdminMeasu
   const dailyRows = await measurementsQuery<{ day: Date; count: string }>(
     `SELECT d.day::date AS day, COUNT(ms.id)::text AS count
      FROM generate_series(CURRENT_DATE - 13, CURRENT_DATE, INTERVAL '1 day') AS d(day)
-     LEFT JOIN measurement_sheet ms ON (ms.created_at AT TIME ZONE 'UTC')::date = d.day::date
+     LEFT JOIN measurement_sheet ms
+       ON (ms.created_at AT TIME ZONE 'UTC')::date = d.day::date
+      AND ms.deleted_at IS NULL
      GROUP BY d.day
      ORDER BY d.day ASC`
   );
@@ -600,6 +874,7 @@ export async function fetchAdminMeasurementsDashboardStats(): Promise<AdminMeasu
     `WITH latest AS (
        SELECT DISTINCT ON (opportunity_id) technician_name
        FROM measurement_sheet
+       WHERE deleted_at IS NULL
        ORDER BY opportunity_id, version DESC
      )
      SELECT

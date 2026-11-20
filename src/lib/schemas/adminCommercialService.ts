@@ -23,7 +23,7 @@ export const CreateAdminCommercialServiceSchema = z.object({
   clientRequestId: z.string().uuid(),
   personId: z.string().uuid(),
   serviceType: AdminCommercialServiceTypeEnum,
-  /** When omitted, Twenty assigns the next NSI automatically. */
+  /** Manual NSI. The automatic number is Twenty `numeroDeServico`, not this field. */
   nsi: z
     .number()
     .int("O NSI deve ser um número inteiro.")

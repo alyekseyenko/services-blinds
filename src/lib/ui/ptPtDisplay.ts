@@ -2,6 +2,14 @@
 
 export const NOT_AVAILABLE_LABEL = "N/D";
 
+/** NIF português para leitura no terreno (9 dígitos). */
+export function formatClientNifDisplay(nif: string | null | undefined): string | null {
+  const digits = (nif || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length !== 9) return digits;
+  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+}
+
 const SYNC_QUEUE_ACTION_LABELS: Record<string, string> = {
   UPDATE_STATUS: "Atualizar estado da visita",
   SAVE_MEASUREMENTS: "Guardar medições",

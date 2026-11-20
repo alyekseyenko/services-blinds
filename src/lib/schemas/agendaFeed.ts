@@ -16,12 +16,14 @@ export const AdminAgendaFeedTaskSchema = z.object({
   scheduledBy: z.string().optional(),
   client: z.string().optional(),
   nsi: z.string().optional(),
+  serviceNumber: z.string().optional(),
   visitTitle: z.string().optional(),
   opportunityId: z.string().optional(),
   onSiteOpportunityIds: z.array(z.string()),
   onSiteServices: z.array(AdminAgendaFeedOnSiteServiceSchema).optional(),
   statusNote: z.string().optional(),
   serviceType: z.string().optional(),
+  urgent: z.boolean().optional(),
 });
 
 export const AdminAgendaFeedPipelineItemSchema = z.object({

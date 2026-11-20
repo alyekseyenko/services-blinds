@@ -12,6 +12,7 @@ import {
 } from "@/lib/measurementsUtils";
 import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
 import { CRM_ADDRESS_GRAPHQL_FIELDS } from "./contract";
+import { formatServiceNumber } from "./serviceNumber";
 import { isMeasurementsDbConfigured } from "@/lib/measurements/db/client";
 import { processMeasurementsOutboxBatch } from "@/lib/measurements/processOutbox";
 import {
@@ -19,6 +20,11 @@ import {
   getLatestSheetByOpportunity,
   saveSubmittedSheet,
 } from "@/lib/measurements/repo";
+import {
+  listOpportunityTasksFromTargets,
+  pickTaskForMeasurement,
+  taskIdFromCrmTask,
+} from "@/lib/measurements/measurementTask";
 
 function formatServiceAddress(morada?: {
   addressStreet1?: string | null;
@@ -37,17 +43,6 @@ function formatServiceAddress(morada?: {
       .filter((p) => Boolean(p?.trim()))
       .join(", ") || "N/A"
   );
-}
-
-function pickPrimaryTask(
-  taskTargets?: { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
-) {
-  const tasks =
-    taskTargets?.edges
-      ?.map((e) => e.node?.task)
-      .filter((t): t is Record<string, unknown> => Boolean(t)) ?? [];
-  if (tasks.length === 0) return null;
-  return tasks[0];
 }
 
 async function resolveMeasurementsPayloadFromCrm(
@@ -72,6 +67,7 @@ async function resolveMeasurementsPayloadFromCrm(
 type OppMeasurementContext = {
   clientName: string;
   nsi?: string;
+  serviceNumber?: string;
   address: string;
   serviceLabel?: string;
   technicianName?: string;
@@ -79,7 +75,8 @@ type OppMeasurementContext = {
 };
 
 async function fetchOpportunityMeasurementContext(
-  opportunityId: string
+  opportunityId: string,
+  taskId?: string
 ): Promise<OppMeasurementContext | null> {
   const query = `
     query getOppMeasurements($id: UUID!) {
@@ -89,6 +86,7 @@ async function fetchOpportunityMeasurementContext(
             id
             name
             nsi
+            numeroDeServico
             stage
             moradaDeServico {
               ${CRM_ADDRESS_GRAPHQL_FIELDS}
@@ -100,6 +98,7 @@ async function fetchOpportunityMeasurementContext(
               edges {
                 node {
                   task {
+                    id
                     dueAt
                     technicianName
                     title
@@ -127,13 +126,17 @@ async function fetchOpportunityMeasurementContext(
     [contact?.name?.firstName, contact?.name?.lastName].filter(Boolean).join(" ").trim() ||
     String(node.name || "Cliente");
 
-  const task = pickPrimaryTask(
-    node.taskTargets as { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
+  const task = pickTaskForMeasurement(
+    listOpportunityTasksFromTargets(
+      node.taskTargets as { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
+    ),
+    taskId
   );
 
   return {
     clientName,
     nsi: node.nsi ? String(node.nsi) : undefined,
+    serviceNumber: formatServiceNumber(node.numeroDeServico),
     address: formatServiceAddress(
       node.moradaDeServico as {
         addressStreet1?: string;
@@ -148,6 +151,47 @@ async function fetchOpportunityMeasurementContext(
     }),
     technicianName: task?.technicianName ? String(task.technicianName) : undefined,
     visitDateIso: task?.dueAt ? String(task.dueAt) : undefined,
+  };
+}
+
+export async function resolveOpportunityMeasurementTask(
+  opportunityId: string
+): Promise<{ taskId: string; technicianName?: string } | null> {
+  const query = `
+    query getOppMeasurementTask($id: UUID!) {
+      opportunities(filter: { id: { eq: $id } }) {
+        edges {
+          node {
+            taskTargets {
+              edges {
+                node {
+                  task {
+                    id
+                    technicianName
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+  const data = await crmFetch<{
+    opportunities?: { edges?: Array<{ node?: Record<string, unknown> }> };
+  }>(query, { id: opportunityId });
+  const node = data?.opportunities?.edges?.[0]?.node;
+  if (!node) return null;
+  const task = pickTaskForMeasurement(
+    listOpportunityTasksFromTargets(
+      node.taskTargets as { edges?: Array<{ node?: { task?: Record<string, unknown> } }> }
+    )
+  );
+  const id = taskIdFromCrmTask(task);
+  if (!id) return null;
+  return {
+    taskId: id,
+    technicianName: task?.technicianName ? String(task.technicianName) : undefined,
   };
 }
 
@@ -176,11 +220,24 @@ export async function fetchMeasurementsPayloadForOpportunity(
   return resolveMeasurementsPayloadFromCrm(opportunityId, notes);
 }
 
+export async function attachOpportunityServiceNumber(
+  sheet: MeasurementSheet
+): Promise<MeasurementSheet> {
+  if (sheet.serviceNumber || !sheet.opportunityId) return sheet;
+  try {
+    const ctx = await fetchOpportunityMeasurementContext(sheet.opportunityId);
+    if (!ctx?.serviceNumber) return sheet;
+    return { ...sheet, serviceNumber: ctx.serviceNumber };
+  } catch {
+    return sheet;
+  }
+}
+
 export async function fetchMeasurementSheet(opportunityId: string): Promise<MeasurementSheet | null> {
   if (isMeasurementsDbConfigured()) {
     const fromDb = await getLatestSheetByOpportunity(opportunityId);
     if (fromDb && measurementSheetHasData(fromDb)) {
-      return fromDb;
+      return attachOpportunityServiceNumber(fromDb);
     }
   }
 
@@ -208,6 +265,7 @@ export async function fetchMeasurementSheet(opportunityId: string): Promise<Meas
       opportunityId,
       clientName: ctx.clientName,
       nsi: ctx.nsi,
+      serviceNumber: ctx.serviceNumber,
       address: ctx.address,
       serviceLabel: ctx.serviceLabel,
       technicianName: ctx.technicianName,
@@ -216,7 +274,7 @@ export async function fetchMeasurementSheet(opportunityId: string): Promise<Meas
     payload
   );
 
-  return measurementSheetHasData(sheet) ? sheet : null;
+  return measurementSheetHasData(sheet) ? attachOpportunityServiceNumber(sheet) : null;
 }
 
 export async function saveMeasurements(
@@ -224,7 +282,7 @@ export async function saveMeasurements(
   opportunityId: string,
   measurements: MeasurementsPayload,
   clientRequestId?: string,
-  technicianMeta?: { technicianName?: string; technicianUserId?: string }
+  technicianMeta?: { technicianName?: string; technicianUserId?: string; editedByName?: string }
 ) {
   try {
     const parsed = MeasurementsPayloadSchema.safeParse(measurements);
@@ -239,7 +297,7 @@ export async function saveMeasurements(
       };
     }
 
-    const ctx = await fetchOpportunityMeasurementContext(opportunityId);
+    const ctx = await fetchOpportunityMeasurementContext(opportunityId, taskId);
     if (!ctx) {
       return { success: false, error: "Oportunidade não encontrada no CRM." };
     }
@@ -250,6 +308,7 @@ export async function saveMeasurements(
       clientRequestId,
       technicianName: technicianMeta?.technicianName ?? ctx.technicianName,
       technicianUserId: technicianMeta?.technicianUserId,
+      editedByName: technicianMeta?.editedByName,
       clientName: ctx.clientName,
       nsi: ctx.nsi,
       address: ctx.address,

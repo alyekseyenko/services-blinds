@@ -18,6 +18,7 @@ import SyncQueueSheet from "@/components/dashboard/SyncQueueSheet";
 import { APP_LOGO_PATH, APP_SHORT_NAME } from "@/lib/branding";
 import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
 import { AppearanceMenu } from "@/components/ui/AppearanceMenu";
+import { FeedbackCuePreferences } from "@/components/ui/FeedbackCuePreferences";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastContext";
@@ -453,6 +454,7 @@ function Header({
                   </button>
                 </li>
               )}
+              <FeedbackCuePreferences layout="sheet-rows" />
               <AppearanceMenu layout="sheet-rows" />
             </ul>
 

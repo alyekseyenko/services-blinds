@@ -14,10 +14,13 @@ import {
   getNextStageOnSchedule,
   normalizeString,
 } from "@/lib/crm/contract";
+import { formatServiceAddressLine } from "@/lib/visits/serviceAddressLine";
 
 export interface ScheduleVisitCoreInput {
   title: string;
   dueAt: Date;
+  /** `null` clears end time in CRM; omit only for internal callers that must not touch the field. */
+  horaDeFim?: Date | null;
   notes?: string;
   assigneeId: string;
   technicianName: string;
@@ -86,14 +89,7 @@ export function buildSchedulePlan(input: {
 }
 
 function formatAddress(morada?: CreateTechnicalVisitInput["morada"]): string {
-  if (!morada) return "";
-  return [
-    morada.addressStreet1,
-    morada.addressCity,
-    morada.addressPostcode,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  return formatServiceAddressLine(morada, "");
 }
 
 function buildTaskBody(
@@ -126,6 +122,7 @@ export async function scheduleVisitCore(
   const {
     title,
     dueAt,
+    horaDeFim = null,
     notes,
     assigneeId,
     technicianName,
@@ -152,6 +149,7 @@ export async function scheduleVisitCore(
   const task = await createTechnicalVisit({
     title,
     dueAt,
+    horaDeFim,
     body: taskBody,
     assigneeId,
     morada,

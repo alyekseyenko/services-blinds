@@ -34,5 +34,7 @@ export function buildMeasurementSheetFromDb(
     groups: groupsWithLineIds,
     sheetId: sheet.id,
     version: sheet.version,
+    editedByName: sheet.edited_by_name?.trim() || undefined,
+    recordedAtIso: sheet.created_at ? new Date(sheet.created_at).toISOString() : undefined,
   };
 }

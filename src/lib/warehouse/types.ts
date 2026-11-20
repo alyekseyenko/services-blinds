@@ -26,6 +26,7 @@ export interface WarehouseService {
   id: string;
   title: string;
   nsi: string;
+  serviceNumber?: string;
   client: string;
   createdAt: string;
   measurements?: {

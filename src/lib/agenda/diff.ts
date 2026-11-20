@@ -23,6 +23,7 @@ export type AgendaSnapshotItem = {
   label: string;
   clientName?: string;
   nsi?: string;
+  serviceNumber?: string;
   visitTitle?: string;
   opportunityId?: string;
   technicianName?: string;
@@ -36,6 +37,8 @@ export type AgendaSnapshotItem = {
   statusNote?: string;
   /** Chave normalizada (INSTALACAO, TIRAR_MEDIDAS, …) para o sininho. */
   serviceType?: string;
+  /** Marcação feita em modo urgente no painel. */
+  urgent?: boolean;
 };
 
 export type PipelineSnapshotItem = {
@@ -56,7 +59,8 @@ export type AgendaDiffKind =
   | "atrasada"
   | "servico_extra"
   | "armazem_pronto"
-  | "medicoes_guardadas";
+  | "medicoes_guardadas"
+  | "urgente";
 
 export type AgendaDiffEvent = {
   kind: AgendaDiffKind;
@@ -66,11 +70,13 @@ export type AgendaDiffEvent = {
   status?: string;
   clientName?: string;
   nsi?: string;
+  serviceNumber?: string;
   visitTitle?: string;
   opportunityId?: string;
   technicianName?: string;
   detail?: string;
   serviceType?: string;
+  urgent?: boolean;
 };
 
 function skipAgendaEntity(id: string): boolean {
@@ -95,6 +101,7 @@ export function buildAgendaSnapshotItem(input: {
   status: string;
   client?: string | null;
   nsi?: string | null;
+  serviceNumber?: string | null;
   visitTitle?: string | null;
   opportunityId?: string | null;
   technicianName?: string | null;
@@ -107,15 +114,19 @@ export function buildAgendaSnapshotItem(input: {
   }> | null;
   statusNote?: string | null;
   serviceType?: string | null;
+  urgent?: boolean;
 }): AgendaSnapshotItem {
   const client = input.client?.trim() || "";
   const nsiRaw = input.nsi != null ? String(input.nsi).trim() : "";
   const nsi = nsiRaw && nsiRaw !== "N/A" ? nsiRaw : "";
+  const serviceNumberRaw = input.serviceNumber != null ? String(input.serviceNumber).trim() : "";
+  const serviceNumber = serviceNumberRaw && serviceNumberRaw !== "N/A" ? serviceNumberRaw : "";
   const title = input.visitTitle?.trim() || "";
 
   const label =
     [
       client && client !== "Cliente" ? client : null,
+      serviceNumber ? `N.º ${serviceNumber}` : null,
       nsi ? `NSI ${nsi}` : null,
       title || null,
     ]
@@ -129,6 +140,7 @@ export function buildAgendaSnapshotItem(input: {
     label,
     clientName: client || undefined,
     nsi: nsi || undefined,
+    serviceNumber: serviceNumber || undefined,
     visitTitle: title || undefined,
     opportunityId: input.opportunityId?.trim() || undefined,
     technicianName: input.technicianName?.trim() || undefined,
@@ -139,6 +151,7 @@ export function buildAgendaSnapshotItem(input: {
     onSiteServices: input.onSiteServices?.length ? [...input.onSiteServices] : undefined,
     statusNote: input.statusNote?.trim() || undefined,
     serviceType: input.serviceType?.trim() || undefined,
+    urgent: input.urgent || undefined,
   };
 }
 
@@ -155,10 +168,12 @@ function snapshotToEventFields(item: AgendaSnapshotItem): Pick<
   | "status"
   | "clientName"
   | "nsi"
+  | "serviceNumber"
   | "visitTitle"
   | "opportunityId"
   | "technicianName"
   | "serviceType"
+  | "urgent"
 > {
   return {
     label: item.label,
@@ -166,10 +181,12 @@ function snapshotToEventFields(item: AgendaSnapshotItem): Pick<
     status: item.status,
     clientName: item.clientName,
     nsi: item.nsi,
+    serviceNumber: item.serviceNumber,
     visitTitle: item.visitTitle,
     opportunityId: item.opportunityId,
     technicianName: item.technicianName,
     serviceType: item.serviceType,
+    urgent: item.urgent || undefined,
   };
 }
 
@@ -278,6 +295,10 @@ export function diffAgendaSnapshots(
       events.push({ kind: "reatribuida", id: item.id, ...snapshotToEventFields(item) });
     }
 
+    if (item.urgent && !prev.urgent && !isTaskTerminal(item.status)) {
+      events.push({ kind: "urgente", id: item.id, ...snapshotToEventFields(item) });
+    }
+
     if (isTaskCompleted(item.status) && !isTaskCompleted(prev.status)) {
       events.push({
         kind: "concluida",
@@ -379,9 +400,19 @@ export function formatAgendaDiffToast(event: AgendaDiffEvent): { title: string; 
 
   switch (event.kind) {
     case "nova":
+      return event.urgent
+        ? {
+            title: "Visita urgente",
+            description: when ? `${who} — urgente · ${when}` : `${who} — urgente`,
+          }
+        : {
+            title: "Nova visita",
+            description: when ? `${who} — ${when}` : who,
+          };
+    case "urgente":
       return {
-        title: "Nova visita",
-        description: when ? `${who} — ${when}` : who,
+        title: "Visita urgente",
+        description: when ? `${who} — marcada como urgente · ${when}` : `${who} — marcada como urgente`,
       };
     case "reagendada":
       return {

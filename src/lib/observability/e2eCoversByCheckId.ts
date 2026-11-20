@@ -54,6 +54,11 @@ export const E2E_COVERS_BY_CHECK_ID: Record<string, string[]> = {
     "api:/api/opportunities/[id]/measurements/export",
     "system:measurements-db",
   ],
+  "visit-service-files-api": [
+    "api:/api/opportunities/[id]/files",
+    "api:/api/opportunities/[id]/files/[attachmentId]",
+    "system:twenty-graphql",
+  ],
   "public-cancel-token": ["system:public-portals"],
   "public-evaluation-token": ["system:public-portals"],
   "evaluation-link-api": ["system:public-portals", "api:/api/public-links/evaluation"],

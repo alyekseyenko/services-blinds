@@ -274,6 +274,37 @@ export function saveInAppNotifications(scope: string, items: InAppNotification[]
   }
 }
 
+/** Preenche N.º de serviço e NSI nos cartões já guardados, sem os marcar como não lidos. */
+export function patchAgendaVisitNumbers(
+  scope: string,
+  items: Array<{ id: string; serviceNumber?: string; nsi?: string }>
+): void {
+  if (typeof window === "undefined" || items.length === 0) return;
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const loaded = loadInAppNotifications(scope);
+  let changed = false;
+  const next = loaded.map((n) => {
+    if (!n.taskId) return n;
+    const fresh = byId.get(n.taskId);
+    if (!fresh) return n;
+    const serviceNumber = fresh.serviceNumber || n.visit?.serviceNumber;
+    const nsi = fresh.nsi || n.visit?.nsi;
+    if (serviceNumber === n.visit?.serviceNumber && nsi === n.visit?.nsi) return n;
+    changed = true;
+    return {
+      ...n,
+      visit: {
+        ...n.visit,
+        serviceNumber,
+        nsi,
+      },
+    };
+  });
+  if (!changed) return;
+  saveInAppNotifications(scope, next);
+  notifyInAppListeners(scope);
+}
+
 export function pushInAppNotification(
   scope: string,
   entry: Omit<InAppNotification, "id" | "createdAt" | "read">

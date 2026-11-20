@@ -23,7 +23,7 @@ export function buildAdminClientFormSummary(fieldErrors: AdminClientFormFieldErr
   if (messages.length === 1) {
     return messages[0];
   }
-  return `Há ${messages.length} campos por corrigir — veja os avisos abaixo.`;
+  return `Há ${messages.length} campos por corrigir. Veja os avisos assinalados.`;
 }
 
 export function validateCreateAdminClientInput(

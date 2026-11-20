@@ -67,7 +67,7 @@ export function TwentyPhoneField({
       />
     </div>
     {error ? (
-      <p id="phone-national-error" className="text-xs font-semibold text-danger-fg" role="alert">
+      <p id="phone-national-error" className="text-sm font-semibold text-danger-fg" role="alert">
         {error}
       </p>
     ) : null}

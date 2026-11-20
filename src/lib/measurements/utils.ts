@@ -10,7 +10,6 @@ import {
   hydrateMeasurementRowFromLegacy,
   syncMeasurementRowLegacyFields,
 } from "@/lib/measurements/rowPayload";
-
 const JSON_MEASUREMENTS_REGEX = /<!--\s*\[JSON_MEASUREMENTS\](.*?)\s*-->/;
 
 export function parseMeasurementsFromReport(report?: string | null): MeasurementsPayload | null {

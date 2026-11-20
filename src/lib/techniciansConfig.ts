@@ -40,7 +40,7 @@ const SERVICE_META: Record<string, ServiceMeta> = {
   MANUTENCAO: { label: "Manutenção", badge: "MN", tokenPrefix: "manutencao" },
   REPARACAO: { label: "Reparação", badge: "RP", tokenPrefix: "reparacao" },
   TIRAR_MEDIDAS: { label: "Tirar Medidas", badge: "MD", tokenPrefix: "medidas" },
-  REMEDICAO: { label: "Retificação Medidas", badge: "RM", tokenPrefix: "remedicao" },
+  REMEDICAO: { label: "Medidas Retificadas", badge: "RM", tokenPrefix: "remedicao" },
   REAGENDAR: { label: "Reagendar", badge: "RG", tokenPrefix: "reagendar" },
   GERAL: { label: "Geral", badge: "SV", tokenPrefix: "geral" },
 };

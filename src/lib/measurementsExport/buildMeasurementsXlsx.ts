@@ -56,7 +56,8 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
     ws.addRow([exportByline]);
   }
   ws.addRow([]);
-  ws.addRow(["Cliente", sheet.clientName, "", "NSI", sheet.nsi || "—"]);
+  ws.addRow(["Cliente", sheet.clientName, "", "N.º serviço", sheet.serviceNumber || "—"]);
+  ws.addRow(["NSI", sheet.nsi || "—"]);
   ws.addRow(["Morada", sheet.address, "", "Serviço", sheet.serviceLabel || "—"]);
   ws.addRow([
     "Técnico",
@@ -66,7 +67,7 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
     formatVisitDate(sheet.visitDateIso),
   ]);
   if (sheet.remeasureLabel?.trim()) {
-    ws.addRow(["Retificação de medidas", sheet.remeasureLabel.trim()]);
+    ws.addRow(["Medidas Retificadas", sheet.remeasureLabel.trim()]);
   }
   ws.addRow([]);
 

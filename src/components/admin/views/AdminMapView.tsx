@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSync } from "@/hooks/useSync";
+import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
+import { toLisbonYmd } from "@/lib/visits/historyFilters";
 import dynamic from "next/dynamic";
 import { Navigation, X } from "lucide-react";
 import RouteSidebar from "@/components/admin/RouteSidebar";
 import AdminMapFiltersBar from "@/components/admin/AdminMapFiltersBar";
 import AdminMapServicesList from "@/components/admin/AdminMapServicesList";
 import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
+import { useMapStreetViewOpen } from "@/lib/map/streetViewMode";
 import { Sheet } from "@/components/ui/Sheet";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 import type { HqLocation } from "@/lib/hq";
 import type { OptimizedRouteStop } from "@/lib/admin/routeOptimization";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
+import type { UnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
 import type {
   MapCategoryFilter,
   MapStallFilter,
@@ -81,6 +86,10 @@ export interface AdminMapViewProps {
   loading: boolean;
   zoneInsights: ZoneInsight[];
   withoutGpsCount: number;
+  withoutGpsServices?: UnscheduledWithoutGps[];
+  onSelectWithoutGps?: (twentyId: string) => void;
+  onGeocodeWithoutGps?: (twentyId: string) => Promise<void> | void;
+  onSaveWithoutGpsCoords?: (twentyId: string, lat: string, lng: string) => Promise<void> | void;
   onSyncAddresses: () => void;
   isSyncing: boolean;
   autoGenerateRouteForZone: (zone: string) => void;
@@ -146,6 +155,10 @@ export default function AdminMapView({
   loading,
   zoneInsights,
   withoutGpsCount,
+  withoutGpsServices = [],
+  onSelectWithoutGps,
+  onGeocodeWithoutGps,
+  onSaveWithoutGpsCoords,
   onSyncAddresses,
   isSyncing,
   autoGenerateRouteForZone,
@@ -154,6 +167,7 @@ export default function AdminMapView({
   mapFocusOpportunityId = null,
 }: AdminMapViewProps) {
   const [mapDisplayMode, setMapDisplayMode] = useState<AdminMapDisplayMode>("map");
+  const streetViewOpen = useMapStreetViewOpen();
 
   useEffect(() => {
     if (routeSelectionMode) setMapDisplayMode("map");
@@ -182,6 +196,10 @@ export default function AdminMapView({
     loading,
     zoneInsights,
     withoutGpsCount,
+    withoutGpsServices,
+    onSelectWithoutGps,
+    onGeocodeWithoutGps,
+    onSaveWithoutGpsCoords,
     onSyncAddresses,
     isSyncing,
     routeSelectionMode,
@@ -225,6 +243,17 @@ export default function AdminMapView({
     }
     return ids;
   }, [selectedForRoute, mapFocusOpportunityId]);
+
+  const todayYmd = toLisbonYmd(new Date());
+  const { data: todayHistoryPage } = useSync<{ items: Opportunity[] }>(
+    todayYmd
+      ? `/api/opportunities/history?page=1&pageSize=100&withCoordinates=1&from=${todayYmd}&to=${todayYmd}`
+      : null
+  );
+  const dayHistoryOpportunities = useMemo(
+    () => normalizeOpportunityList(todayHistoryPage?.items ?? []),
+    [todayHistoryPage]
+  );
 
   const autoFitKey = `${mapTab}-${serviceTypeFilters.join(",")}-${mapTechnicianFilter ?? "all"}-${historyOutcomes.join(",")}-${stallFilter}-${cityFilter ?? "all"}-${mapTextSearch ?? ""}-${mapFocusOpportunityId ?? ""}-${mapOpportunities.length}`;
 
@@ -284,6 +313,7 @@ export default function AdminMapView({
             <MapComponent
               tasks={mapOpportunities}
               allOpportunities={allOpportunities}
+              dayHistoryOpportunities={dayHistoryOpportunities}
               onTaskSelect={onTaskSelect}
               markerInteraction="popup"
               onScheduleFromMap={onScheduleFromMap}
@@ -306,7 +336,7 @@ export default function AdminMapView({
               }}
             />
 
-            {mapDisplayMode === "map" ? (
+            {mapDisplayMode === "map" && !streetViewOpen ? (
               <div className="pointer-events-none absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center gap-2">
                 <AdminMapFiltersBar {...filtersBarProps} layout="overlay" />
 
@@ -352,7 +382,7 @@ export default function AdminMapView({
           </div>
         )}
 
-        {routeSelectionMode && !showRouteSheet && (
+        {routeSelectionMode && !showRouteSheet && !streetViewOpen && (
           <button
             type="button"
             data-tour="admin-route-open-sheet"

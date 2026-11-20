@@ -27,4 +27,14 @@ describe("OPERATIONS_MAP_STYLES", () => {
     expect(poiOff).toBe(true);
     expect(transitOff).toBe(true);
   });
+
+  it("mantém o nome da rua e o número da porta visíveis", () => {
+    const roadLabelsHidden = OPERATIONS_MAP_STYLES.some(
+      (rule) =>
+        rule.featureType === "road.local" &&
+        rule.elementType === "labels" &&
+        rule.stylers?.some((s) => "visibility" in s && s.visibility === "off")
+    );
+    expect(roadLabelsHidden).toBe(false);
+  });
 });

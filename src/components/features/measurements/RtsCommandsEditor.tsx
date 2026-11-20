@@ -13,7 +13,7 @@ import {
 import type { ProductGroupDetails } from "@/types";
 
 const inputClass =
-  "w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none";
+  "w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25";
 
 const MODE_OPTIONS: { value: Exclude<RtsCommandMode, "">; label: string }[] = [
   { value: "UM_CANAL", label: "1 canal" },
@@ -162,7 +162,7 @@ export function RtsCommandsEditor({ details, readOnly, onChange }: Props) {
                         type="button"
                         aria-pressed={spec.channelCount === n}
                         className={cn(
-                          "min-h-10 min-w-10 rounded-lg border-2 text-xs font-black",
+                          "min-h-12 min-w-12 rounded-lg border-2 text-xs font-black outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
                           spec.channelCount === n
                             ? "border-primary bg-primary/15"
                             : "border-border bg-card text-muted-foreground"

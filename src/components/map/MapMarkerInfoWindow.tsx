@@ -17,6 +17,7 @@ export interface MapMarkerOpportunity {
   company?: string;
   address?: string;
   nsi?: string;
+  serviceNumber?: string;
   stage?: string;
   serviceType?: string | string[];
   hasScheduledTask?: boolean;
@@ -26,6 +27,9 @@ export interface MapMarkerOpportunity {
   coordinates?: [number, number] | null;
   delayAlert?: "red" | "orange" | null;
   delayDays?: number;
+  pointOfContactPhone?: string;
+  pointOfContactPhones?: string[];
+  clientNif?: string | null;
 }
 
 interface MapMarkerInfoWindowProps {
@@ -63,6 +67,21 @@ export function MapMarkerInfoWindow({
       minute: "2-digit",
     });
 
+  const clientName = [marker.client, marker.company]
+    .map((value) => value?.trim())
+    .find((value) => value && value !== "Cliente");
+  const headline =
+    clientName ||
+    marker.title.replace(/\s*\[[^\]]+\]\s*$/, "").trim() ||
+    "Serviço";
+  const technicianName =
+    marker.technician && !/não atribuído/i.test(marker.technician.trim())
+      ? marker.technician.trim()
+      : null;
+  const identifiers = [
+    marker.serviceNumber ? `N.º ${marker.serviceNumber}` : null,
+    marker.nsi && marker.nsi !== "N/A" ? `NSI ${marker.nsi}` : null,
+  ].filter((value): value is string => Boolean(value));
   const showSchedule = canSchedule && Boolean(onSchedule) && !routeSelectionMode;
   const showRouteToggle = routeSelectionMode && Boolean(onToggleRoute);
 
@@ -79,33 +98,17 @@ export function MapMarkerInfoWindow({
         >
           {typeColors.label}
         </span>
-        {marker.stage && (
-          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold uppercase text-muted-foreground">
-            {marker.stage}
-          </span>
-        )}
         {isTaskInProgress(marker.taskStatus) && (
           <span className="rounded-md border border-warning-border/60 bg-warning-surface px-2 py-0.5 text-xs font-black uppercase text-warning-fg dark:bg-ink/60 dark:text-warning-fg">
             Em curso
           </span>
         )}
-        {marker.hasScheduledTask &&
-          !isTaskCompleted(marker.taskStatus) &&
-          !isTaskInProgress(marker.taskStatus) && (
-          <span className="rounded-md bg-success-surface px-2 py-0.5 text-xs font-bold uppercase text-success-fg dark:bg-success-surface dark:text-success-fg">
-            Agendado
-          </span>
-        )}
       </div>
 
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold leading-snug text-foreground">{marker.title}</h3>
-        {marker.nsi && (
-          <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-            NSI #{marker.nsi}
-          </span>
-        )}
-      </div>
+      <h3 className="text-sm font-bold leading-snug text-foreground">{headline}</h3>
+      {identifiers.length > 0 ? (
+        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{identifiers.join(" · ")}</p>
+      ) : null}
 
       {marker.delayAlert && (
         <p className="mt-2">
@@ -121,8 +124,6 @@ export function MapMarkerInfoWindow({
         </p>
       )}
 
-      <p className="mt-2 text-xs text-muted-foreground">{marker.client || marker.company}</p>
-
       {marker.address && (
         <p className="mt-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-left text-xs leading-snug text-muted-foreground">
           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
@@ -130,19 +131,10 @@ export function MapMarkerInfoWindow({
         </p>
       )}
 
-      {(scheduledLabel || marker.technician) && (
-        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-          {scheduledLabel && (
-            <p>
-              Visita: <span className="font-semibold text-foreground">{scheduledLabel}</span>
-            </p>
-          )}
-          {marker.technician && (
-            <p>
-              Técnico: <span className="font-semibold text-foreground">{marker.technician}</span>
-            </p>
-          )}
-        </div>
+      {(scheduledLabel || technicianName) && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {[scheduledLabel, technicianName].filter(Boolean).join(" · ")}
+        </p>
       )}
 
       <div

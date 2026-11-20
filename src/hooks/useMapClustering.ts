@@ -5,13 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 const STORAGE_KEY = "map_clustering_enabled";
 
 export function useMapClusteringEnabled() {
-  const [clusteringEnabled, setClusteringEnabledState] = useState(true);
+  const [clusteringEnabled, setClusteringEnabledState] = useState(false);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "0") setClusteringEnabledState(false);
-      else if (stored === "1") setClusteringEnabledState(true);
+      if (stored === "1") setClusteringEnabledState(true);
+      else if (stored === "0") setClusteringEnabledState(false);
     } catch {
       /* ignore */
     }

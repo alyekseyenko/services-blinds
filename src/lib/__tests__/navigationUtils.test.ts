@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildGoogleDayRouteUrl,
   buildGoogleMapsNativeUrl,
   buildNavigationUrls,
 } from "../navigationUtils";
@@ -35,6 +36,21 @@ describe("navigationUtils", () => {
   it("builds Android Google navigation URL with coordinates", () => {
     const url = buildGoogleMapsNativeUrl("Rua Teste", [38.72, -9.14], "android");
     expect(url).toBe("google.navigation:q=38.72,-9.14");
+  });
+
+  it("monta a rota do dia no Google Maps com origem e paragens", () => {
+    const url = buildGoogleDayRouteUrl(
+      [
+        [38.72, -9.14],
+        [38.8, -9.2],
+        [39.0, -9.0],
+      ],
+      { lat: 38.7, lng: -9.1 }
+    );
+    expect(url).toContain("origin=38.7,-9.1");
+    expect(url).toContain("destination=39,-9");
+    expect(url).toContain("waypoints=");
+    expect(decodeURIComponent(url!)).toContain("38.72,-9.14|38.8,-9.2");
   });
 
   it("ignores invalid 0,0 coordinates for native URLs", () => {

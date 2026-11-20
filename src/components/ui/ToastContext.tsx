@@ -10,6 +10,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { hapticConfirmAfterAsync, hapticError, hapticLight, hapticTap } from "@/lib/haptics";
 import { cn } from "@/lib/cn";
@@ -130,6 +131,7 @@ function ToastBodyText({
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [mounted, setMounted] = useState(false);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pausedRef = useRef<Set<string>>(new Set());
 
@@ -160,6 +162,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    setMounted(true);
     return () => {
       timersRef.current.forEach((timer) => clearTimeout(timer));
       timersRef.current.clear();
@@ -220,12 +223,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({ toast }), [toast]);
 
-  return (
-    <ToastContext.Provider value={contextValue}>
-      {children}
-
+  const toastDock = (
       <div
-        className="pointer-events-none fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-[10050] flex flex-col gap-2.5 sm:left-auto sm:w-96"
+        className="pointer-events-none fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-[1000000100] flex flex-col gap-2.5 sm:left-auto sm:w-96"
         aria-live="polite"
         aria-relevant="additions"
       >
@@ -291,6 +291,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
+  );
+
+  return (
+    <ToastContext.Provider value={contextValue}>
+      {children}
+      {mounted ? createPortal(toastDock, document.body) : null}
     </ToastContext.Provider>
   );
 }

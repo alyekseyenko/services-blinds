@@ -118,3 +118,15 @@ export function measurementWindowsSectionMeta(group: ProductGroup): {
   }
   return { summary, statusBadge };
 }
+
+export type MeasurementFormSectionStep = 1 | 2 | 3;
+
+/** Abre um tópico e fecha os outros (acordeão). Fechar o activo deixa todos fechados. */
+export function nextExclusiveSection(
+  current: MeasurementFormSectionStep | null,
+  step: MeasurementFormSectionStep,
+  open: boolean
+): MeasurementFormSectionStep | null {
+  if (open) return step;
+  return current === step ? null : current;
+}

@@ -18,6 +18,7 @@ describe("buildMeasurementsPdf", () => {
     expect(buffer.length).toBeGreaterThan(500);
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
   });
+
 });
 
 describe("buildMeasurementsXlsx", () => {

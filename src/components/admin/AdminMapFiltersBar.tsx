@@ -26,6 +26,7 @@ import {
 } from "@/lib/admin/mapFilterConfig";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
+import type { UnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
 import { citiesMatch } from "@/lib/admin/geo";
 import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import type { MapCategoryFilter, MapStallFilter, ZoneInsight } from "@/types/admin";
@@ -53,6 +54,10 @@ export interface AdminMapFiltersBarProps {
   loading: boolean;
   zoneInsights: ZoneInsight[];
   withoutGpsCount: number;
+  withoutGpsServices?: UnscheduledWithoutGps[];
+  onSelectWithoutGps?: (twentyId: string) => void;
+  onGeocodeWithoutGps?: (twentyId: string) => Promise<void> | void;
+  onSaveWithoutGpsCoords?: (twentyId: string, lat: string, lng: string) => Promise<void> | void;
   onSyncAddresses: () => void;
   isSyncing: boolean;
   routeSelectionMode: boolean;
@@ -101,6 +106,20 @@ function priorityBadgeClass(priority: ZoneInsight["priority"]): string {
   }
 }
 
+function withoutGpsHeading(svc: UnscheduledWithoutGps): string {
+  return svc.client || svc.title || "Serviço sem nome";
+}
+
+function withoutGpsIdentity(svc: UnscheduledWithoutGps): string {
+  const refs = [
+    svc.serviceNumber ? `N.º ${svc.serviceNumber}` : null,
+    svc.nsi ? `NSI ${svc.nsi}` : null,
+  ].filter(Boolean);
+  const title =
+    svc.title && svc.title !== svc.client && svc.title !== withoutGpsHeading(svc) ? svc.title : "";
+  return [refs.join(" · "), title].filter(Boolean).join(" · ");
+}
+
 function priorityLabel(priority: ZoneInsight["priority"]): string {
   switch (priority) {
     case "Critical":
@@ -138,7 +157,7 @@ function PanelShell({
       className={cn(
         "flex max-h-[min(50vh,28rem)] flex-col overflow-hidden rounded-2xl border-2 border-border-strong bg-card shadow-lg",
         placement === "dropdown" &&
-          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[calc(100vw-1.5rem)] max-h-[min(68dvh,30rem)] sm:w-[22rem]",
+          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[calc(100vw-1.5rem)] max-h-[min(68dvh,32rem)] sm:w-[28rem] lg:w-[32rem]",
         placement === "dock" && "relative z-30 mt-1 w-full max-h-[min(55vh,32rem)]"
       )}
     >
@@ -185,6 +204,10 @@ export default function AdminMapFiltersBar({
   loading,
   zoneInsights,
   withoutGpsCount,
+  withoutGpsServices = [],
+  onSelectWithoutGps,
+  onGeocodeWithoutGps,
+  onSaveWithoutGpsCoords,
   onSyncAddresses,
   isSyncing,
   routeSelectionMode,
@@ -199,8 +222,13 @@ export default function AdminMapFiltersBar({
   const rootRef = useRef<HTMLDivElement>(null);
   const [panel, setPanel] = useState<MapPanel>(null);
   const [zoneStep, setZoneStep] = useState(1);
+  const [openGpsId, setOpenGpsId] = useState<string | null>(null);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+  const [gpsBusyId, setGpsBusyId] = useState<string | null>(null);
   const [zoneMethod, setZoneMethod] = useState<ZoneMethod>(null);
   const [pickedZone, setPickedZone] = useState<string | null>(null);
+  const pickedZoneRef = useRef<string | null>(null);
 
   const activeCount = countActiveFilters(
     mapTab,
@@ -226,6 +254,7 @@ export default function AdminMapFiltersBar({
     setZoneStep(1);
     setZoneMethod(null);
     setPickedZone(null);
+    pickedZoneRef.current = null;
   };
 
   const openZones = () => {
@@ -233,6 +262,7 @@ export default function AdminMapFiltersBar({
     setZoneStep(1);
     setZoneMethod(null);
     setPickedZone(cityFilter);
+    pickedZoneRef.current = cityFilter;
   };
 
   useEffect(() => {
@@ -280,7 +310,7 @@ export default function AdminMapFiltersBar({
       className={cn(
         "relative flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center",
         layout === "overlay"
-          ? "pointer-events-auto max-w-[min(100%,24rem)] sm:max-w-none"
+          ? "pointer-events-auto w-full max-w-[min(100%,40rem)] sm:max-w-[min(100%,42rem)]"
           : "w-full"
       )}
     >
@@ -683,11 +713,102 @@ export default function AdminMapFiltersBar({
               <p className="text-xs font-black uppercase text-warning-fg">
                 {withoutGpsCount} serviços sem GPS nas sugestões
               </p>
+              {withoutGpsServices.length > 0 ? (
+                <ul className="space-y-2">
+                  {withoutGpsServices.map((svc) => {
+                    const open = openGpsId === svc.twentyId;
+                    return (
+                      <li key={svc.twentyId} className="rounded-lg border border-warning-border/60 bg-warning-surface">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenGpsId(open ? null : svc.twentyId);
+                            setManualLat("");
+                            setManualLng("");
+                          }}
+                          className="w-full min-h-12 px-2 py-1.5 text-left"
+                        >
+                          <span className="block truncate text-xs font-bold text-warning-fg">
+                            {withoutGpsHeading(svc)}
+                          </span>
+                          {withoutGpsIdentity(svc) ? (
+                            <span className="block truncate text-xs font-medium text-warning-fg">
+                              {withoutGpsIdentity(svc)}
+                            </span>
+                          ) : null}
+                          <span className="block truncate text-xs font-medium text-warning-fg opacity-90">
+                            {svc.address}
+                          </span>
+                        </button>
+                        {open ? (
+                          <div className="space-y-2 border-t border-warning-border/50 px-2 pb-2">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={gpsBusyId === svc.twentyId}
+                                onClick={() => {
+                                  void (async () => {
+                                    setGpsBusyId(svc.twentyId);
+                                    try {
+                                      await onGeocodeWithoutGps?.(svc.twentyId);
+                                    } finally {
+                                      setGpsBusyId(null);
+                                    }
+                                  })();
+                                }}
+                                className="min-h-12 flex-1 rounded-lg bg-warning-solid px-2 text-xs font-black uppercase text-ink-foreground disabled:opacity-60"
+                              >
+                                {gpsBusyId === svc.twentyId ? "A procurar…" : "Tentar GPS"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onSelectWithoutGps?.(svc.twentyId)}
+                                className="min-h-12 rounded-lg border border-warning-border px-3 text-xs font-bold text-warning-fg"
+                              >
+                                Ficha
+                              </button>
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={manualLat}
+                                onChange={(event) => setManualLat(event.target.value)}
+                                placeholder="Latitude"
+                                className="ds-input min-h-12 flex-1 px-2 text-xs"
+                              />
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={manualLng}
+                                onChange={(event) => setManualLng(event.target.value)}
+                                placeholder="Longitude"
+                                className="ds-input min-h-12 flex-1 px-2 text-xs"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              disabled={!manualLat.trim() || !manualLng.trim()}
+                              onClick={() => onSaveWithoutGpsCoords?.(svc.twentyId, manualLat, manualLng)}
+                              className="min-h-12 w-full rounded-lg border border-warning-border bg-card text-xs font-black uppercase text-foreground disabled:opacity-50"
+                            >
+                              Guardar coordenadas
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <p className="text-xs font-medium leading-snug text-warning-fg opacity-90">
+                Toque no serviço para tentar o GPS ou escrever a latitude e a longitude. Sem pin, a zona não entra nas sugestões.
+              </p>
               <button
                 type="button"
                 onClick={onSyncAddresses}
                 disabled={isSyncing}
-                className="flex w-full min-h-9 items-center justify-center gap-2 rounded-lg bg-warning-solid text-xs font-black uppercase text-ink-foreground disabled:opacity-60"
+                className="flex w-full min-h-12 items-center justify-center gap-2 rounded-lg bg-warning-solid text-xs font-black uppercase text-ink-foreground disabled:opacity-60"
               >
                 {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Sincronizar moradas
@@ -738,7 +859,9 @@ export default function AdminMapFiltersBar({
 
           {zoneStep === 2 && zoneMethod === "recommend" && (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">Toque na zona para continuar.</p>
+              <p className="text-xs text-muted-foreground">
+                Toque na zona para escolher. Toque outra vez para avançar, como em Seguinte.
+              </p>
               {loading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-primary-ink" />
@@ -748,12 +871,27 @@ export default function AdminMapFiltersBar({
                   {zoneInsights.map((insight) => {
                     const selected =
                       pickedZone && citiesMatch(pickedZone, insight.name);
+                    const confirmZone = () => {
+                      pickedZoneRef.current = insight.name;
+                      setPickedZone(insight.name);
+                      setZoneStep(3);
+                    };
                     return (
                       <li key={insight.key}>
                         <button
                           type="button"
-                          onClick={() => setPickedZone(insight.name)}
-                          className={`w-full rounded-xl border p-3 text-left transition-all ${
+                          aria-pressed={Boolean(selected)}
+                          onClick={() => {
+                            const current = pickedZoneRef.current ?? pickedZone;
+                            if (current && citiesMatch(current, insight.name)) {
+                              confirmZone();
+                              return;
+                            }
+                            pickedZoneRef.current = insight.name;
+                            setPickedZone(insight.name);
+                          }}
+                          onDoubleClick={confirmZone}
+                          className={`w-full min-h-12 touch-manipulation rounded-xl border p-3 text-left transition-all ${
                             selected
                               ? "border-primary bg-primary/10 ring-1 ring-primary/40"
                               : "border-border bg-muted hover:border-primary/40"

@@ -85,6 +85,7 @@ import type { VisitService } from "@/lib/schemas";
 export interface Task {
   id: string;
   nsi: string;
+  serviceNumber?: string;
   client: string;
   address: string;
   report?: string;

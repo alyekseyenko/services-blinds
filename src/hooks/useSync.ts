@@ -110,9 +110,16 @@ export function useSync<T = unknown>(endpoint: string | null, options: UseSyncOp
   const isOnline = useNetworkOnline();
   const previousEndpointRef = useRef<string | null>(endpoint);
   const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
+  // SWR starts validating on the client only. Showing that during hydration
+  // renders "A sincronizar…" where the server rendered "Sincronizar" (React #418).
+  const [hydrated, setHydrated] = useState(false);
 
   const [cachedData, setCachedData] = useState<T | null>(null);
   const [cacheReady, setCacheReady] = useState(() => !endpoint);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     if (!endpoint || typeof window === "undefined") {
@@ -158,6 +165,26 @@ export function useSync<T = unknown>(endpoint: string | null, options: UseSyncOp
     []
   );
 
+  const rememberSuccessRef = useRef<(newData: T) => Promise<void>>(async () => {});
+  rememberSuccessRef.current = async (newData: T) => {
+    setLastSuccessAt(Date.now());
+    if (!endpoint || typeof window === "undefined") return;
+    try {
+      setCachedData((prev) => (stableJsonEqual(prev, newData) ? prev : newData));
+      const existing = await db.tasks.where("twentyId").equals(endpoint).first();
+      await db.tasks.put({
+        id: existing?.id,
+        twentyId: endpoint,
+        data: newData,
+        lastSync: Date.now(),
+        status: "synced",
+      });
+      void pruneIdbCache();
+    } catch (e) {
+      console.warn("[useSync] IndexedDB write warning:", e);
+    }
+  };
+
   const { data, error, mutate, isValidating } = useSWR<T>(endpoint, fetcher, {
     isPaused: () => !readNetworkOnline(),
     refreshInterval: isOnline ? refreshInterval : 0,
@@ -167,31 +194,19 @@ export function useSync<T = unknown>(endpoint: string | null, options: UseSyncOp
     dedupingInterval: 10000,
     shouldRetryOnError: shouldRetryFetchError,
     onErrorRetry,
-    onSuccess: async (newData) => {
-      setLastSuccessAt(Date.now());
-      if (endpoint && typeof window !== 'undefined') {
-        try {
-          setCachedData((prev) => (stableJsonEqual(prev, newData) ? prev : (newData as T)));
-          const existing = await db.tasks.where('twentyId').equals(endpoint).first();
-          const touchOnly = existing?.data && stableJsonEqual(existing.data, newData);
-
-          await db.tasks.put({
-            id: existing?.id,
-            twentyId: endpoint,
-            data: newData,
-            lastSync: Date.now(),
-            status: 'synced'
-          });
-          void pruneIdbCache();
-          if (touchOnly) {
-            /* lastSync refreshed even when payload unchanged */
-          }
-        } catch (e) {
-          console.warn('[useSync] IndexedDB write warning:', e);
-        }
-      }
+    onSuccess: (newData) => {
+      void rememberSuccessRef.current(newData);
     }
   });
+
+  const refreshNow = useCallback(async () => {
+    if (!endpoint) return undefined;
+    const joiner = endpoint.includes("?") ? "&" : "?";
+    const fresh = (await fetcher(`${endpoint}${joiner}fresh=1`)) as T;
+    await mutate(fresh, { revalidate: false });
+    await rememberSuccessRef.current(fresh);
+    return fresh;
+  }, [endpoint, mutate]);
 
   const mutateRef = useRef(mutate);
   mutateRef.current = mutate;
@@ -204,11 +219,12 @@ export function useSync<T = unknown>(endpoint: string | null, options: UseSyncOp
   return {
     data: effectiveData as T | undefined,
     isLoading: !cacheReady || (!hasData && !error && isValidating && isOnline),
-    isSyncing: isOnline && isValidating && (hasData || !error),
+    isSyncing: hydrated && isOnline && isValidating && (hasData || !error),
     error: hasData ? undefined : error,
     fetchError,
     lastSuccessAt,
     isStale,
     mutate,
+    refreshNow,
   };
 }

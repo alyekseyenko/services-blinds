@@ -7,6 +7,8 @@ The Git repository uses generic placeholders so nothing sensitive is published.
 
 Production uses: `technician-app`, `technician-redis`, `technician-nginx`.
 
+Optional (not started by default): **Ministral** VALORANT Discord bot — service `ministral-bot`, profile `ministral`, container name `ministral-bot`. See `ministral/README.md`.
+
 Deploy scripts automatically stop/remove legacy containers before starting the new stack.
 Expect ~30 seconds downtime during the first migration deploy.
 
@@ -110,6 +112,16 @@ After changing branding env vars (`NEXT_PUBLIC_*`), rebuild the Docker image on 
 Deploy from your machine: use **SSH** to the VPS, `git pull` in the deploy checkout, sync to the runtime directory if you use a two-folder layout, then `docker compose up -d --build`. **Never commit** SSH passwords or `.env.local` to Git.
 
 Production uses **host nginx** → app must listen on **127.0.0.1:3005** only (`docker-compose.yml`). The optional `technician-nginx` container is behind profile `with-docker-nginx` and is not started by default.
+
+## Ministral (bot Discord opcional)
+
+Não faz parte do stack Twenty / técnicos. Usa a imagem `ghcr.io/mistralwz/ministral:latest` e guarda estado no volume Docker `ministral-data` (SQLite `users.db` — **não** é Postgres).
+
+1. No servidor: `cp ministral/config.json.example ministral/config.json` e definir o `token` do bot Discord.
+2. Arranque: `docker compose --profile ministral --env-file .env.local up -d`
+3. Logs: `docker compose logs -f ministral-bot`
+
+Para ver contas Riot ligadas (nome, região): `sqlite3` dentro do contentor (ver `ministral/README.md`). Não commits de `ministral/config.json` nem exportação de tokens.
 
 ## VPS hardening (host)
 

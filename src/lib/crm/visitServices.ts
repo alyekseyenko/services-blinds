@@ -18,10 +18,17 @@ import {
   resolvePrimaryOpportunityId,
   sanitizeUserMarkdown,
   stripVisitServicesMarker,
+  upsertVisitServiceMarkerRecord,
   writeVisitServicesMarker,
   type VisitServiceMarkerRecord,
 } from "./visitServicesMarker";
-import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
+import { buildOnSiteExtraOpportunityName } from "@/lib/extraServiceTypeLabels";
+import {
+  extraRepairPaymentNoteBody,
+  extraServiceNeedsPaymentNow,
+  isRepairPaymentMethod,
+  type RepairPaymentMethodId,
+} from "@/lib/visits/repairPayment";
 
 function defaultModeForServiceType(serviceType: ExtraServiceType): VisitServiceMode {
   if (serviceType === "TIRAR_MEDIDAS" || serviceType === "REMEDICAO") return "now";
@@ -50,6 +57,7 @@ const TASK_FOR_VISIT_QUERY = `
                   id
                   name
                   nsi
+                  numeroDeServico
                   stage
                   pointOfContact { id }
                   moradaDeServico {
@@ -93,6 +101,25 @@ export async function createVisitService(
     const existing = parseVisitServicesMarker(markdown);
     const duplicate = existing.find((r) => r.clientRequestId === payload.clientRequestId);
     if (duplicate) {
+      if (
+        extraServiceNeedsPaymentNow(payload.serviceType, payload.mode ?? duplicate.mode) &&
+        isRepairPaymentMethod(payload.paymentMethod || "")
+      ) {
+        const personForPay =
+          task.taskTargets?.edges?.find((e: { node?: { targetPerson?: { id?: string } } }) =>
+            e.node?.targetPerson
+          )?.node?.targetPerson?.id || null;
+        await createOpportunityNote(
+          duplicate.opportunityId,
+          personForPay,
+          "Pagamento (serviço extra)",
+          extraRepairPaymentNoteBody(
+            payload.paymentMethod as RepairPaymentMethodId,
+            payload.paymentDetail
+          ),
+          `${payload.clientRequestId}-pay-${duplicate.opportunityId}`
+        );
+      }
       if (payload.measurements?.groups?.length) {
         const measureResult = await saveMeasurements(
           payload.taskId,
@@ -140,7 +167,7 @@ export async function createVisitService(
       primaryOpp.name?.split("—")[0]?.trim() ||
       primaryOpp.name ||
       "Cliente";
-    const oppName = `${getExtraServiceTypeLabel(payload.serviceType)} — ${clientLabel}`;
+    const oppName = buildOnSiteExtraOpportunityName(payload.serviceType, clientLabel, mode);
     const createData: Record<string, unknown> = {
       name: oppName,
       pointOfContactId: personId,
@@ -155,7 +182,8 @@ export async function createVisitService(
 
     const opportunityId = await createVisitServiceOpportunity(
       createData,
-      payload.serviceType
+      payload.serviceType,
+      mode
     );
 
     await crmFetch(
@@ -165,6 +193,35 @@ export async function createVisitService(
       { data: { taskId: payload.taskId, targetOpportunityId: opportunityId } }
     );
 
+    const paymentMethod =
+      extraServiceNeedsPaymentNow(payload.serviceType, mode) &&
+      isRepairPaymentMethod(payload.paymentMethod || "")
+        ? payload.paymentMethod
+        : undefined;
+    const paymentDetail =
+      paymentMethod === "outros" ? payload.paymentDetail?.trim() : undefined;
+
+    const markerRecord: VisitServiceMarkerRecord = {
+      opportunityId,
+      clientRequestId: payload.clientRequestId,
+      serviceType: payload.serviceType,
+      mode,
+      createdAt: new Date().toISOString(),
+      ...(paymentMethod
+        ? {
+            paymentMethod,
+            ...(paymentDetail ? { paymentDetail } : {}),
+          }
+        : {}),
+    };
+    const markdownWithMarker = upsertVisitServiceMarkerRecord(markdown, markerRecord);
+    await crmFetch(
+      `mutation patchTaskVisitMarker($id: UUID!, $data: TaskUpdateInput!) {
+        updateTask(id: $id, data: $data) { id }
+      }`,
+      { id: payload.taskId, data: { bodyV2: { markdown: markdownWithMarker } } }
+    );
+
     await createOpportunityNote(
       opportunityId,
       personId || null,
@@ -172,6 +229,16 @@ export async function createVisitService(
       `Criado no local por ${technicianName} durante a visita ${payload.taskId}.`,
       `${payload.clientRequestId}-created`
     );
+
+    if (paymentMethod) {
+      await createOpportunityNote(
+        opportunityId,
+        personId || null,
+        "Pagamento (serviço extra)",
+        extraRepairPaymentNoteBody(paymentMethod as RepairPaymentMethodId, paymentDetail),
+        `${payload.clientRequestId}-pay-${opportunityId}`
+      );
+    }
 
     if (payload.measurements?.groups?.length) {
       const measureResult = await saveMeasurements(
@@ -188,22 +255,6 @@ export async function createVisitService(
         };
       }
     }
-
-    const record: VisitServiceMarkerRecord = {
-      opportunityId,
-      clientRequestId: payload.clientRequestId,
-      serviceType: payload.serviceType,
-      mode,
-      createdAt: new Date().toISOString(),
-    };
-    const updatedMarkdown = writeVisitServicesMarker(markdown, [...existing, record]);
-
-    await crmFetch(
-      `mutation patchTaskVisitMarker($id: UUID!, $data: TaskUpdateInput!) {
-        updateTask(id: $id, data: $data) { id }
-      }`,
-      { id: payload.taskId, data: { bodyV2: { markdown: updatedMarkdown } } }
-    );
 
     await invalidateAdminCrmCache();
     return { success: true, opportunityId };
@@ -331,11 +382,19 @@ export async function updateVisitService(
     const primaryOpp = getPrimaryOpportunityFromTask(task);
     const clientLabel =
       primaryOpp?.name?.split("—")[0]?.trim() || primaryOpp?.name || "Cliente";
-    const oppName = `${getExtraServiceTypeLabel(payload.serviceType)} — ${clientLabel}`;
+    const oppName = buildOnSiteExtraOpportunityName(payload.serviceType, clientLabel, mode);
     const linkedOpp = task.taskTargets?.edges?.find(
       (e: { node?: { targetOpportunityId?: string; targetOpportunity?: { stage?: string } } }) =>
         e.node?.targetOpportunityId === payload.opportunityId
     )?.node?.targetOpportunity;
+
+    const paymentMethod =
+      extraServiceNeedsPaymentNow(payload.serviceType, mode) &&
+      isRepairPaymentMethod(payload.paymentMethod || "")
+        ? payload.paymentMethod
+        : undefined;
+    const paymentDetail =
+      paymentMethod === "outros" ? payload.paymentDetail?.trim() : undefined;
 
     await updateVisitServiceOpportunityFields(
       payload.opportunityId,
@@ -345,6 +404,7 @@ export async function updateVisitService(
         notesMarkdown:
           payload.notes?.trim() ||
           `Serviço extra atualizado no local durante a visita ${payload.taskId}.`,
+        mode,
       },
       { currentStage: linkedOpp?.stage }
     );
@@ -353,6 +413,12 @@ export async function updateVisitService(
       ...records[index],
       serviceType: payload.serviceType,
       mode,
+      ...(paymentMethod
+        ? {
+            paymentMethod,
+            ...(paymentDetail ? { paymentDetail } : {}),
+          }
+        : { paymentMethod: undefined, paymentDetail: undefined }),
     };
     const updatedMarkdown = writeVisitServicesMarker(markdown, records);
     await crmFetch(
@@ -374,6 +440,16 @@ export async function updateVisitService(
       "Serviço extra atualizado",
       `Atualizado no local por ${technicianName}.`
     );
+
+    if (paymentMethod) {
+      await createOpportunityNote(
+        payload.opportunityId,
+        personId || null,
+        "Pagamento (serviço extra)",
+        extraRepairPaymentNoteBody(paymentMethod as RepairPaymentMethodId, paymentDetail),
+        `${payload.opportunityId}-pay-update`
+      );
+    }
 
     if (payload.measurements?.groups?.length) {
       const measureResult = await saveMeasurements(

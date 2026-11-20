@@ -3,6 +3,9 @@
  * Feedback imediato no gesto do utilizador; confirmações após async tentam vibrar na mesma cadeia.
  */
 
+import { isFeedbackVibrationEnabled } from "@/lib/feedback/feedbackPreferences";
+import { unlockFeedbackAudioOnGesture } from "@/lib/feedback/feedbackCue";
+
 const MIN_GAP_MS = 12;
 
 let lastPulseAt = 0;
@@ -13,6 +16,7 @@ function vibrateApiAvailable(): boolean {
 }
 
 function pulse(pattern: number | number[]): boolean {
+  if (!isFeedbackVibrationEnabled()) return false;
   if (!vibrateApiAvailable()) return false;
   const now = Date.now();
   if (now - lastPulseAt < MIN_GAP_MS) return false;
@@ -81,6 +85,7 @@ export function installHapticGestureBridge(): () => void {
   const onPointerDown = () => {
     (window as Window & { __fieldopsLastGestureAt?: number }).__fieldopsLastGestureAt =
       Date.now();
+    unlockFeedbackAudioOnGesture();
   };
 
   window.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });

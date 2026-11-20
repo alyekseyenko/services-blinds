@@ -23,6 +23,7 @@ import {
   saveAgendaSnapshot,
   savePipelineSnapshot,
 } from "@/lib/agendaSnapshotStorage";
+import { cueNotify } from "@/lib/feedbackCue";
 import {
   agendaNotificationThreadKey,
   dispatchActivateInAppNotification,
@@ -30,6 +31,7 @@ import {
   dispatchOpenTaskFromNotification,
   findInAppNotificationByThreadKey,
   loadInAppNotifications,
+  patchAgendaVisitNumbers,
   pushOrMergeAgendaInAppNotification,
   type InAppNotification,
 } from "@/lib/inAppNotifications";
@@ -74,6 +76,7 @@ function snapshotFingerprint(items: AgendaSnapshotItem[]): string {
       i.assigneeId ?? "",
       (i.onSiteOpportunityIds ?? []).join(","),
       i.statusNote ?? "",
+      i.urgent ? "1" : "",
       JSON.stringify(i.onSiteServices ?? []),
     ])
   );
@@ -109,10 +112,12 @@ function mergeVisit(
   return {
     clientName: next.clientName ?? existing?.clientName,
     nsi: next.nsi ?? existing?.nsi,
+    serviceNumber: next.serviceNumber ?? existing?.serviceNumber,
     visitTitle: next.visitTitle ?? existing?.visitTitle,
     technicianName: next.technicianName ?? existing?.technicianName,
     dueAtIso: next.dueAtIso ?? existing?.dueAtIso,
     serviceType: next.serviceType ?? existing?.serviceType,
+    urgent: next.urgent || existing?.urgent || undefined,
   };
 }
 
@@ -133,7 +138,7 @@ function emitThreadToast(
 ): void {
   const last = threadEvents[threadEvents.length - 1];
   const { title, description } = formatAgendaDiffToast(last);
-  const type = agendaKindToToastType(last.kind);
+  const type = last.urgent ? "error" : agendaKindToToastType(last.kind);
   const path =
     threadEvents.length > 1 ? shortPathForEvents(threadEvents) : "";
   const desc = path ? `${description} (${path})` : description;
@@ -243,6 +248,8 @@ function emitAgendaEvents(
       );
     }
   }
+
+  cueNotify();
 }
 
 export function useAgendaNotifications({
@@ -263,6 +270,8 @@ export function useAgendaNotifications({
 
   useEffect(() => {
     if (!scope || !ready || items === null || typeof window === "undefined") return;
+
+    patchAgendaVisitNumbers(scope, items);
 
     const fingerprint = snapshotFingerprint(items);
     if (fingerprint === lastProcessedRef.current) return;

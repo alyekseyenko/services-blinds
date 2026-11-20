@@ -29,6 +29,13 @@ const restrictedCrmImports = {
       message: "Notificações via actions/ ou lib/crm/notifications.",
     },
   ],
+  patterns: [
+    {
+      group: ["@/lib/crm/tasks/*"],
+      message:
+        "Importe apenas @/lib/crm/tasks (fachada). Submódulos são internos ao domínio CRM.",
+    },
+  ],
 };
 
 export default defineConfig([

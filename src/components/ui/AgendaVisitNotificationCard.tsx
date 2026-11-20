@@ -106,7 +106,11 @@ export function AgendaVisitNotificationCard({
   const tone = visitPhaseToTone(phase);
 
   const visit = n.visit;
-  const clientLine = [visit?.clientName, visit?.nsi ? `NSI ${visit.nsi}` : null]
+  const clientLine = [
+    visit?.clientName,
+    visit?.serviceNumber ? `N.º ${visit.serviceNumber}` : null,
+    visit?.nsi ? `NSI ${visit.nsi}` : null,
+  ]
     .filter(Boolean)
     .join(" · ");
   const titleLine = visit?.visitTitle?.trim();
@@ -128,17 +132,30 @@ export function AgendaVisitNotificationCard({
       disabled={!actionable}
       onClick={onActivate}
       className={cn(
-        "ds-panel flex w-full flex-col border border-l-4 border-border/90 text-left transition-colors",
-        DS_ACCENT_CLASS[tone],
+        "ds-panel flex w-full flex-col border border-l-4 text-left transition-colors",
+        visit?.urgent
+          ? "border-2 border-danger-solid bg-danger-surface"
+          : cn("border-border/90", DS_ACCENT_CLASS[tone]),
         actionable && "hover:bg-muted/80 active:scale-[0.995]",
         spacious ? "gap-3 p-4" : "gap-2 p-3"
       )}
-      aria-label={n.read ? `${phaseLabel} — já visto` : `${phaseLabel} — novo`}
+      aria-label={
+        visit?.urgent
+          ? n.read
+            ? "Urgente — já visto"
+            : "Urgente — novo"
+          : n.read
+            ? `${phaseLabel} — já visto`
+            : `${phaseLabel} — novo`
+      }
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StatusChip label={phaseLabel} tone={tone} icon={<PhaseIcon className="h-3.5 w-3.5" />} />
+            {visit?.urgent ? (
+              <StatusChip label="Urgente" tone="danger" icon={<AlertTriangle className="h-3.5 w-3.5" />} />
+            ) : null}
             {serviceTypeLabel ? (
               <StatusChip label={serviceTypeLabel} tone="neutral" className="max-w-[10rem] truncate" />
             ) : null}

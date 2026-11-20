@@ -51,7 +51,9 @@ export default function TechCalendarView({
           localizer={localizer}
           events={tasks}
           startAccessor="dueDate"
-          endAccessor="dueDate"
+          endAccessor={(event: { dueDate: Date; visitEndAt?: Date }) =>
+            event.visitEndAt ?? new Date(event.dueDate.getTime() + 60 * 60 * 1000)
+          }
           titleAccessor="title"
           step={30}
           timeslots={2}

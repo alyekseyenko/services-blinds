@@ -12,6 +12,7 @@ import { circuitBreakerCheck } from "./checks/circuitBreaker";
 import { crmGraphqlCheck } from "./checks/crmGraphql";
 import { adminAgendaFeedApiCheck } from "./checks/adminAgendaFeedApi";
 import { adminMeasurementsExportApiCheck } from "./checks/adminMeasurementsExportApi";
+import { visitServiceFilesApiCheck } from "./checks/visitServiceFilesApi";
 import { measurementsDbCheck } from "./checks/measurementsDb";
 import { fieldSyncHealthCheck } from "./checks/fieldSyncHealth";
 import {
@@ -74,6 +75,7 @@ export const E2E_CHECK_REGISTRY: E2ECheckDefinition[] = [
   fieldSyncHealthCheck,
   adminAgendaFeedApiCheck,
   adminMeasurementsExportApiCheck,
+  visitServiceFilesApiCheck,
 
   // Public portals (HMAC)
   publicCancelTokenCheck,

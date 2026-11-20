@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ProductGroup, ProductType, Task } from "@/types";
 import { parseMeasurementsFromReport } from "@/lib/measurementsUtils";
 import { isOnboardingDemoEntity, ONBOARDING_DEMO_OPP_ID } from "@/lib/demo/demoIds";
@@ -15,6 +15,7 @@ import { isMeasurementRowComplete } from "@/lib/measurementCompleteness";
 import { lineDimensionMode } from "@/lib/measurements/lineModes";
 import { getRtsCommandSpecs, sanitizeRowRtsAssignment } from "@/lib/measurements/rtsCommands";
 import { getNextAvailableRtsAssignment } from "@/lib/measurements/rtsChannelUsage";
+import type { MeasurementsPayload } from "@/lib/schemas";
 
 const DEFAULT_GROUP = (): ProductGroup => ({
   id: Date.now(),
@@ -33,7 +34,11 @@ const DEFAULT_GROUP = (): ProductGroup => ({
   isOpen: true,
 });
 
-export function useMeasurements(task?: Task, opportunityId?: string) {
+export function useMeasurements(
+  task?: Task,
+  opportunityId?: string,
+  seedPayload?: MeasurementsPayload | null
+) {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([DEFAULT_GROUP()]);
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -61,9 +66,21 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
   const taskId = task?.id;
   const oppKey = opportunityId || task?.opportunityId;
   const reportForParse = task?.report;
+  const reportForParseRef = useRef(reportForParse);
+  reportForParseRef.current = reportForParse;
   const DRAFT_KEY = `measurements_draft_${taskId || "new"}${oppKey ? `_${oppKey}` : ""}`;
 
   useEffect(() => {
+    if (seedPayload?.groups?.length) {
+      userEditedRef.current = false;
+      setIsDirty(false);
+      const seeded = measurementsPayloadToProductGroups(seedPayload).map((group, index) => ({
+        ...group,
+        isOpen: index === 0,
+      }));
+      setProductGroups(seeded.length ? seeded : [DEFAULT_GROUP()]);
+      return;
+    }
     userEditedRef.current = false;
     setIsDirty(false);
     let cancelled = false;
@@ -106,7 +123,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
       }
 
       if (cancelled) return;
-      const parsedReport = parseMeasurementsFromReport(reportForParse);
+      const parsedReport = parseMeasurementsFromReport(reportForParseRef.current);
       if (parsedReport?.groups) {
         setProductGroups(
           parsedReport.groups.map((g, index) => {
@@ -137,7 +154,8 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
     return () => {
       cancelled = true;
     };
-  }, [taskId, oppKey, opportunityId, DRAFT_KEY, reportForParse]);
+    // reportForParse is only a fallback on first load of this visit — not after Guardar.
+  }, [taskId, oppKey, opportunityId, DRAFT_KEY, seedPayload]);
 
   useEffect(() => {
     if (!userEditedRef.current || productGroups.length === 0) return;
@@ -222,6 +240,10 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
       prev.map((g) => (g.id === groupId ? { ...g, isOpen: !g.isOpen } : g))
     );
   };
+
+  const collapseAllGroups = useCallback(() => {
+    setProductGroups((prev) => prev.map((g) => ({ ...g, isOpen: false })));
+  }, []);
 
   const updateGroupType = (groupId: number, type: ProductType) => {
     markAsDirty();
@@ -399,6 +421,7 @@ export function useMeasurements(task?: Task, opportunityId?: string) {
     cloneGroup,
     removeGroup,
     toggleGroup,
+    collapseAllGroups,
     updateGroupType,
     updateGroupDetails,
     setRemeasure,

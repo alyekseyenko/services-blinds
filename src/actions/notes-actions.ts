@@ -2,6 +2,8 @@
 
 import { ActionResponse } from "@/lib/types/action-response";
 import { assertCanAccessOpportunity } from "@/lib/auth/opportunityAccess";
+import { resolveWorkspaceMemberId } from "@/lib/auth/session";
+import { getAppSession } from "@/lib/auth/session.server";
 import { createOpportunityNote, fetchOpportunityNotes, AppNote } from "@/lib/crm/notes";
 import { toUserMessage } from "@/lib/userMessages";
 
@@ -52,12 +54,16 @@ export async function createOpportunityNoteAction(
       return { success: false, error: access.error };
     }
 
+    const session = await getAppSession();
+    const memberId = resolveWorkspaceMemberId(session?.user);
+    const authorName = session?.user?.name?.trim() || title || "Nota";
     const note = await createOpportunityNote(
       opportunityId,
       personId,
       title,
       bodyMarkdown,
-      clientRequestId
+      clientRequestId,
+      memberId ? { name: authorName, workspaceMemberId: memberId } : undefined
     );
     return { success: true, data: note };
   } catch (error: unknown) {

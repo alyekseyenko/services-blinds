@@ -1,4 +1,5 @@
 import { isNeedsSchedulingStage } from "@/lib/crm/contract";
+import { hasUsableServiceAddress, isMissingGps } from "@/lib/geocodeQueue";
 import { matchesServiceTypeFilters } from "@/lib/admin/mapFilterConfig";
 
 import { euclideanKm, resolveCityKeyFromOpportunity } from "@/lib/admin/geo";
@@ -70,20 +71,53 @@ function priorityToImpact(priority: ZoneInsight["priority"]): ZoneInsight["impac
 
 
 
+export type UnscheduledWithoutGps = {
+  twentyId: string;
+  title: string;
+  client: string;
+  serviceNumber?: string;
+  nsi?: string;
+  address: string;
+};
+
+/** Twenty NUMBER fields (and old IndexedDB rows) are not always strings. */
+function crmText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+}
+
+function usableIdentity(value: unknown, placeholders: readonly string[] = []): string {
+  const text = crmText(value);
+  if (!text) return "";
+  if (placeholders.some((item) => item.localeCompare(text, "pt", { sensitivity: "accent" }) === 0)) {
+    return "";
+  }
+  return text;
+}
+
+export function listUnscheduledWithoutGps(
+  opportunities: Opportunity[]
+): UnscheduledWithoutGps[] {
+  return opportunities
+    .filter(
+      (opp) =>
+        isNeedsSchedulingStage(opp.stage) &&
+        !opp.hasScheduledTask &&
+        isMissingGps(opp.coordinates)
+    )
+    .map((opp) => ({
+      twentyId: opp.twentyId,
+      title: crmText(opp.title),
+      client: usableIdentity(opp.client, ["Cliente"]),
+      serviceNumber: usableIdentity(opp.serviceNumber) || undefined,
+      nsi: usableIdentity(opp.nsi, ["N/A"]) || undefined,
+      address: hasUsableServiceAddress(opp.address) ? opp.address : "Sem morada no CRM",
+    }));
+}
+
 export function countUnscheduledWithoutGps(opportunities: Opportunity[]): number {
-
-  return opportunities.filter(
-
-    (opp) =>
-
-      isNeedsSchedulingStage(opp.stage) &&
-
-      !opp.hasScheduledTask &&
-
-      !opp.coordinates
-
-  ).length;
-
+  return listUnscheduledWithoutGps(opportunities).length;
 }
 
 

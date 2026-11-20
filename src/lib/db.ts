@@ -19,9 +19,25 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
+export interface VisitPhotoQueueItem {
+  id?: number;
+  taskId: string;
+  opportunityId: string;
+  clientRequestId: string;
+  filename: string;
+  blob: Blob;
+  capturedAt: number;
+  status: 'pending' | 'failed';
+  retries?: number;
+  lastError?: string;
+  nextRetryAt?: number;
+  transientAttempts?: number;
+}
+
 export class FieldOpsDB extends Dexie {
   tasks!: Table<LocalTask>;
   syncQueue!: Table<SyncQueueItem>;
+  visitPhotoQueue!: Table<VisitPhotoQueueItem>;
 
   constructor() {
     super('FieldOpsDB');
@@ -33,6 +49,11 @@ export class FieldOpsDB extends Dexie {
       tasks: '++id, twentyId, status, lastSync',
       syncQueue: '++id, taskId, status, timestamp'
     });
+    this.version(4).stores({
+      tasks: '++id, twentyId, status, lastSync',
+      syncQueue: '++id, taskId, status, timestamp',
+      visitPhotoQueue: '++id, taskId, status, capturedAt, clientRequestId',
+    });
   }
 }
 
@@ -42,5 +63,6 @@ export const db = new FieldOpsDB();
 export async function clearOfflineUserData(): Promise<void> {
   if (typeof window === "undefined") return;
   await db.syncQueue.clear();
+  await db.visitPhotoQueue.clear();
   await db.tasks.clear();
 }

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { computeZoneInsights, countUnscheduledWithoutGps } from "../zoneInsights";
+import {
+  computeZoneInsights,
+  countUnscheduledWithoutGps,
+  listUnscheduledWithoutGps,
+} from "../zoneInsights";
 
 import type { Opportunity } from "@/types/admin";
 
@@ -172,6 +176,62 @@ describe("countUnscheduledWithoutGps", () => {
 
     expect(count).toBe(1);
 
+  });
+
+  it("lista cliente, número de serviço e morada dos serviços sem GPS", () => {
+    const items = listUnscheduledWithoutGps([
+      makeOpp({
+        twentyId: "1",
+        title: "Reparação estore",
+        client: "Ana Silva",
+        serviceNumber: "71",
+        nsi: "12345",
+        address: "Rua X",
+        coordinates: null,
+      }),
+      makeOpp({
+        twentyId: "2",
+        title: "Cliente",
+        client: "Cliente",
+        nsi: "N/A",
+        coordinates: null,
+        address: "",
+      }),
+      makeOpp({ twentyId: "3", coordinates: [38.73, -9.15] }),
+    ]);
+    expect(items).toEqual([
+      {
+        twentyId: "1",
+        title: "Reparação estore",
+        client: "Ana Silva",
+        serviceNumber: "71",
+        nsi: "12345",
+        address: "Rua X",
+      },
+      {
+        twentyId: "2",
+        title: "Cliente",
+        client: "",
+        serviceNumber: undefined,
+        nsi: undefined,
+        address: "Sem morada no CRM",
+      },
+    ]);
+  });
+
+  it("aceita NSI e número de serviço numéricos vindos do CRM", () => {
+    const [item] = listUnscheduledWithoutGps([
+      makeOpp({
+        twentyId: "9",
+        title: "Medição",
+        client: "Ana",
+        nsi: 12045 as unknown as string,
+        serviceNumber: 71 as unknown as string,
+        coordinates: null,
+        address: "Rua Y, Lisboa",
+      }),
+    ]);
+    expect(item).toMatchObject({ nsi: "12045", serviceNumber: "71", title: "Medição" });
   });
 
 });

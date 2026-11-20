@@ -23,10 +23,39 @@ describe("taskUtils", () => {
 
   it("resolveTaskOverdue uses dueDate fallback", () => {
     expect(
-      resolveTaskOverdue({
-        status: "Agendado",
-        dueDate: new Date("2020-01-01T10:00:00"),
-      })
+      resolveTaskOverdue(
+        {
+          status: "Agendado",
+          dueDate: new Date("2020-01-01T10:00:00"),
+        },
+        now
+      )
+    ).toBe(true);
+  });
+
+  it("não marca atrasada uma visita futura só porque a oportunidade é antiga", () => {
+    expect(
+      resolveTaskOverdue(
+        {
+          status: "AGENDADO",
+          dueDate: new Date("2026-09-01T10:00:00"),
+          scheduledAt: new Date("2026-11-20T09:00:00"),
+        },
+        now
+      )
+    ).toBe(false);
+  });
+
+  it("marca atrasada pela hora da visita, não pela criação", () => {
+    expect(
+      resolveTaskOverdue(
+        {
+          status: "AGENDADO",
+          dueDate: new Date("2026-09-01T10:00:00"),
+          scheduledAt: new Date("2026-09-16T10:00:00"),
+        },
+        now
+      )
     ).toBe(true);
   });
 });

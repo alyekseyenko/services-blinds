@@ -232,7 +232,8 @@ export default function PreparationCard({ service, onComplete }: PreparationCard
           <div>
             <div className="flex items-center gap-3 mb-1">
               <span className="bg-info-solid/10 text-info-fg text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border border-info-solid/20">
-                NSI: {service.nsi}
+                {service.serviceNumber ? `N.º ${service.serviceNumber}` : "Sem n.º"}
+                {service.nsi && service.nsi !== "N/A" ? ` · NSI ${service.nsi}` : ""}
               </span>
               <span className="text-muted-foreground text-xs font-black uppercase tracking-widest">
                 {new Date(service.createdAt).toLocaleDateString('pt-PT')}

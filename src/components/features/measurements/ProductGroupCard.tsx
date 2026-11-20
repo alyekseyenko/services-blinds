@@ -2,11 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Box, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
-import {
-  useExpandSectionsOnWideLayout,
-  useMeasurementsCompactSections,
-  useMeasurementsWideLayout,
-} from "@/hooks/useMeasurementsLayout";
+import { useMeasurementsCompactSections } from "@/hooks/useMeasurementsLayout";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { ProductGroup, ProductType } from "@/types";
 import {
@@ -43,6 +39,8 @@ import {
   measurementProductSectionShouldDefaultOpen,
   measurementProductSectionSummary,
   measurementWindowsSectionMeta,
+  nextExclusiveSection,
+  type MeasurementFormSectionStep,
 } from "@/lib/measurements/groupFormSectionMeta";
 import { VoiceTextarea } from "@/components/ui/VoiceTextarea";
 import { cn } from "@/lib/cn";
@@ -55,11 +53,17 @@ const specOptionBtn = (active: boolean) =>
       : "border-border bg-card text-muted-foreground"
   );
 
+function measurementGroupFieldId(groupId: number, field: string): string {
+  return `measurement-group-${groupId}-${field}`;
+}
+
 function RalColorField({
+  inputId,
   value,
   locked,
   onChange,
 }: {
+  inputId: string;
   value: string;
   locked: boolean;
   onChange: (next: string) => void;
@@ -87,9 +91,10 @@ function RalColorField({
         ))}
       </div>
       <input
+        id={inputId}
         type="text"
         placeholder="Ex: 7016, Branco..."
-        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+        className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all disabled:bg-muted disabled:text-muted-foreground"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -132,21 +137,22 @@ function ProductGroupCardComponent({
   voiceObservationsTourAnchor = false,
 }: ProductGroupCardProps) {
   const confirm = useConfirm();
-  const wideLayout = useMeasurementsWideLayout();
   const specLocked = isAdmin || readOnly;
   const focusMeasurements = useMeasurementsCompactSections(!specLocked);
-  const [productOpen, setProductOpen] = useState(() =>
-    focusMeasurements ? measurementProductSectionShouldDefaultOpen(group) : true
+  const [openSection, setOpenSection] = useState<MeasurementFormSectionStep | null>(() =>
+    focusMeasurements && measurementProductSectionShouldDefaultOpen(group) ? 1 : 3
   );
-  const [specsOpen, setSpecsOpen] = useState(false);
-  const [windowsOpen, setWindowsOpen] = useState(true);
   const autoSpecsOpenedRef = useRef(false);
   const autoProductCollapsedRef = useRef(false);
+
+  const setSectionOpen = (step: MeasurementFormSectionStep) => (open: boolean) => {
+    setOpenSection((current) => nextExclusiveSection(current, step, open));
+  };
 
   useEffect(() => {
     if (autoSpecsOpenedRef.current || !focusMeasurements) return;
     if (groupHasSpecCompletenessWarnings(group)) {
-      setSpecsOpen(true);
+      setOpenSection(2);
       autoSpecsOpenedRef.current = true;
     }
   }, [focusMeasurements, group]);
@@ -154,12 +160,10 @@ function ProductGroupCardComponent({
   useEffect(() => {
     if (!focusMeasurements || autoProductCollapsedRef.current) return;
     if (!measurementProductSectionShouldDefaultOpen(group)) {
-      setProductOpen(false);
+      setOpenSection((current) => (current === 1 ? 3 : current));
       autoProductCollapsedRef.current = true;
     }
   }, [focusMeasurements, group]);
-
-  useExpandSectionsOnWideLayout(wideLayout, setProductOpen, setSpecsOpen, setWindowsOpen);
 
   const completenessHints = useMemo(
     () => (!specLocked ? summarizeMeasurementGroupCompleteness(group) : []),
@@ -280,17 +284,21 @@ function ProductGroupCardComponent({
             description="Nome para reconhecer na obra e tipo de estore ou toldo."
             summary={section1Summary}
             collapsible={focusMeasurements}
-            open={focusMeasurements ? productOpen : true}
-            onOpenChange={setProductOpen}
+            open={focusMeasurements ? openSection === 1 : true}
+            onOpenChange={setSectionOpen(1)}
           >
             <div className="space-y-1">
-              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+              <label
+                htmlFor={measurementGroupFieldId(group.id, "customName")}
+                className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+              >
                 Nome personalizado
               </label>
               <input
+                id={measurementGroupFieldId(group.id, "customName")}
                 type="text"
                 placeholder="Ex.: quarto do fundo, varanda…"
-                className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none"
+                className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
                 value={group.details.customName ?? ""}
                 onChange={(e) => onUpdateGroupDetails(group.id, "customName", e.target.value)}
               />
@@ -336,8 +344,8 @@ function ProductGroupCardComponent({
             summary={section2Summary}
             statusBadge={section2Status}
             collapsible={focusMeasurements}
-            open={focusMeasurements ? specsOpen : true}
-            onOpenChange={setSpecsOpen}
+            open={focusMeasurements ? openSection === 2 : true}
+            onOpenChange={setSectionOpen(2)}
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
             {group.type === "ESTORE_EXTERIOR" && (
@@ -440,13 +448,17 @@ function ProductGroupCardComponent({
 
                     {!specLocked && group.details.material === "OUTRO" ? (
                       <div className="space-y-1">
-                        <label className="text-xs font-black text-info-solid uppercase tracking-widest px-1">
+                        <label
+                          htmlFor={measurementGroupFieldId(group.id, "otherMaterial")}
+                          className="text-xs font-black text-info-solid uppercase tracking-widest px-1"
+                        >
                           Especificar material
                         </label>
                         <input
+                          id={measurementGroupFieldId(group.id, "otherMaterial")}
                           type="text"
                           placeholder="Descreva o material..."
-                          className="w-full bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none disabled:opacity-70"
+                          className="w-full bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:opacity-70"
                           value={group.details.otherMaterial}
                           disabled={specLocked}
                           onChange={(e) => onUpdateGroupDetails(group.id, "otherMaterial", e.target.value)}
@@ -455,8 +467,14 @@ function ProductGroupCardComponent({
                     ) : null}
 
                     <div className="space-y-1">
-                      <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">RAL / Cor</label>
+                      <label
+                        htmlFor={measurementGroupFieldId(group.id, "ral")}
+                        className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                      >
+                        RAL / Cor
+                      </label>
                       <RalColorField
+                        inputId={measurementGroupFieldId(group.id, "ral")}
                         value={group.details.ral ?? ""}
                         locked={specLocked}
                         onChange={(next) => onUpdateGroupDetails(group.id, "ral", next)}
@@ -467,8 +485,14 @@ function ProductGroupCardComponent({
 
                 {isExteriorParcialInstall(group.details.exteriorInstallType) ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">RAL / Cor</label>
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "ral")}
+                      className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                    >
+                      RAL / Cor
+                    </label>
                     <RalColorField
+                      inputId={measurementGroupFieldId(group.id, "ral")}
                       value={group.details.ral ?? ""}
                       locked={specLocked}
                       onChange={(next) => onUpdateGroupDetails(group.id, "ral", next)}
@@ -481,7 +505,12 @@ function ProductGroupCardComponent({
             {(group.type === "ESTORE_INTERIOR" || group.type === "TOLDO" || group.type === "MOSQUITEIRO") && (
               <>
                 <div className="space-y-1">
-                  <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">Modelo</label>
+                  <label
+                    htmlFor={measurementGroupFieldId(group.id, "model")}
+                    className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                  >
+                    Modelo
+                  </label>
                   {specLocked ? (
                     <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">
                       {group.type === "ESTORE_INTERIOR"
@@ -491,8 +520,9 @@ function ProductGroupCardComponent({
                   ) : (
                     <>
                       {group.type === "ESTORE_INTERIOR" ? (
-                          <select 
-                            className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                          <select
+                            id={measurementGroupFieldId(group.id, "model")}
+                            className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all disabled:bg-muted disabled:text-muted-foreground"
                             value={group.details.model}
                             disabled={specLocked}
                             onChange={(e) => {
@@ -513,8 +543,9 @@ function ProductGroupCardComponent({
                             ))}
                           </select>
                       ) : group.type === "MOSQUITEIRO" ? (
-                        <select 
-                          className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                        <select
+                          id={measurementGroupFieldId(group.id, "model")}
+                          className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all disabled:bg-muted disabled:text-muted-foreground"
                           value={group.details.model}
                           disabled={specLocked}
                           onChange={(e) => onUpdateGroupDetails(group.id, 'model', e.target.value)}
@@ -525,10 +556,11 @@ function ProductGroupCardComponent({
                           ))}
                         </select>
                       ) : (
-                        <input 
-                          type="text" 
+                        <input
+                          id={measurementGroupFieldId(group.id, "model")}
+                          type="text"
                           placeholder="Ex: Articulado..."
-                          className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
+                          className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:bg-muted disabled:text-muted-foreground"
                           value={group.details.model}
                           disabled={specLocked}
                           onChange={(e) => onUpdateGroupDetails(group.id, 'model', e.target.value)}
@@ -539,7 +571,10 @@ function ProductGroupCardComponent({
                 </div>
                 {group.type === "ESTORE_INTERIOR" && group.details.model === "ROLO" ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "roloVariant")}
+                      className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                    >
                       Tipo de rolo
                     </label>
                     {specLocked ? (
@@ -553,7 +588,8 @@ function ProductGroupCardComponent({
                       </div>
                     ) : (
                       <select
-                        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all"
+                        id={measurementGroupFieldId(group.id, "roloVariant")}
+                        className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all"
                         value={group.details.roloVariant ?? ""}
                         onChange={(e) => {
                           const value = e.target.value;
@@ -575,7 +611,10 @@ function ProductGroupCardComponent({
                 group.details.model === "ROLO" &&
                 group.details.roloVariant === "OUTRO" ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-info-solid uppercase tracking-widest px-1">
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "otherRoloVariant")}
+                      className="text-xs font-black text-info-solid uppercase tracking-widest px-1"
+                    >
                       Extra
                     </label>
                     {specLocked ? (
@@ -584,9 +623,10 @@ function ProductGroupCardComponent({
                       </div>
                     ) : (
                       <input
+                        id={measurementGroupFieldId(group.id, "otherRoloVariant")}
                         type="text"
                         placeholder="Indique o tipo de rolo…"
-                        className="w-full bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none"
+                        className="w-full min-h-12 bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
                         value={group.details.otherRoloVariant ?? ""}
                         disabled={specLocked}
                         onChange={(e) =>
@@ -599,7 +639,10 @@ function ProductGroupCardComponent({
                 {group.type === "ESTORE_INTERIOR" &&
                 (group.details.model === "OUTRO" || group.details.model === "SKYLIGHT") ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-info-solid uppercase tracking-widest px-1">
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "otherModel")}
+                      className="text-xs font-black text-info-solid uppercase tracking-widest px-1"
+                    >
                       Especificar modelo
                     </label>
                     {specLocked ? (
@@ -608,9 +651,10 @@ function ProductGroupCardComponent({
                       </div>
                     ) : (
                       <input
+                        id={measurementGroupFieldId(group.id, "otherModel")}
                         type="text"
                         placeholder="Indique o modelo…"
-                        className="w-full bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none"
+                        className="w-full min-h-12 bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
                         value={group.details.otherModel ?? ""}
                         disabled={specLocked}
                         onChange={(e) => onUpdateGroupDetails(group.id, "otherModel", e.target.value)}
@@ -623,15 +667,20 @@ function ProductGroupCardComponent({
                 !(specLocked && group.details.fabric?.trim()) ? null : (
                 <>
                 <div className="space-y-1">
-                  <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                  <label
+                    htmlFor={measurementGroupFieldId(group.id, "fabric")}
+                    className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                  >
                     {group.type === "MOSQUITEIRO" ? "Rede" : "Tecido"}
                   </label>
                   {specLocked ? (
                     <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.fabric || '-'}</div>
                   ) : (
                     <input
+                      id={measurementGroupFieldId(group.id, "fabric")}
                       type="text"
-                      className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
+                      placeholder={group.type === "MOSQUITEIRO" ? "Ex.: tipo de rede…" : "Ex.: coleção ou referência…"}
+                      className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:bg-muted disabled:text-muted-foreground"
                       value={group.details.fabric}
                       disabled={specLocked}
                       onChange={(e) => onUpdateGroupDetails(group.id, 'fabric', e.target.value)}
@@ -640,13 +689,20 @@ function ProductGroupCardComponent({
                 </div>
                 {group.type !== "MOSQUITEIRO" && (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">Referência</label>
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "reference")}
+                      className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                    >
+                      Referência
+                    </label>
                     {specLocked ? (
                       <div className="text-sm font-black text-foreground border-b border-border pb-2 px-1">{group.details.reference || '-'}</div>
                     ) : (
                       <input
+                        id={measurementGroupFieldId(group.id, "reference")}
                         type="text"
-                        className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none disabled:bg-muted disabled:text-muted-foreground"
+                        placeholder="Ex.: ref. fornecedor…"
+                        className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:bg-muted disabled:text-muted-foreground"
                         value={group.details.reference}
                         disabled={specLocked}
                         onChange={(e) => onUpdateGroupDetails(group.id, 'reference', e.target.value)}
@@ -692,7 +748,10 @@ function ProductGroupCardComponent({
                 </div>
                 {group.details.activation === "OUTRO" ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-black text-info-solid uppercase tracking-widest px-1">
+                    <label
+                      htmlFor={measurementGroupFieldId(group.id, "otherActivation")}
+                      className="text-xs font-black text-info-solid uppercase tracking-widest px-1"
+                    >
                       Especificar acionamento
                     </label>
                     {specLocked ? (
@@ -701,9 +760,10 @@ function ProductGroupCardComponent({
                       </div>
                     ) : (
                       <input
+                        id={measurementGroupFieldId(group.id, "otherActivation")}
                         type="text"
                         placeholder="Descreva o acionamento…"
-                        className="w-full bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none"
+                        className="w-full min-h-12 bg-info-surface border-2 border-info-border rounded-xl p-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
                         value={group.details.otherActivation ?? ""}
                         disabled={specLocked}
                         onChange={(e) => onUpdateGroupDetails(group.id, "otherActivation", e.target.value)}
@@ -722,7 +782,10 @@ function ProductGroupCardComponent({
 
             {group.type === "TOLDO" ? (
               <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">
+                <label
+                  htmlFor={measurementGroupFieldId(group.id, "structureColor")}
+                  className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+                >
                   Cor da estrutura
                 </label>
                 {specLocked ? (
@@ -731,9 +794,10 @@ function ProductGroupCardComponent({
                   </div>
                 ) : (
                   <input
+                    id={measurementGroupFieldId(group.id, "structureColor")}
                     type="text"
                     placeholder="Ex.: branco, RAL…"
-                    className="w-full bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                    className="w-full min-h-12 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all disabled:bg-muted disabled:text-muted-foreground"
                     value={group.details.structureColor ?? ""}
                     disabled={specLocked}
                     onChange={(e) => onUpdateGroupDetails(group.id, "structureColor", e.target.value)}
@@ -743,7 +807,12 @@ function ProductGroupCardComponent({
             ) : null}
 
             <div className="md:col-span-2 space-y-1">
-              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1">Observações do Produto</label>
+              <label
+                htmlFor={measurementGroupFieldId(group.id, "observations")}
+                className="text-xs font-black text-muted-foreground uppercase tracking-widest px-1"
+              >
+                Observações do Produto
+              </label>
               {specLocked ? (
                 <div className="text-sm font-bold text-foreground bg-muted p-4 rounded-xl border border-border italic">
                   {group.details.observations || "Nenhuma observação registada."}
@@ -751,8 +820,9 @@ function ProductGroupCardComponent({
               ) : (
                 <>
                   <VoiceTextarea
+                    textareaId={measurementGroupFieldId(group.id, "observations")}
                     placeholder="Ex: Pormenores de instalação..."
-                    textareaClassName="w-full min-h-12 flex-1 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none transition-all disabled:bg-muted disabled:text-muted-foreground"
+                    textareaClassName="w-full min-h-12 flex-1 bg-card border-2 border-border rounded-xl p-3 text-sm font-bold text-foreground focus:border-info-solid outline-none focus-visible:ring-2 focus-visible:ring-primary/25 transition-all disabled:bg-muted disabled:text-muted-foreground"
                     className="w-full"
                     rows={2}
                     value={group.details.observations ?? ""}
@@ -778,8 +848,8 @@ function ProductGroupCardComponent({
             summary={section3Meta?.summary}
             statusBadge={section3Meta?.statusBadge}
             collapsible={focusMeasurements}
-            open={focusMeasurements ? windowsOpen : true}
-            onOpenChange={setWindowsOpen}
+            open={focusMeasurements ? openSection === 3 : true}
+            onOpenChange={setSectionOpen(3)}
           >
             <MeasurementTable
               group={group}

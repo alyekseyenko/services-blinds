@@ -2,6 +2,16 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { ExtraServiceType, VisitService, VisitServiceMode } from "@/lib/schemas";
+import {
+  RepairPaymentMethodPicker,
+  RepairPaymentOtherDetailField,
+} from "@/components/dashboard/RepairPaymentMethodPicker";
+import {
+  extraServiceNeedsPaymentNow,
+  isRepairPaymentComplete,
+  isRepairPaymentMethod,
+  type RepairPaymentMethodId,
+} from "@/lib/visits/repairPayment";
 import type { Task } from "@/types";
 import MeasurementsForm from "@/components/features/measurements/MeasurementsForm";
 import { Button } from "@/components/ui/button";
@@ -50,6 +60,8 @@ export default function AddVisitServiceSheet({
   const [serviceType, setServiceType] = useState<ExtraServiceType | null>(null);
   const [mode, setMode] = useState<VisitServiceMode>("now");
   const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<RepairPaymentMethodId | "">("");
+  const [paymentDetail, setPaymentDetail] = useState("");
   const [measurementsPayload, setMeasurementsPayload] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,17 +78,26 @@ export default function AddVisitServiceSheet({
       }
       setMode(editService.mode || "now");
       setNotes("");
+      setPaymentMethod(
+        isRepairPaymentMethod(editService.paymentMethod || "")
+          ? (editService.paymentMethod as RepairPaymentMethodId)
+          : ""
+      );
+      setPaymentDetail(editService.paymentDetail?.trim() ?? "");
       setMeasurementsPayload(null);
     } else {
       setServiceType(null);
       setMode("now");
       setNotes("");
+      setPaymentMethod("");
+      setPaymentDetail("");
       setMeasurementsPayload(null);
     }
   }, [editService]);
 
   const needsMeasurements = serviceType === "TIRAR_MEDIDAS" || serviceType === "REMEDICAO";
   const showModeToggle = serviceType === "MANUTENCAO" || serviceType === "REPARACAO";
+  const needsPaymentNow = extraServiceNeedsPaymentNow(serviceType, showModeToggle ? mode : "now");
 
   const sheetDescription = useMemo(() => {
     const client = task.client?.trim() || "Cliente";
@@ -92,6 +113,15 @@ export default function AddVisitServiceSheet({
     }
     if (!isEdit && needsMeasurements && !measurementsPayload) {
       toast.error("Guarde as medições no formulário antes de criar o serviço");
+      return;
+    }
+    if (needsPaymentNow && !isRepairPaymentComplete(paymentMethod, paymentDetail)) {
+      toast.warning(
+        "Pagamento obrigatório",
+        paymentMethod === "outros"
+          ? "Indique o motivo quando escolhe Outros."
+          : "Escolha como o cliente pagou esta reparação extra."
+      );
       return;
     }
 
@@ -119,6 +149,9 @@ export default function AddVisitServiceSheet({
           mode: showModeToggle ? mode : "now",
           notes: notes.trim() || undefined,
           measurements: measurementsPayload || undefined,
+          paymentMethod: needsPaymentNow && isRepairPaymentMethod(paymentMethod) ? paymentMethod : undefined,
+          paymentDetail:
+            needsPaymentNow && paymentMethod === "outros" ? paymentDetail.trim() : undefined,
         };
         const result = await updateVisitServiceAction(updatePayload);
         if (!result.success) {
@@ -146,6 +179,9 @@ export default function AddVisitServiceSheet({
         mode: showModeToggle ? mode : "now",
         notes: notes.trim() || undefined,
         measurements: needsMeasurements ? measurementsPayload : undefined,
+        paymentMethod: needsPaymentNow && isRepairPaymentMethod(paymentMethod) ? paymentMethod : undefined,
+        paymentDetail:
+          needsPaymentNow && paymentMethod === "outros" ? paymentDetail.trim() : undefined,
       };
 
       const result = await enqueueVisitService(payload);
@@ -209,6 +245,9 @@ export default function AddVisitServiceSheet({
                       if (opt.type === "TIRAR_MEDIDAS" || opt.type === "REMEDICAO") {
                         setMode("now");
                       }
+                      if (opt.type !== "REPARACAO") {
+                        setPaymentMethod("");
+                      }
                     }}
                     className={cn(
                       "min-h-14 rounded-xl border-2 px-3 py-3 text-sm font-bold leading-snug transition-all active:scale-[0.98]",
@@ -251,7 +290,10 @@ export default function AddVisitServiceSheet({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("later")}
+                  onClick={() => {
+                    setMode("later");
+                    setPaymentMethod("");
+                  }}
                   className={cn(
                     "min-h-12 flex-1 rounded-xl text-sm font-bold transition-all active:scale-[0.98]",
                     mode === "later"
@@ -262,6 +304,13 @@ export default function AddVisitServiceSheet({
                   Agendar depois
                 </button>
               </div>
+              <p className={cn(FIELD_BODY, "text-muted-foreground")}>
+                {mode === "later"
+                  ? "Fica para marcar mais tarde. Ainda não sabemos como o cliente vai pagar."
+                  : serviceType === "REPARACAO"
+                    ? "Trabalho feito nesta visita. A reparação extra vai para cobrança no CRM com a forma de pagamento."
+                    : "Trabalho feito nesta visita e associado ao CRM de imediato."}
+              </p>
             </section>
           )}
 
@@ -275,6 +324,31 @@ export default function AddVisitServiceSheet({
               className={cn(FIELD_TEXTAREA, "min-h-[4.5rem]")}
             />
           </section>
+
+          {needsPaymentNow ? (
+            <section className="space-y-2">
+              <p className={FIELD_KICKER}>Forma de pagamento (obrigatório)</p>
+              <p className={cn(FIELD_BODY, "text-muted-foreground")}>
+                Fica nas notas deste serviço extra, não no serviço principal da visita.
+              </p>
+              <RepairPaymentMethodPicker
+                value={paymentMethod}
+                onChange={(method) => {
+                  setPaymentMethod(method);
+                  if (method !== "outros") setPaymentDetail("");
+                }}
+                disabled={submitting}
+              />
+              {paymentMethod === "outros" ? (
+                <RepairPaymentOtherDetailField
+                  id="extra-repair-pay-detail"
+                  value={paymentDetail}
+                  disabled={submitting}
+                  onChange={setPaymentDetail}
+                />
+              ) : null}
+            </section>
+          ) : null}
 
           {needsMeasurements && serviceType && (
             <section className="rounded-2xl border-2 border-border-strong bg-card p-4">
@@ -297,7 +371,12 @@ export default function AddVisitServiceSheet({
           <Button
             variant="primary"
             onClick={handleSubmit}
-            disabled={submitting || !serviceType || (isEdit && !isOnline)}
+            disabled={
+              submitting ||
+              !serviceType ||
+              (isEdit && !isOnline) ||
+              (needsPaymentNow && !isRepairPaymentComplete(paymentMethod, paymentDetail))
+            }
             className="min-h-12 w-full border-2 border-border-strong"
             loading={submitting}
             loadingText={isEdit ? "A guardar..." : "A criar..."}

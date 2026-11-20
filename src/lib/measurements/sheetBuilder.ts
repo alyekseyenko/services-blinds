@@ -17,11 +17,11 @@ import {
 import { getGroupSpecDetailEntries } from "@/lib/measurements/groupSpecDisplay";
 import { getDivisionLabel } from "@/lib/measurements/divisions";
 import { isPortaAmerica, lineDimensionMode, storedWidthHeightMm } from "@/lib/measurements/lineModes";
-
 export type MeasurementSheetHeaderInput = {
   opportunityId: string;
   clientName: string;
   nsi?: string;
+  serviceNumber?: string;
   address: string;
   serviceLabel?: string;
   technicianName?: string;

@@ -4,6 +4,7 @@ import type { CreateAdminCommercialServiceInput } from "@/lib/schemas/adminComme
 import { getAdminCommercialServiceLabel } from "@/lib/adminCommercialServiceOptions";
 import { serverGeocodeAddress } from "@/lib/geocodeAction";
 import { createOpportunityNote } from "@/lib/crm/notes";
+import { buildAdminServiceCreationNote } from "@/lib/admin/commercialServiceNote";
 import {
   createAdminCommercialServiceOpportunity,
   type AdminCommercialServiceCreateActor,
@@ -11,17 +12,10 @@ import {
 import type { AdminCommercialServiceType } from "@/lib/schemas/adminCommercialService";
 import type { OpportunityServiceAddressInput } from "@/lib/crm/opportunities";
 import { fetchPersonByIdForAdmin } from "@/lib/crm/people";
+import { formatNavigationAddressLine } from "@/lib/visits/serviceAddressLine";
 
 function formatAddressLine(morada: OpportunityServiceAddressInput): string {
-  return [
-    morada.addressStreet1,
-    morada.addressStreet2,
-    morada.addressCity,
-    morada.addressPostcode,
-    morada.addressCountry,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  return formatNavigationAddressLine(morada);
 }
 
 async function resolveCoordinates(
@@ -95,11 +89,15 @@ export async function createAdminCommercialService(
     actor.workspaceMemberId ? actor : undefined
   );
 
+  const creationNote = buildAdminServiceCreationNote({
+    operatorName,
+    internalNotes: input.notes,
+  });
   await createOpportunityNote(
     opportunityId,
     input.personId,
-    "Criado no painel",
-    `Serviço aberto no painel operacional por ${operatorName}.`,
+    creationNote.title,
+    creationNote.body,
     `${input.clientRequestId}-admin-service`,
     actor.workspaceMemberId ? actor : undefined
   );

@@ -93,7 +93,12 @@ export function isPermanentBusinessSyncError(message: string): boolean {
     m.includes("estado de tarefa inválido") ||
     m.includes("dados de medidas inválidos") ||
     m.includes("cancelada pelo escritório") ||
-    (m.includes("oportunidade") && m.includes("não"))
+    (m.includes("oportunidade") && m.includes("não")) ||
+    m.includes("só são aceites fotos jpeg") ||
+    m.includes("ficheiro demasiado grande") ||
+    m.includes("dados da foto inválidos") ||
+    m.includes("ficheiro em falta") ||
+    m.includes("serviço não corresponde")
   );
 }
 

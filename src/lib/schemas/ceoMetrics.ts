@@ -4,6 +4,7 @@ export const CeoServiceItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   nsi: z.string().optional().nullable(),
+  serviceNumber: z.string().optional().nullable(),
   stage: z.string(),
   stageLabel: z.string(),
   serviceType: z.string().optional().nullable(),
@@ -65,10 +66,13 @@ export const ClientFollowUpSchema = z.object({
   id: z.string(),
   clientName: z.string(),
   nsi: z.string().optional().nullable(),
+  serviceNumber: z.string().optional().nullable(),
   stage: z.string(),
   stageLabel: z.string(),
   followUpDate: z.string(),
   formattedFollowUpDate: z.string(),
+  reminderDate: z.string().optional().nullable(),
+  formattedReminderDate: z.string().optional().nullable(),
   daysRemaining: z.number(), // negativo = atrasado, 0 = hoje, 1 = amanhã
   urgencyStatus: z.enum(["OVERDUE", "TODAY", "TOMORROW", "UPCOMING"]),
   contactPhone: z.string().optional().nullable(),
@@ -97,6 +101,15 @@ export const OnSiteDurationFleetSchema = z.object({
   sampleCount: z.number(),
   avgMinutes: z.number(),
   formattedAvg: z.string(),
+});
+
+export const FairServiceTypeDurationSchema = z.object({
+  serviceType: z.string(),
+  serviceLabel: z.string(),
+  sampleCount: z.number(),
+  recommendedDurationMs: z.number(),
+  recommendedMinutes: z.number(),
+  formattedRecommended: z.string(),
 });
 
 export const TechnicianRankingSchema = z.object({
@@ -164,6 +177,7 @@ export const CeoMetricsSchema = z.object({
   })),
   technicianRankings: z.array(TechnicianRankingSchema),
   onSiteDuration: OnSiteDurationFleetSchema,
+  fairServiceTypeDurations: z.array(FairServiceTypeDurationSchema),
   technicianOnSiteDurations: z.array(TechnicianOnSiteDurationSchema),
   upcomingFollowUps: z.array(ClientFollowUpSchema),
   servicesList: z.array(CeoServiceItemSchema),
@@ -178,4 +192,5 @@ export type ClientFollowUp = z.infer<typeof ClientFollowUpSchema>;
 export type TechnicianRanking = z.infer<typeof TechnicianRankingSchema>;
 export type TechnicianOnSiteDuration = z.infer<typeof TechnicianOnSiteDurationSchema>;
 export type OnSiteDurationFleet = z.infer<typeof OnSiteDurationFleetSchema>;
+export type FairServiceTypeDuration = z.infer<typeof FairServiceTypeDurationSchema>;
 export type CeoMetrics = z.infer<typeof CeoMetricsSchema>;

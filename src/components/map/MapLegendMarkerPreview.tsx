@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { buildServiceTypeMarkerSvg } from "@/lib/techniciansConfig";
+import { readDesignToken } from "@/lib/design/cssVar";
 import type { MarkerStatusBadge } from "@/lib/map/serviceMarkerArt";
 import { MAP_PIN_ASPECT } from "@/lib/map/serviceMarkerArt";
 
@@ -9,6 +10,8 @@ interface MapLegendMarkerPreviewProps {
   typeKey: string;
   label: string;
   status?: MarkerStatusBadge;
+  /** Bolinha do técnico no canto (cor da paleta 1 — ex. azul). */
+  technicianDot?: boolean;
   /** Pin render size in px (default 48). */
   size?: number;
 }
@@ -17,12 +20,14 @@ export function MapLegendMarkerPreview({
   typeKey,
   label,
   status = null,
+  technicianDot = false,
   size = 48,
 }: MapLegendMarkerPreviewProps) {
   const src = useMemo(() => {
-    const svg = buildServiceTypeMarkerSvg(typeKey, { size, status });
+    const technicianColor = technicianDot ? readDesignToken("--technician-palette-1") : null;
+    const svg = buildServiceTypeMarkerSvg(typeKey, { size, status, technicianColor });
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  }, [typeKey, status, size]);
+  }, [typeKey, status, technicianDot, size]);
 
   const height = Math.round(size * MAP_PIN_ASPECT);
   const widthClass = size <= 36 ? "w-9" : "w-12";

@@ -31,10 +31,13 @@ import { buildTechVisitDrawerHeader } from "@/lib/techVisitDisplay";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { formatNoteBodyForDisplay, formatNoteTitleForDisplay } from "@/lib/noteDisplay";
-import { fetchOpportunityNotesAction } from "@/actions/notes-actions";
+import { createOpportunityNoteAction, fetchOpportunityNotesAction } from "@/actions/notes-actions";
+import { useToast } from "@/components/ui/ToastContext";
+import { toUserMessage } from "@/lib/userMessages";
 import { Opportunity } from '@/types/admin';
 import { isNeedsSchedulingStage, isTaskCompleted, isTaskInProgress } from "@/lib/crm/contract";
 import ContactPhoneList from "@/components/ui/ContactPhoneList";
+import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import AdminOpportunityMeasurements from "@/components/admin/AdminOpportunityMeasurements";
@@ -42,6 +45,9 @@ import {
   countSchedulingNotes,
   formatScheduleStatsLabel,
 } from "@/lib/opportunityScheduleStats";
+import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
+import { fairDurationForOpportunity } from "@/lib/admin/fairDurationDisplay";
+import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
 
 interface OpportunityDrawerProps {
   selectedOpportunity: Opportunity | null;
@@ -50,6 +56,8 @@ interface OpportunityDrawerProps {
   handleUpdateGps: (opp: Opportunity) => Promise<void> | void;
   handleManualCoordsUpdate: (opp: Opportunity, lat: string, lng: string) => Promise<void> | void;
   openScheduleModal: (opp: Opportunity) => void;
+  fairServiceTypeDurations?: FairServiceTypeDuration[];
+  fairBenchmarksReady?: boolean;
 }
 
 interface Note {
@@ -88,10 +96,15 @@ export default function OpportunityDrawer({
   handleCancelAppointment,
   handleUpdateGps,
   handleManualCoordsUpdate,
-  openScheduleModal
+  openScheduleModal,
+  fairServiceTypeDurations = [],
+  fairBenchmarksReady = false,
 }: OpportunityDrawerProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const toast = useToast();
   const trapRef = useFocusTrap(Boolean(selectedOpportunity));
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
   const [panelEl, setPanelEl] = useState<HTMLElement | null>(null);
@@ -127,8 +140,10 @@ export default function OpportunityDrawer({
   useEffect(() => {
     if (!selectedOpportunity?.twentyId) {
       setNotes([]);
+      setNoteDraft("");
       return;
     }
+    setNoteDraft("");
     const opportunity = selectedOpportunity;
     const twentyId = opportunity.twentyId;
     let cancelled = false;
@@ -156,6 +171,11 @@ export default function OpportunityDrawer({
       cancelled = true;
     };
   }, [selectedOpportunity?.twentyId, selectedOpportunity?.id]);
+
+  const fairTypeDuration = useMemo(() => {
+    if (!selectedOpportunity || !fairBenchmarksReady) return undefined;
+    return fairDurationForOpportunity(fairServiceTypeDurations, selectedOpportunity);
+  }, [fairBenchmarksReady, fairServiceTypeDurations, selectedOpportunity]);
 
   const primaryServiceLabel = useMemo(() => {
     if (!selectedOpportunity) return undefined;
@@ -282,6 +302,11 @@ export default function OpportunityDrawer({
                 {primaryServiceLabel ? (
                   <span className="ds-chip ds-chip-neutral">{primaryServiceLabel}</span>
                 ) : null}
+                {selectedOpportunity.serviceNumber ? (
+                  <span className="ds-chip ds-chip-neutral">
+                    N.º <span className="ds-num">{selectedOpportunity.serviceNumber}</span>
+                  </span>
+                ) : null}
                 {selectedOpportunity.nsi && selectedOpportunity.nsi !== "N/A" ? (
                   <span className="ds-chip ds-chip-neutral">
                     NSI <span className="ds-num">#{selectedOpportunity.nsi}</span>
@@ -377,6 +402,30 @@ export default function OpportunityDrawer({
                 </span>
               </p>
             ) : null}
+            {fairBenchmarksReady ? (
+              <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
+                <Clock className="h-5 w-5 shrink-0 text-info-solid" aria-hidden />
+                <span className="min-w-0 flex-1 text-foreground">
+                  {fairTypeDuration ? (
+                    <>
+                      {fairTypeDuration.serviceLabel} · tempo médio na equipa:{" "}
+                      <span className="ds-num">{fairTypeDuration.formattedRecommended}</span>
+                    </>
+                  ) : (
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Tempo médio ainda indisponível para este tipo (menos de 5 visitas concluídas com
+                      tempo registado na app).
+                    </span>
+                  )}
+                  <span className="mt-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    {fairTypeDuration ? (
+                      <span>Referência para planear visitas deste tipo.</span>
+                    ) : null}
+                    <FairOnSiteDurationHelpButton className="min-h-10 min-w-10" />
+                  </span>
+                </span>
+              </p>
+            ) : null}
             {scheduleNoteLabel ? (
               <div className="space-y-0.5 text-xs font-semibold text-muted-foreground">
                 <p>
@@ -403,11 +452,23 @@ export default function OpportunityDrawer({
           </AdminOppSection>
 
             <AdminOppSection title="Contactos" data-tour="admin-opp-client-block">
-              {contactPhones.length > 0 ? (
-                <ContactPhoneList phones={contactPhones} emptyLabel="Indisponível" />
-              ) : (
-                <p className="text-sm font-medium text-muted-foreground">Telefone indisponível</p>
-              )}
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                <div className="min-w-0 flex-1">
+                  {contactPhones.length > 0 ? (
+                    <ContactPhoneList phones={contactPhones} emptyLabel="Indisponível" />
+                  ) : (
+                    <p className="text-sm font-medium text-muted-foreground">Telefone indisponível</p>
+                  )}
+                </div>
+                {formatClientNifDisplay(selectedOpportunity.clientNif) ? (
+                  <p className="shrink-0 text-xs font-semibold text-muted-foreground">
+                    NIF{" "}
+                    <span className="ds-num font-bold text-foreground">
+                      {formatClientNifDisplay(selectedOpportunity.clientNif)}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
               <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-3">
                 <div className="min-w-0">
                   <p className="ds-kicker">E-mail</p>
@@ -503,6 +564,56 @@ export default function OpportunityDrawer({
                     ))}
                   </div>
                 )}
+                <form
+                  className="space-y-2 border-t border-border pt-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const body = noteDraft.trim();
+                    const opportunityId = selectedOpportunity.twentyId;
+                    if (!body || !opportunityId || savingNote) return;
+                    void (async () => {
+                      setSavingNote(true);
+                      const result = await createOpportunityNoteAction(
+                        opportunityId,
+                        selectedOpportunity.pointOfContactId || null,
+                        "Nota do painel",
+                        body
+                      );
+                      setSavingNote(false);
+                      if (!result.success) {
+                        toast.error(
+                          "Não foi possível guardar a nota",
+                          toUserMessage(result.error, "A nota não ficou ligada ao serviço.")
+                        );
+                        return;
+                      }
+                      setNoteDraft("");
+                      const refreshed = await fetchOpportunityNotesAction(opportunityId);
+                      if (refreshed.success) setNotes((refreshed.data as Note[]) || []);
+                      toast.success("Nota registada", "Ficou na linha do tempo deste serviço no Twenty.");
+                    })();
+                  }}
+                >
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground" htmlFor="admin-opp-note">
+                    Nova nota neste serviço
+                  </label>
+                  <textarea
+                    id="admin-opp-note"
+                    value={noteDraft}
+                    onChange={(event) => setNoteDraft(event.target.value)}
+                    rows={3}
+                    placeholder="Nota para o CRM…"
+                    className="min-h-12 w-full rounded-xl border-2 border-border-strong bg-card px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-primary"
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={savingNote || !noteDraft.trim()}
+                    className="min-h-12 w-full"
+                  >
+                    {savingNote ? "A guardar…" : "Adicionar nota"}
+                  </Button>
+                </form>
               </div>
             </AdminOppSection>
 
@@ -541,7 +652,7 @@ export default function OpportunityDrawer({
                 className="border-l-4 ds-accent-warning bg-warning-surface"
               >
                 <p className="text-sm font-medium text-warning-fg">
-                  A geolocalização automática falhou. Pode indicar latitude e longitude manualmente.
+                  Esta morada ainda não tem pin. Tente o GPS ou indique a latitude e a longitude.
                 </p>
                 <div className="flex gap-2">
                   <input

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FormAlert } from "@/components/ui/FormAlert";
 import { useToast } from "@/components/ui/ToastContext";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { TwentyAddressFields } from "@/components/ui/TwentyAddressFields";
@@ -36,7 +37,7 @@ const emptyMorada = (): AdminPersonMorada => ({
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} className="text-xs font-semibold text-danger-fg" role="alert">
+    <p id={id} className="text-sm font-semibold text-danger-fg" role="alert">
       {message}
     </p>
   );
@@ -46,12 +47,23 @@ function fieldInputClass(hasError: boolean): string {
   return cn(fieldClass, hasError && "border-danger-border bg-danger-surface/30");
 }
 
+function listFieldMessages(errors: AdminClientFormFieldErrors): string[] {
+  const seen = new Set<string>();
+  return Object.values(errors).filter((message): message is string => {
+    if (!message || seen.has(message)) return false;
+    seen.add(message);
+    return true;
+  });
+}
+
 type Props = {
   initialFirstName?: string;
   onCreated: (client: AdminClientSearchHit) => void;
   onCancel?: () => void;
   submitLabel?: string;
   className?: string;
+  /** Fixa o aviso e os botões no fundo da folha. Desligar quando o formulário está dentro de outro painel. */
+  pinActions?: boolean;
 };
 
 export default function AdminCreateClientForm({
@@ -60,9 +72,11 @@ export default function AdminCreateClientForm({
   onCancel,
   submitLabel = "Guardar cliente",
   className,
+  pinActions = true,
 }: Props) {
   const toast = useToast();
-  const summaryRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
   const [clientType, setClientType] = useState<AdminClientType>("PARTICULAR");
   const [firstName, setFirstName] = useState(initialFirstName);
   const [lastName, setLastName] = useState("");
@@ -73,7 +87,9 @@ export default function AdminCreateClientForm({
   const [morada, setMorada] = useState<AdminPersonMorada>(emptyMorada());
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AdminClientFormFieldErrors>({});
-  const [formSummary, setFormSummary] = useState<string | null>(null);
+  const [alertTitle, setAlertTitle] = useState("Dados por corrigir");
+  const [errorTick, setErrorTick] = useState(0);
+  const alertMessages = listFieldMessages(fieldErrors);
 
   const clearFieldError = useCallback((key: string) => {
     setFieldErrors((prev) => {
@@ -82,7 +98,6 @@ export default function AdminCreateClientForm({
       delete next[key];
       return next;
     });
-    setFormSummary(null);
   }, []);
 
   const isEmpresa = clientType === "EMPRESA";
@@ -113,23 +128,28 @@ export default function AdminCreateClientForm({
   );
 
   const showValidationErrors = useCallback(
-    (errors: AdminClientFormFieldErrors, summary: string) => {
+    (errors: AdminClientFormFieldErrors, title: string, summary: string) => {
       setFieldErrors(errors);
-      setFormSummary(summary);
-      summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      toast.error("Dados incompletos", summary);
+      setAlertTitle(title);
+      setErrorTick((tick) => tick + 1);
+      toast.error(title, summary);
     },
     [toast]
   );
 
+  useEffect(() => {
+    if (errorTick === 0) return;
+    const invalid = formRef.current?.querySelector<HTMLElement>("[aria-invalid='true']");
+    (invalid ?? alertRef.current)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [errorTick]);
+
   const handleSubmit = async () => {
     setFieldErrors({});
-    setFormSummary(null);
 
     const payload = buildPayload();
     const validation = validateCreateAdminClientInput(payload);
     if (!validation.ok) {
-      showValidationErrors(validation.fieldErrors, validation.summary);
+      showValidationErrors(validation.fieldErrors, "Dados por corrigir", validation.summary);
       return;
     }
 
@@ -138,7 +158,7 @@ export default function AdminCreateClientForm({
       const res = await createAdminClientAction(validation.data);
       if (!res.success || !res.data) {
         const mapped = mapCreateAdminClientServerError(res.error || "Erro desconhecido.");
-        showValidationErrors(mapped.fieldErrors, mapped.summary);
+        showValidationErrors(mapped.fieldErrors, "Não foi possível guardar", mapped.summary);
         return;
       }
       toast.success("Cliente criado", "O contacto foi guardado no Twenty CRM.");
@@ -149,26 +169,12 @@ export default function AdminCreateClientForm({
   };
 
   return (
-    <div className={cn("space-y-4", className)} data-tour="admin-create-client-form">
+    <div ref={formRef} className={cn("space-y-4", className)} data-tour="admin-create-client-form">
       <p className="text-xs font-semibold text-muted-foreground">
         {isEmpresa
           ? "Empresa: indique o nome comercial no CRM. Morada e contacto são iguais ao particular; o NIF é opcional."
           : "Particular: nome e apelido. O tipo de cliente fica registado no Twenty; morada e contacto são comuns aos dois; o NIF é opcional."}
       </p>
-
-      {formSummary ? (
-        <div
-          ref={summaryRef}
-          className="rounded-xl border border-danger-border bg-danger-surface px-3 py-2.5"
-          role="alert"
-          aria-live="polite"
-        >
-          <p className="text-xs font-black uppercase tracking-wide text-danger-fg">
-            Não foi possível guardar
-          </p>
-          <p className="mt-1 text-sm font-semibold text-danger-fg">{formSummary}</p>
-        </div>
-      ) : null}
 
       <div className="space-y-1.5">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -308,7 +314,17 @@ export default function AdminCreateClientForm({
         <FieldError id="client-form-error" message={fieldErrors.form} />
       ) : null}
 
-      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
+      <div
+        ref={alertRef}
+        className={cn(
+          "space-y-2 bg-card pt-3",
+          pinActions &&
+            alertMessages.length > 0 &&
+            "sticky bottom-0 z-10 border-t-2 border-border-strong"
+        )}
+      >
+        <FormAlert title={alertTitle} messages={alertMessages} />
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         {onCancel ? (
           <Button type="button" variant="outline" className="min-h-12" onClick={onCancel}>
             Voltar
@@ -323,6 +339,7 @@ export default function AdminCreateClientForm({
         >
           {submitLabel}
         </Button>
+        </div>
       </div>
     </div>
   );

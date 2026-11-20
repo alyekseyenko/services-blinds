@@ -51,14 +51,29 @@ export async function cancelAppointmentAction(
 
 export async function runOpportunityMaintenanceAction(
   regeocodeAll = false
-): Promise<ActionResponse<void>> {
+): Promise<
+  ActionResponse<{
+    geocoded: number;
+    geocodePending: number;
+    geocodeFailed: { title: string; address: string; reason: string }[];
+    geocodeSkippedNoAddress: { title: string }[];
+  }>
+> {
   try {
     const auth = await requireAdminPanel();
     if (!auth) return { success: false, error: "Não autorizado." };
 
     const { runOpportunityMaintenance } = await import("@/lib/crm/opportunityMaintenance");
-    await runOpportunityMaintenance(regeocodeAll ? "all" : null);
-    return { success: true };
+    const result = await runOpportunityMaintenance(regeocodeAll ? "all" : null);
+    return {
+      success: true,
+      data: {
+        geocoded: result.geocoded,
+        geocodePending: result.geocodePending,
+        geocodeFailed: result.geocodeFailed,
+        geocodeSkippedNoAddress: result.geocodeSkippedNoAddress,
+      },
+    };
   } catch (error: unknown) {
     const message = toUserMessage(error, "Falha na sincronização de manutenção.");
     console.error("[runOpportunityMaintenanceAction]", error);
@@ -110,6 +125,8 @@ export async function updateOpportunityCoordinatesAction(
 export interface ScheduleVisitInput {
   title: string;
   dueAtIso: string;
+  /** ISO end time, or omitted / null when the calendar should use the default one-hour block. */
+  horaDeFimIso?: string | null;
   notes: string;
   technicianId: string;
   technicianName: string;
@@ -141,13 +158,17 @@ export async function scheduleTechnicalVisitAction(
     }
 
     const dueAt = new Date(input.dueAtIso);
+    const endAt = input.horaDeFimIso ? new Date(input.horaDeFimIso) : undefined;
 
     const opportunities = await fetchAdminOpportunities();
     const conflicts = findScheduleConflicts(
-      [{ title: input.title, dueAt, opportunityId: input.opportunityId }],
+      [{ title: input.title, dueAt, endAt, opportunityId: input.opportunityId }],
       opportunities,
       input.technicianName,
-      { excludeOpportunityIds: [input.opportunityId] }
+      {
+        excludeOpportunityIds: [input.opportunityId],
+        technicianId: input.technicianId,
+      }
     );
 
     let conflictWarning: string | undefined;
@@ -157,13 +178,7 @@ export async function scheduleTechnicalVisitAction(
         hour: "2-digit",
         minute: "2-digit",
       });
-      if (!input.urgent) {
-        return {
-          success: false,
-          error: `Conflito de agenda: «${first.conflictingTitle}» já está marcado às ${timeLabel} para este técnico.`,
-        };
-      }
-      conflictWarning = `Aviso: «${first.conflictingTitle}» está marcado às ${timeLabel} para o mesmo técnico.`;
+      conflictWarning = `Aviso: sobreposição com «${first.conflictingTitle}» (início às ${timeLabel}). A visita foi agendada na mesma.`;
     }
 
     const existingOpp = opportunities.find((opp) => opp.twentyId === input.opportunityId);
@@ -171,9 +186,12 @@ export async function scheduleTechnicalVisitAction(
       getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus) ||
       getReusableTaskId(input.taskId, existingOpp?.taskStatus);
 
+    const horaDeFim = input.horaDeFimIso ? new Date(input.horaDeFimIso) : null;
+
     await scheduleVisitCore({
       title: input.title,
       dueAt,
+      horaDeFim,
       notes: input.notes,
       assigneeId: input.technicianId,
       technicianName: input.technicianName,
@@ -211,6 +229,7 @@ export interface MassScheduleStop {
   clientName?: string;
   taskId?: string;
   dueAtIso: string;
+  horaDeFimIso?: string | null;
   notes?: string;
 }
 
@@ -251,11 +270,12 @@ export async function scheduleMassVisitsAction(
       visitStops.map((stop) => ({
         title: stop.title,
         dueAt: new Date(stop.dueAtIso),
+        endAt: stop.horaDeFimIso ? new Date(stop.horaDeFimIso) : undefined,
         opportunityId: stop.twentyId,
       })),
       opportunities,
       technicianName,
-      { excludeOpportunityIds: batchOpportunityIds }
+      { excludeOpportunityIds: batchOpportunityIds, technicianId }
     );
 
     let conflictWarning: string | undefined;
@@ -265,13 +285,7 @@ export async function scheduleMassVisitsAction(
         hour: "2-digit",
         minute: "2-digit",
       });
-      if (!urgent) {
-        return {
-          success: false,
-          error: `Conflito de agenda: «${first.stopTitle}» sobrepõe-se a «${first.conflictingTitle}» às ${timeLabel}.`,
-        };
-      }
-      conflictWarning = `Aviso: «${first.stopTitle}» sobrepõe-se a «${first.conflictingTitle}» às ${timeLabel}.`;
+      conflictWarning = `Aviso: sobreposição com «${first.conflictingTitle}» (início às ${timeLabel}). A rota foi agendada na mesma.`;
     }
 
     let scheduledCount = 0;
@@ -292,9 +306,12 @@ export async function scheduleMassVisitsAction(
       const taskId = getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus);
 
       try {
+        const horaDeFim = stop.horaDeFimIso ? new Date(stop.horaDeFimIso) : null;
+
         await scheduleVisitCore({
           title: stop.title,
           dueAt: new Date(stop.dueAtIso),
+          horaDeFim,
           notes: mergedNotes || undefined,
           assigneeId: technicianId,
           technicianName,

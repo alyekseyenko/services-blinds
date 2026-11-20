@@ -106,6 +106,26 @@ services:
       - app-network
 
   # Optional — production VPS uses host nginx (HTTPS). Avoid binding :80 here (conflicts + crash-loop).
+  # Optional — VALORANT Discord bot (Ministral / SkinPeek fork). Not part of the field PWA.
+  # Enable: copy ministral/config.json.example → ministral/config.json (token do bot), then:
+  #   docker compose --profile ministral --env-file .env.local up -d
+  # Docs: docs/PRODUCTION_ENV.md § Ministral
+  ministral-bot:
+    profiles:
+      - ministral
+    image: ghcr.io/mistralwz/ministral:latest
+    container_name: ministral-bot
+    restart: unless-stopped
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    volumes:
+      - ./ministral/config.json:/usr/app/config.json:ro
+      - ministral-data:/usr/app/data
+
   nginx:
     profiles:
       - with-docker-nginx
@@ -130,3 +150,4 @@ volumes:
   technician-app-data:
   technician-redis-data:
   technician-measurements-data:
+  ministral-data:

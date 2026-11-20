@@ -73,6 +73,7 @@ API route handlers (`src/app/api/`) may call `src/lib/crm/` and `src/lib/auth/se
 - Follow [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md): brutalist tokens, neon lime accents, semantic success/danger/warning/info surfaces.
 - Reusable UI → `src/components/ui/` or `src/components/dashboard/`.
 - Mobile PWA: minimum `text-xs`, touch targets ≥ `48px`, `inputMode` on numeric fields.
+- **UI UX Pro Max** (optional, local in `.cursor/skills/`): use only for UX/accessibility checklists via `search.py` (`--domain ux`, `--stack react`). Never run `--design-system` / retheme flows — [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) and `design-system.css` always win over generated palettes or fonts.
 
 ### 5. Type safety & QA
 

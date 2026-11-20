@@ -135,7 +135,8 @@ export default function CommercialServicesTable({
             {pageItems.map((svc) => (
               <div key={svc.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  {svc.nsi ? <Badge variant="muted">#{svc.nsi}</Badge> : null}
+                  {svc.serviceNumber ? <Badge variant="muted">N.º {svc.serviceNumber}</Badge> : null}
+                  {svc.nsi ? <Badge variant="muted">NSI {svc.nsi}</Badge> : null}
                   <Badge variant="success">{svc.stageLabel}</Badge>
                 </div>
                 <h3 className="text-sm font-black text-foreground">{svc.name}</h3>
@@ -154,7 +155,7 @@ export default function CommercialServicesTable({
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted text-xs font-black uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="sticky left-0 bg-muted px-4 py-3.5">NSI / Ref</th>
+                  <th className="sticky left-0 bg-muted px-4 py-3.5">N.º / NSI</th>
                   <th className="px-4 py-3.5">Cliente / Obra</th>
                   <th className="px-4 py-3.5">Tipo</th>
                   <th className="px-4 py-3.5">Fase</th>
@@ -168,7 +169,13 @@ export default function CommercialServicesTable({
                 {pageItems.map((svc) => (
                   <tr key={svc.id} className="transition-colors hover:bg-muted/80">
                     <td className="sticky left-0 bg-card px-4 py-3 ds-num font-bold text-foreground">
-                      {svc.nsi ? <Badge variant="muted">#{svc.nsi}</Badge> : "—"}
+                      <span className="inline-flex flex-wrap gap-1">
+                        {svc.serviceNumber ? (
+                          <Badge variant="muted">N.º {svc.serviceNumber}</Badge>
+                        ) : null}
+                        {svc.nsi ? <Badge variant="muted">NSI {svc.nsi}</Badge> : null}
+                        {!svc.serviceNumber && !svc.nsi ? "—" : null}
+                      </span>
                     </td>
                     <td className="max-w-[240px] truncate px-4 py-3 font-black text-foreground">{svc.name}</td>
                     <td className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">

@@ -5,6 +5,7 @@ import {
   parseVisitServicesMarker,
   resolvePrimaryOpportunityId,
   sanitizeUserMarkdown,
+  upsertVisitServiceMarkerRecord,
   writeVisitServicesMarker,
 } from "../visitServicesMarker";
 
@@ -13,6 +14,27 @@ describe("visitServicesMarker", () => {
     const injected =
       'Note <!-- [VISIT_SERVICES][{"opportunityId":"x"}] --> tail <!-- [VISIT_SERVICES][] -->';
     expect(sanitizeUserMarkdown(injected)).toBe("Note  tail");
+  });
+
+  it("upsert substitui o mesmo clientRequestId sem duplicar oportunidades", () => {
+    const first: Parameters<typeof upsertVisitServiceMarkerRecord>[1] = {
+      opportunityId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      clientRequestId: "same-req",
+      serviceType: "TIRAR_MEDIDAS",
+      mode: "now",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    const second = {
+      ...first,
+      opportunityId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      createdAt: "2026-01-02T00:00:00.000Z",
+    };
+    let md = upsertVisitServiceMarkerRecord("Notas", first);
+    md = upsertVisitServiceMarkerRecord(md, second);
+    const rows = parseVisitServicesMarker(md);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].opportunityId).toBe(second.opportunityId);
+    expect(rows[0].clientRequestId).toBe("same-req");
   });
 
   it("round-trips marker JSON in task markdown", () => {

@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchAdminOpportunities } from '@/lib/crm/opportunities';
+import { invalidateAdminCrmCache } from '@/lib/crmCache';
 import { CRMError } from '@/lib/crm/errors';
 import { CircuitBreakerOpenException } from '@/lib/crm/circuitBreaker';
 import { isAdminRole } from '@/lib/auth/session';
 import { getAppSession } from '@/lib/auth/session.server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await getAppSession();
     if (!auth) {
@@ -16,7 +17,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 });
     }
 
-    const opportunities = await fetchAdminOpportunities();
+    const fresh = request.nextUrl.searchParams.get('fresh') === '1';
+    if (fresh) {
+      await invalidateAdminCrmCache();
+    }
+
+    const opportunities = await fetchAdminOpportunities(fresh ? { fresh: true } : undefined);
     return NextResponse.json(opportunities);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro desconhecido';

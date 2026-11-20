@@ -65,7 +65,10 @@ export default function CalendarSidebar({
                       ? opp.start.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
                       : "—"}
                   </Badge>
-                  {opp.nsi && <Badge variant="muted">#{opp.nsi}</Badge>}
+                  {opp.serviceNumber ? (
+                    <Badge variant="muted">N.º {opp.serviceNumber}</Badge>
+                  ) : null}
+                  {opp.nsi && opp.nsi !== "N/A" ? <Badge variant="muted">NSI {opp.nsi}</Badge> : null}
                 </div>
                 <IconButton
                   aria-label="Cancelar agendamento"

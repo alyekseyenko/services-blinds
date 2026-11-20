@@ -154,20 +154,20 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
           {statusOpen ? (
             <ul className="mt-2 space-y-2">
               {MAP_LEGEND_STATUS_ITEMS.map((item) => (
-                <li key={item.label} className="flex items-center gap-2.5">
+                <li key={item.label} className="flex items-start gap-2.5">
                   <MapLegendMarkerPreview
                     typeKey="INSTALACAO"
                     label={item.label}
                     status={item.status}
+                    technicianDot={item.technicianDot}
                     size={previewSize}
                   />
-                  <span className="text-xs font-semibold text-foreground">{item.label}</span>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <p className="text-xs font-black text-foreground">{item.label}</p>
+                    <p className="text-xs font-semibold leading-snug text-muted-foreground">{item.detail}</p>
+                  </div>
                 </li>
               ))}
-              <li className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-success-solid" />
-                Agendada (sem emblema)
-              </li>
             </ul>
           ) : null}
         </div>

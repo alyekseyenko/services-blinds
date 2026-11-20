@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ExtraServiceType } from "@/lib/schemas";
+import type { ExtraServiceType, VisitServiceMode } from "@/lib/schemas";
 import type { AdminCommercialServiceType } from "@/lib/schemas/adminCommercialService";
 import { logger } from "@/lib/logger";
 import { crmManualCreatedBy, type CrmManualActor } from "./actor";
@@ -63,6 +63,17 @@ const VISIT_SERVICE_STAGE: Record<ExtraServiceType, string> = {
 
 export function getVisitServiceStage(serviceType: ExtraServiceType): string {
   return VISIT_SERVICE_STAGE[serviceType];
+}
+
+/** On-site extra: repair done now goes straight to cobrança; “agendar depois” stays in the work stage. */
+export function getOnSiteVisitServiceStage(
+  serviceType: ExtraServiceType,
+  mode: VisitServiceMode
+): string {
+  if (serviceType === "REPARACAO" && mode === "now") {
+    return CRM_STAGES.PAGAMENTO_TOTAL;
+  }
+  return getVisitServiceStage(serviceType);
 }
 
 /**
@@ -358,12 +369,13 @@ export async function applyOpportunityStageTransition(
 
 export async function createVisitServiceOpportunity(
   createData: Record<string, unknown>,
-  serviceType: ExtraServiceType
+  serviceType: ExtraServiceType,
+  mode: VisitServiceMode = "now"
 ): Promise<string> {
-  const stage = getVisitServiceStage(serviceType);
+  const stage = getOnSiteVisitServiceStage(serviceType, mode);
   const data = { ...createData, stage };
 
-  logger.info("[Pipeline] create visit-service opportunity", { stage, serviceType });
+  logger.info("[Pipeline] create visit-service opportunity", { stage, serviceType, mode });
 
   const created = await crmFetch<{ createOpportunity: { id: string } }>(
     `mutation createVisitOpp($data: OpportunityCreateInput!) {
@@ -382,10 +394,11 @@ export async function updateVisitServiceOpportunityFields(
     name: string;
     serviceType: ExtraServiceType;
     notesMarkdown: string;
+    mode?: VisitServiceMode;
   },
   context?: { currentStage?: string | null }
 ): Promise<void> {
-  const stage = getVisitServiceStage(input.serviceType);
+  const stage = getOnSiteVisitServiceStage(input.serviceType, input.mode ?? "now");
   const from = (context?.currentStage || "").trim();
 
   logger.info("[Pipeline] visit_service_update", {

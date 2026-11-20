@@ -1,79 +1,37 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import {
-  X,
-  User,
-  MapPin,
-  Clock,
-  Map as MapIcon,
-  MessageSquare,
-  Loader2,
-  Plus,
-  CheckCircle,
-  FileText,
-  Ruler,
-  PlayCircle,
-  Pencil,
-  Trash2,
-  ChevronLeft,
-} from "lucide-react";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
-import { deleteVisitServiceAction } from "@/actions/visit-services-actions";
-import NavigationChooser from "@/components/dashboard/NavigationChooser";
-import { hasValidMeasurements, formatMeasurementsReport, getMeasurementsDraftKey } from "@/lib/measurementsUtils";
-import { INCOMPLETE_REASONS, formatIncompleteReason } from "@/lib/taskReasons";
-import { isTaskActive, isTaskInProgress, isMeasurementService } from "@/lib/crm/contract";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { getServiceTypeColor } from "@/lib/techniciansConfig";
-import { geocodeTaskAddressAction, updateTaskCoordinatesAction } from "@/actions/task-location-actions";
-import { fetchOpportunityNotesAction } from "@/actions/notes-actions";
-import { formatNoteBodyForDisplay, formatNoteTitleForDisplay } from "@/lib/noteDisplay";
+import { isTaskActive, isTaskInProgress } from "@/lib/crm/contract";
+import { type RepairPaymentMethodId, type RepairPaymentNote } from "@/lib/visits/repairPayment";
 import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
-import {
-  hapticConfirmAfterAsync,
-  hapticSelection,
-  hapticTap,
-} from "@/lib/haptics";
 import { useBackToClose } from "@/hooks/useBackToClose";
-import MeasurementsForm, {
-  MeasurementsSaveButton,
-  type MeasurementsFormHandle,
-} from "@/components/features/measurements/MeasurementsForm";
-import {
-  MeasurementsFocusStatusBar,
-  type MeasurementsFocusedStatus,
-} from "@/components/features/measurements/MeasurementsFocusStatusBar";
-import ContactPhoneList from "@/components/ui/ContactPhoneList";
+import type { MeasurementsFormHandle } from "@/components/features/measurements/MeasurementsForm";
+import type { MeasurementsFocusedStatus } from "@/components/features/measurements/MeasurementsFocusStatusBar";
 import AddVisitServiceSheet from "@/components/dashboard/AddVisitServiceSheet";
+import { VisitPhotoTray } from "@/components/dashboard/VisitPhotoTray";
+import { VisitServiceFiles } from "@/components/dashboard/VisitServiceFiles";
 import type { VisitService } from "@/lib/schemas";
-import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
-import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
-import { VoiceSummarizeButton, VoiceTextarea } from "@/components/ui/VoiceTextarea";
-import {
-  buildTechVisitDrawerHeader,
-  formatVisitServiceSupplementaryName,
-} from "@/lib/techVisitDisplay";
-import {
-  isUrgentSchedulingNote,
-  isUrgentVisitMarkdown,
-} from "@/lib/crm/urgentSchedulingUi";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { scrollFocusedFieldIntoView } from "@/lib/scrollFocusedField";
 import { cn } from "@/lib/cn";
+import { useTaskOpportunityNotes } from "@/components/dashboard/drawer/useTaskOpportunityNotes";
+import { TaskDrawerHeader } from "@/components/dashboard/drawer/TaskDrawerHeader";
+import { TaskDrawerClientSection } from "@/components/dashboard/drawer/TaskDrawerClientSection";
+import { TaskDrawerServicesSection } from "@/components/dashboard/drawer/TaskDrawerServicesSection";
+import { TaskDrawerNotesSection } from "@/components/dashboard/drawer/TaskDrawerNotesSection";
+import { TaskDrawerFinalizeSection } from "@/components/dashboard/drawer/TaskDrawerFinalizeSection";
+import { useTaskDrawerVisitActions } from "@/components/dashboard/drawer/useTaskDrawerVisitActions";
+import { useTaskDrawerVisitModel } from "@/components/dashboard/drawer/useTaskDrawerVisitModel";
+import {
+  TaskDrawerMeasurementsTab,
+  TaskDrawerMeasurementsSaveBar,
+  TaskDrawerStatusSubmitBar,
+} from "@/components/dashboard/drawer/TaskDrawerMeasurementsTab";
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
-
-/** Tipografia consistente — aba Detalhes & Visita (campo / mobile). */
-const TECH_DRAWER_SECTION_TITLE = "text-sm font-bold text-foreground";
-const TECH_DRAWER_KICKER = "text-xs font-bold text-muted-foreground";
-const TECH_DRAWER_BODY = "text-sm font-semibold leading-snug text-foreground";
-const TECH_DRAWER_NOTE_BODY = "text-sm font-medium leading-snug text-foreground whitespace-pre-line";
-const TECH_DRAWER_TEXTAREA =
-  "w-full min-h-12 rounded-xl border-2 border-border-strong bg-input px-3 py-2.5 text-sm font-semibold leading-snug text-foreground placeholder:text-sm placeholder:font-normal placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/25 outline-none resize-none";
 
 interface TaskDetailsDrawerProps {
   selectedTask: any;
@@ -81,7 +39,14 @@ interface TaskDetailsDrawerProps {
   isOnline: boolean;
   userName: string;
   mutateTasks: () => void;
-  enqueueStatusUpdate: (id: string, status: string, reason: string, photos: string[], oppId: string) => Promise<QueueEnqueueResult>;
+  enqueueStatusUpdate: (
+    id: string,
+    status: string,
+    reason: string,
+    photos: string[],
+    oppId: string,
+    paymentNotes?: RepairPaymentNote[]
+  ) => Promise<QueueEnqueueResult>;
   enqueueMeasurementsSave: (id: string, oppId: string, data: any) => Promise<QueueEnqueueResult>;
   enqueueNote: (
     oppId: string,
@@ -92,6 +57,8 @@ interface TaskDetailsDrawerProps {
   ) => Promise<QueueEnqueueResult>;
   enqueueVisitService: (payload: Record<string, unknown>) => Promise<QueueEnqueueResult & { opportunityId?: string }>;
   technicianId?: string;
+  onRequestPhotoSync?: () => void;
+  onPhotoQueueChanged?: () => void;
 }
 
 export default function TaskDetailsDrawer({
@@ -105,6 +72,8 @@ export default function TaskDetailsDrawer({
   enqueueNote,
   enqueueVisitService,
   technicianId,
+  onRequestPhotoSync,
+  onPhotoQueueChanged,
 }: TaskDetailsDrawerProps) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -112,13 +81,12 @@ export default function TaskDetailsDrawer({
   const drawerRef = useFocusTrap(!!selectedTask);
   const [reason, setReason] = useState("");
   const [reasonPreset, setReasonPreset] = useState("");
+  const [repairPayments, setRepairPayments] = useState<Record<string, RepairPaymentMethodId>>({});
+  const [repairPaymentDetails, setRepairPaymentDetails] = useState<Record<string, string>>({});
   const [statusAction, setStatusAction] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isStartingVisit, setIsStartingVisit] = useState(false);
   const [activeTab, setActiveTab] = useState<"info" | "measurements">("info");
   const [showAddService, setShowAddService] = useState(false);
   const [editingService, setEditingService] = useState<VisitService | null>(null);
-  const [deletingOppId, setDeletingOppId] = useState<string | null>(null);
   const [measurementOppId, setMeasurementOppId] = useState<string | undefined>();
   const measurementsFormRef = useRef<MeasurementsFormHandle>(null);
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
@@ -132,12 +100,20 @@ export default function TaskDetailsDrawer({
     useState<MeasurementsFocusedStatus | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
 
-  const drawerLocked = isUploading || isStartingVisit || isGeocoding;
-
-  // Notes state
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loadingNotes, setLoadingNotes] = useState(false);
-  const [newNoteText, setNewNoteText] = useState("");
+  const {
+    notes,
+    loadingNotes,
+    newNoteText,
+    setNewNoteText,
+    isCreatingNote,
+    hasUrgentNote,
+    handleAddNote,
+  } = useTaskOpportunityNotes({
+    selectedTask,
+    isOnline,
+    userName,
+    enqueueNote,
+  });
 
   const guardMeasurementsDraft = useCallback(async (): Promise<boolean> => {
     const form = measurementsFormRef.current;
@@ -156,6 +132,103 @@ export default function TaskDetailsDrawer({
     });
     return ok;
   }, [confirm]);
+
+  const refreshVisit = () => {
+    mutateTasks();
+  };
+
+  const visitModel = useTaskDrawerVisitModel({
+    selectedTask,
+    setSelectedTask,
+    mutateTasks,
+    isOnline,
+    statusAction,
+    repairPayments,
+    repairPaymentDetails,
+  });
+
+  const {
+    deletingOppId,
+    handleDeleteExtraService,
+    visitServices,
+    repairServices,
+    repairPaymentMissing,
+    filesOpportunityId,
+    primaryServiceLabel,
+    visitDrawerHeader,
+    clientPhones,
+    clientNifDisplay,
+    showPrimaryServiceInList,
+    primaryServiceColors,
+    measurementServices,
+    showMeasurementsTab,
+    showMeasurementsUi,
+  } = visitModel;
+
+  useEffect(() => {
+    const defaultOpp =
+      measurementServices[0]?.opportunityId || selectedTask?.opportunityId;
+    setMeasurementOppId(defaultOpp);
+    setMeasurementsDirty(false);
+    setMeasurementsFocusedStatus(null);
+  }, [selectedTask?.id, measurementServices.length, selectedTask?.opportunityId]);
+
+  // Automatically switch tab if not measurement service
+  useEffect(() => {
+    if (!showMeasurementsUi) {
+      setActiveTab("info");
+    }
+  }, [selectedTask, showMeasurementsUi]);
+
+  const mobileDrawerExpanded = !isDesktop;
+  const needsArrivalCheckIn =
+    isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status);
+
+  const promptArrivalCheckIn = useCallback(
+    (detail?: string) => {
+      toast.warning(
+        "Registe a chegada",
+        detail ??
+          "Toque em «Cheguei ao local» assim que estiver no cliente — o escritório só conta o tempo de visita depois disso."
+      );
+      startVisitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (!selectedTask?.id || !needsArrivalCheckIn) return;
+    if (arrivalReminderTaskIdRef.current === selectedTask.id) return;
+    arrivalReminderTaskIdRef.current = selectedTask.id;
+    const id = window.requestAnimationFrame(() => {
+      promptArrivalCheckIn();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [selectedTask?.id, needsArrivalCheckIn, promptArrivalCheckIn]);
+
+  const { isUploading, isStartingVisit, handleStartVisit, handleStatusUpdate } =
+    useTaskDrawerVisitActions({
+      selectedTask,
+      setSelectedTask,
+      mutateTasks,
+      enqueueStatusUpdate,
+      showMeasurementsTab,
+      measurementOppId,
+      setActiveTab,
+      visitServices,
+      repairPayments,
+      repairPaymentDetails,
+      statusAction,
+      reason,
+      reasonPreset,
+      setReason,
+      setReasonPreset,
+      setStatusAction,
+      needsArrivalCheckIn,
+      promptArrivalCheckIn,
+    });
+
+  const drawerLocked = isUploading || isStartingVisit || isGeocoding;
 
   const closeDrawer = useCallback(async () => {
     if (drawerLocked) return;
@@ -189,442 +262,8 @@ export default function TaskDetailsDrawer({
     setSelectedTask,
   ]);
 
-  const [isCreatingNote, setIsCreatingNote] = useState(false);
-
-  const refreshVisit = () => {
-    mutateTasks();
-  };
-
-  const handleDeleteExtraService = async (svc: VisitService) => {
-    if (!selectedTask?.id || !svc.createdOnSite) return;
-    if (!isOnline) {
-      toast.error("Sem rede", "É necessária ligação à internet para apagar o serviço.");
-      return;
-    }
-    const confirmed = await confirm({
-      title: "Apagar este serviço?",
-      description: `Tem a certeza que quer apagar este serviço? «${svc.name}» será removido do CRM de forma permanente.`,
-      confirmLabel: "Apagar",
-      cancelLabel: "Cancelar",
-      destructive: true,
-    });
-    if (!confirmed) return;
-
-    setDeletingOppId(svc.opportunityId);
-    try {
-      const result = await deleteVisitServiceAction({
-        taskId: selectedTask.id,
-        opportunityId: svc.opportunityId,
-      });
-      if (!result.success) {
-        toast.error(
-          "Não foi possível apagar o serviço",
-          toUserMessage(result.error, "Não foi possível apagar o serviço.")
-        );
-        return;
-      }
-      toast.success("Serviço removido", "Eliminado do CRM.");
-      setSelectedTask({
-        ...selectedTask,
-        services: (selectedTask.services || []).filter(
-          (s: VisitService) => s.opportunityId !== svc.opportunityId
-        ),
-      });
-      refreshVisit();
-    } catch (e: unknown) {
-      toast.error("Não foi possível apagar o serviço", toUserMessage(e, "Erro de ligação."));
-    } finally {
-      setDeletingOppId(null);
-    }
-  };
-
-  const visitServices: VisitService[] = selectedTask?.services?.length
-    ? selectedTask.services
-    : selectedTask?.opportunityId
-      ? [
-          {
-            opportunityId: selectedTask.opportunityId,
-            name: selectedTask.title || "Serviço",
-            nsi: selectedTask.nsi,
-            stage: selectedTask.stage,
-            serviceType: selectedTask.serviceType || "GERAL",
-            mode: "now",
-            isPrimary: true,
-          },
-        ]
-      : [];
-
-  const primaryVisitService = visitServices.find((s) => s.isPrimary) ?? visitServices[0];
-
-  const primaryServiceLabel = useMemo(() => {
-    if (!selectedTask) return undefined;
-    if (primaryVisitService) {
-      const fromType = getExtraServiceTypeLabel(primaryVisitService.serviceType);
-      if (fromType && fromType !== "Geral") return fromType;
-      return primaryVisitService.name?.trim() || undefined;
-    }
-    return formatVisitServiceTypeLabel({
-      serviceType: selectedTask.serviceType,
-      visitTitle: selectedTask.title,
-      stage: selectedTask.stage,
-    });
-  }, [selectedTask, primaryVisitService]);
-
-  const visitDrawerHeader = useMemo(() => {
-    if (!selectedTask) return { heading: "Visita", detail: "" };
-    return buildTechVisitDrawerHeader({
-      client: selectedTask.client,
-      title: selectedTask.title,
-      address: selectedTask.address,
-      omitServiceLabels: primaryServiceLabel ? [primaryServiceLabel] : undefined,
-    });
-  }, [selectedTask, primaryServiceLabel]);
-
-  const clientPhones = useMemo(() => {
-    if (!selectedTask) return [];
-    if (selectedTask.clientPhones?.length) return selectedTask.clientPhones;
-    if (selectedTask.clientPhone) return [selectedTask.clientPhone];
-    return [];
-  }, [selectedTask]);
-
-  const hasOnSiteVisitServices = visitServices.some((s) => s.createdOnSite);
-  const showPrimaryServiceInList =
-    hasOnSiteVisitServices || visitServices.length > 1;
-
-  const primaryServiceColors = useMemo(() => {
-    if (!primaryVisitService) return null;
-    return getServiceTypeColor(primaryVisitService.serviceType);
-  }, [primaryVisitService]);
-
-  const measurementServices = visitServices.filter(
-    (s) =>
-      isMeasurementService(s.stage, s.name) ||
-      s.serviceType === "TIRAR_MEDIDAS" ||
-      s.serviceType === "REMEDICAO"
-  );
-
-  const showMeasurementsTab =
-    measurementServices.length > 0 ||
-    isMeasurementService(selectedTask?.stage, selectedTask?.title);
-
-  useEffect(() => {
-    const defaultOpp =
-      measurementServices[0]?.opportunityId || selectedTask?.opportunityId;
-    setMeasurementOppId(defaultOpp);
-    setMeasurementsDirty(false);
-    setMeasurementsFocusedStatus(null);
-  }, [selectedTask?.id, measurementServices.length, selectedTask?.opportunityId]);
-
-  // Automatically switch tab if not measurement service
-  useEffect(() => {
-    if (!showMeasurementsTab) {
-      setActiveTab("info");
-    }
-  }, [selectedTask, showMeasurementsTab]);
-
-  // Load CRM notes
-  useEffect(() => {
-    if (!selectedTask?.opportunityId) {
-      setNotes([]);
-      return;
-    }
-    if (isOnboardingDemoEntity(selectedTask)) {
-      setNotes([]);
-      setLoadingNotes(false);
-      return;
-    }
-    let cancelled = false;
-    async function loadNotes() {
-      if (!isOnline) {
-        setNotes([]);
-        setLoadingNotes(false);
-        return;
-      }
-      setLoadingNotes(true);
-      try {
-        const result = await fetchOpportunityNotesAction(selectedTask.opportunityId, selectedTask.id);
-        if (cancelled) return;
-        if (result.success) {
-          setNotes(result.data || []);
-        }
-      } catch {
-        if (!cancelled) setNotes([]);
-      } finally {
-        if (!cancelled) setLoadingNotes(false);
-      }
-    }
-    void loadNotes();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTask?.id, selectedTask?.opportunityId, isOnline]);
-
-  const handleAddNote = async () => {
-    if (!newNoteText.trim() || !selectedTask?.opportunityId) return;
-    if (isOnboardingDemoEntity(selectedTask)) {
-      toast.info("Formação", "No guia as notas não são enviadas ao CRM.");
-      setNewNoteText("");
-      return;
-    }
-    try {
-      setIsCreatingNote(true);
-      const author = userName || "Técnico";
-      const title = `Nota de ${author}`;
-      const body = newNoteText.trim();
-
-      const result = await enqueueNote(
-        selectedTask.opportunityId,
-        null,
-        title,
-        body,
-        selectedTask.id
-      );
-      if (!result.success) {
-        toast.error(
-          "Erro ao criar nota",
-          toUserMessage(result.error, "Não foi possível guardar a nota.")
-        );
-        return;
-      }
-      if (result.queued) {
-        toast.info("Nota guardada offline", "Será sincronizada quando houver rede.");
-      } else {
-        toast.success("Nota registada", "Nota adicionada ao histórico do CRM.");
-      }
-
-      setNewNoteText("");
-      if (isOnline && !result.queued) {
-        try {
-          const updated = await fetchOpportunityNotesAction(selectedTask.opportunityId);
-          if (updated.success) {
-            setNotes(updated.data || []);
-          }
-        } catch {
-          /* rede instável — nota já foi criada */
-        }
-      }
-    } catch (e: unknown) {
-      toast.error("Erro ao criar nota", toUserMessage(e, "Erro ao criar nota."));
-    } finally {
-      setIsCreatingNote(false);
-    }
-  };
-
-  const handleStartVisit = async () => {
-    if (!selectedTask?.id) return;
-    setIsStartingVisit(true);
-    try {
-      const result = await enqueueStatusUpdate(
-        selectedTask.id,
-        "EM_CURSO",
-        "Técnico chegou ao local.",
-        [],
-        selectedTask.opportunityId
-      );
-      if (!result.success) {
-        toast.error(
-          "Erro",
-          toUserMessage(result.error, "Não foi possível marcar visita em curso.")
-        );
-        return;
-      }
-      setSelectedTask({ ...selectedTask, status: "EM_CURSO" });
-      mutateTasks();
-      if (result.queued) {
-        toast.info("Em curso (offline)", "Será sincronizado quando houver rede.");
-      } else {
-        toast.success("Em curso", "Visita marcada como em curso.");
-      }
-    } catch (e: unknown) {
-      toast.error("Erro", toUserMessage(e, "Não foi possível marcar visita em curso."));
-    } finally {
-      setIsStartingVisit(false);
-    }
-  };
-
-  const statusSuccessMessage = (action: string, queued: boolean): { title: string; description: string } => {
-    if (queued) {
-      return {
-        title: "Guardado offline",
-        description: `Estado ${action} guardado. A aguardar rede para sincronizar.`,
-      };
-    }
-    switch (action) {
-      case "Concluído":
-        return { title: "Visita concluída", description: "Estado sincronizado com o CRM." };
-      case "Incompleto":
-        return {
-          title: "Visita incompleta",
-          description: "O escritório foi informado. Estado sincronizado com o CRM.",
-        };
-      case "Cancelado":
-        return { title: "Visita cancelada", description: "Estado sincronizado com o CRM." };
-      default:
-        return { title: "Estado atualizado", description: "Sincronizado com o CRM." };
-    }
-  };
-
-  const handleStatusUpdate = async () => {
-    if (needsArrivalCheckIn) {
-      promptArrivalCheckIn("Antes de fechar a visita, registe que chegou ao local.");
-      return;
-    }
-
-    if (statusAction === "Concluído") {
-      if (showMeasurementsTab) {
-        const draftStr =
-          typeof window !== "undefined"
-            ? localStorage.getItem(
-                getMeasurementsDraftKey(selectedTask.id, measurementOppId || selectedTask.opportunityId)
-              )
-            : null;
-
-        if (!hasValidMeasurements(selectedTask?.report, draftStr)) {
-          toast.error(
-            "Medições Obrigatórias",
-            "Este serviço é de Tirar Medidas. É estritamente obrigatório preencher e guardar as medidas (Largura x Altura) na aba 'Medições' antes de concluir a visita."
-          );
-          setActiveTab("measurements");
-          return;
-        }
-      }
-    }
-
-    if (statusAction === "Incompleto" && !reasonPreset) {
-      toast.warning("Motivo Obrigatório", "Selecione o motivo do serviço incompleto.");
-      return;
-    }
-
-    if ((statusAction === "Incompleto" || statusAction === "Cancelado") && reasonPreset === "outro" && !reason.trim()) {
-      toast.warning("Motivo Obrigatório", "Descreva a justificação do serviço incompleto ou cancelado.");
-      return;
-    }
-
-    if (statusAction === "Cancelado" && !reason.trim()) {
-      toast.warning("Motivo Obrigatório", "Descreva o motivo do cancelamento.");
-      return;
-    }
-
-    const finalReason =
-      statusAction === "Incompleto"
-        ? formatIncompleteReason(reasonPreset, reason)
-        : reason;
-
-    if (statusAction === "Incompleto") {
-      const ok = await confirm({
-        title: "Marcar como incompleta?",
-        description:
-          "A visita sai da agenda ativa. Confirme que o motivo está correto antes de submeter.",
-        confirmLabel: "Marcar incompleta",
-        cancelLabel: "Voltar",
-        destructive: true,
-      });
-      if (!ok) return;
-    }
-
-    if (statusAction === "Cancelado") {
-      const ok = await confirm({
-        title: "Cancelar esta visita?",
-        description:
-          "A visita será cancelada no CRM. Esta ação não pode ser anulada pelo técnico.",
-        confirmLabel: "Cancelar visita",
-        cancelLabel: "Voltar",
-        destructive: true,
-      });
-      if (!ok) return;
-    }
-
-    hapticTap();
-    setIsUploading(true);
-    try {
-      if (selectedTask.id) {
-        let success = false;
-        let errorMessage = "";
-        let queued = false;
-
-        const result = await enqueueStatusUpdate(
-          selectedTask.id,
-          statusAction,
-          finalReason,
-          [],
-          selectedTask.opportunityId
-        );
-        success = result.success;
-        queued = result.queued;
-        if (!success) {
-          errorMessage = toUserMessage(
-            result.error,
-            "Não foi possível atualizar o estado da visita."
-          );
-        }
-
-        if (!success) {
-          hapticConfirmAfterAsync("error");
-          toast.error("Erro ao atualizar estado", errorMessage);
-          return;
-        }
-
-        hapticConfirmAfterAsync(
-          statusAction === "Concluído" ? "complete" : "success"
-        );
-
-        mutateTasks();
-
-        if (isOnboardingDemoEntity(selectedTask)) {
-          toast.success(
-            "Formação concluída",
-            "Nada foi enviado ao CRM — esta visita era só um exemplo do guia."
-          );
-        } else {
-          const copy = statusSuccessMessage(statusAction, queued);
-          if (queued) {
-            toast.info(copy.title, copy.description);
-          } else {
-            toast.success(copy.title, copy.description);
-          }
-        }
-      }
-
-      setSelectedTask(null);
-      setReason("");
-      setReasonPreset("");
-      setStatusAction("");
-    } catch (error: unknown) {
-      console.error("Error updating task:", error);
-      toast.error("Erro ao atualizar tarefa", toUserMessage(error, "Erro ao atualizar tarefa."));
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const mobileDrawerExpanded = !isDesktop;
-  const needsArrivalCheckIn =
-    isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status);
-
-  const promptArrivalCheckIn = useCallback(
-    (detail?: string) => {
-      toast.warning(
-        "Registe a chegada",
-        detail ??
-          "Toque em «Cheguei ao local» assim que estiver no cliente — o escritório só conta o tempo de visita depois disso."
-      );
-      startVisitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    },
-    [toast]
-  );
-
-  useEffect(() => {
-    if (!selectedTask?.id || !needsArrivalCheckIn) return;
-    if (arrivalReminderTaskIdRef.current === selectedTask.id) return;
-    arrivalReminderTaskIdRef.current = selectedTask.id;
-    const id = window.requestAnimationFrame(() => {
-      promptArrivalCheckIn();
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [selectedTask?.id, needsArrivalCheckIn, promptArrivalCheckIn]);
-
   const measurementsFullscreen =
-    mobileDrawerExpanded && showMeasurementsTab && activeTab === "measurements";
+    mobileDrawerExpanded && showMeasurementsUi && activeTab === "measurements";
 
   useEffect(() => {
     const root = document.documentElement;
@@ -701,6 +340,7 @@ export default function TaskDetailsDrawer({
     () => ({
       id: selectedTask.id,
       nsi: selectedTask.nsi || "",
+      serviceNumber: selectedTask.serviceNumber,
       client: selectedTask.client,
       address: selectedTask.address,
       opportunityId: selectedTask.opportunityId,
@@ -709,6 +349,7 @@ export default function TaskDetailsDrawer({
     [
       selectedTask.id,
       selectedTask.nsi,
+      selectedTask.serviceNumber,
       selectedTask.client,
       selectedTask.address,
       selectedTask.opportunityId,
@@ -757,201 +398,38 @@ export default function TaskDetailsDrawer({
           }
         }}
       >
-        {!measurementsFullscreen && mobileDrawerExpanded ? (
-          <button
-            ref={drawerHandleRef}
-            type="button"
-            aria-label="Fechar visita — arraste para baixo"
-            className="mx-auto flex min-h-10 w-full max-w-[12rem] shrink-0 touch-manipulation items-center justify-center rounded-full active:opacity-80"
-            onClick={() => void closeDrawer()}
-          >
-            <span className="h-1.5 w-16 rounded-full bg-border" aria-hidden />
-          </button>
-        ) : null}
-
-        {measurementsFullscreen ? (
-          <div
-            className="shrink-0 border-b border-border/90 bg-card px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
-            data-tour="tech-drawer-measurements-focus"
-          >
-            <h2 id="task-drawer-title" className="sr-only">Medições da visita</h2>
-            <div className="relative flex items-center gap-1">
-              <button
-                type="button"
-                data-tour="tech-drawer-tab-info"
-                onClick={() => void leaveMeasurementsTab()}
-                className="flex min-h-12 shrink-0 items-center gap-0.5 rounded-xl px-2 text-xs font-black uppercase tracking-wide text-foreground active:bg-muted"
-              >
-                <ChevronLeft className="h-5 w-5" aria-hidden />
-                Detalhes
-              </button>
-              <p
-                className="pointer-events-none absolute inset-x-12 top-1/2 -translate-y-1/2 truncate text-center text-xs font-black uppercase tracking-wide text-foreground"
-                aria-hidden
-              >
-                Medições
-              </p>
-              <div className="min-w-0 flex-1" aria-hidden />
-              {isTaskActive(selectedTask.status) ? (
-                <button
-                  type="button"
-                  data-tour="tech-measurements-add-product"
-                  onClick={() => measurementsFormRef.current?.addGroup()}
-                  className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl bg-ink text-ink-foreground active:scale-95"
-                  aria-label="Novo produto"
-                >
-                  <Plus className="h-5 w-5 text-primary" aria-hidden />
-                </button>
-              ) : (
-                <span className="min-w-12" aria-hidden />
-              )}
-              <button
-                type="button"
-                onClick={() => void closeDrawer()}
-                disabled={drawerLocked}
-                className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl text-muted-foreground active:bg-muted disabled:opacity-50"
-                aria-label="Fechar medições"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {measurementsFocusedStatus ? (
-              <MeasurementsFocusStatusBar
-                className="mt-2"
-                {...measurementsFocusedStatus}
-              />
-            ) : null}
-            {measurementServices.length > 1 ? (
-              <div className="-mx-1 mt-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 custom-scrollbar">
-                {measurementServices.map((svc) => (
-                  <button
-                    key={svc.opportunityId}
-                    type="button"
-                    onClick={() => setMeasurementOppId(svc.opportunityId)}
-                    className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black uppercase ${
-                      measurementOppId === svc.opportunityId
-                        ? "bg-primary text-primary-foreground border-2 border-border-strong"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {!measurementsFullscreen ? (
-        <div
-          className={`shrink-0 px-4 pb-2 md:px-5 ${mobileDrawerExpanded ? "border-b border-border bg-card pt-[max(0.25rem,env(safe-area-inset-top))]" : "pt-1"}`}
-        >
-          <div className="mb-2 flex items-start justify-between gap-2" data-tour="tech-drawer-header">
-            <div className="min-w-0">
-              <h2
-                id="task-drawer-title"
-                className="text-lg font-bold leading-snug text-foreground md:text-xl"
-              >
-                {visitDrawerHeader.heading}
-              </h2>
-              {visitDrawerHeader.detail ? (
-                <p className="mt-1 text-sm font-medium leading-snug text-muted-foreground">
-                  {visitDrawerHeader.detail}
-                </p>
-              ) : null}
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {primaryServiceLabel && primaryServiceColors ? (
-                  <span
-                    className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
-                    style={{
-                      backgroundColor: primaryServiceColors.bg,
-                      color: primaryServiceColors.text,
-                      borderColor: `${primaryServiceColors.text}20`,
-                    }}
-                  >
-                    {primaryServiceLabel}
-                  </span>
-                ) : null}
-                {selectedTask.nsi && selectedTask.nsi !== "N/A" ? (
-                  <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
-                    NSI <span className="ds-num text-foreground">#{selectedTask.nsi}</span>
-                  </span>
-                ) : null}
-                {(isUrgentVisitMarkdown(selectedTask.report) ||
-                  notes.some((n) => isUrgentSchedulingNote(n))) && (
-                  <span className="rounded-xl border-2 border-danger-solid bg-danger-surface px-3 py-1 text-xs font-black uppercase tracking-wider text-danger-fg">
-                    Visita urgente
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void closeDrawer()}
-              disabled={drawerLocked}
-              className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] disabled:opacity-50"
-              aria-label="Fechar detalhes da visita"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* SEPARADOR E TAB HEADER PARA SERVIÇOS DE MEDIÇÃO (iDraft Glassmorphism) */}
-          {showMeasurementsTab && (
-            <div
-              className={`bg-muted p-1.5 rounded-2xl border border-border shadow-inner flex w-full max-w-lg mx-auto gap-1.5 ${mobileDrawerExpanded ? "mb-4" : "mb-8"}`}
-              data-tour="tech-drawer-tabs"
-            >
-              <button
-                type="button"
-                data-tour="tech-drawer-tab-info"
-                onClick={() => {
-                  if (activeTab === "measurements") {
-                    void leaveMeasurementsTab();
-                  } else {
-                    setActiveTab("info");
-                  }
-                }}
-                className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
-                  activeTab === "info"
-                    ? "bg-primary text-primary-foreground border-2 border-border-strong"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                <FileText className="w-4 h-4" /> Detalhes & Visita
-              </button>
-              <button
-                type="button"
-                data-tour="tech-drawer-tab-measurements"
-                onClick={() => setActiveTab("measurements")}
-                className={`relative flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase tracking-wider transition-all ${
-                  activeTab === "measurements"
-                    ? "bg-primary text-primary-foreground border-2 border-border-strong"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                <Ruler className="w-4 h-4" /> Medições
-                {measurementsDirty && activeTab !== "measurements" ? (
-                  <span
-                    className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-warning-solid"
-                    aria-label="Medições por guardar"
-                  />
-                ) : null}
-              </button>
-            </div>
-          )}
-        </div>
-        ) : null}
+        <TaskDrawerHeader
+          measurementsFullscreen={measurementsFullscreen}
+          mobileDrawerExpanded={mobileDrawerExpanded}
+          drawerLocked={drawerLocked}
+          selectedTask={selectedTask}
+          visitDrawerHeader={visitDrawerHeader}
+          primaryServiceLabel={primaryServiceLabel}
+          primaryServiceColors={primaryServiceColors}
+          hasUrgentNote={hasUrgentNote}
+          showMeasurementsUi={showMeasurementsUi}
+          activeTab={activeTab}
+          measurementsDirty={measurementsDirty}
+          measurementServices={measurementServices}
+          measurementOppId={measurementOppId}
+          setMeasurementOppId={setMeasurementOppId}
+          measurementsFocusedStatus={measurementsFocusedStatus}
+          measurementsFormRef={measurementsFormRef}
+          onClose={closeDrawer}
+          onLeaveMeasurementsTab={leaveMeasurementsTab}
+          setActiveTab={setActiveTab}
+          drawerHandleRef={drawerHandleRef}
+        />
 
         <div
           data-tour-scroll="tech-drawer-body"
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar touch-manipulation ${
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar scroll-pb-[max(5rem,calc(env(safe-area-inset-bottom)+4rem))] scroll-pt-2 touch-manipulation ${
             measurementsFullscreen ? "px-3 py-2" : mobileDrawerExpanded ? "px-4 py-3 md:p-5" : "p-4 pb-4 md:p-5"
           }`}
           onFocusCapture={(e) => scrollFocusedFieldIntoView(e.target)}
         >
           {/* ABA 1: INFORMAÇÕES DO CLIENTE & RELATÓRIO DO CRM */}
-          {(activeTab === "info" || !showMeasurementsTab) && (
+          {(activeTab === "info" || !showMeasurementsUi) && (
             <div
               className={`animate-in fade-in duration-300 ${mobileDrawerExpanded ? "space-y-5" : "space-y-8"}`}
             >
@@ -968,610 +446,135 @@ export default function TaskDetailsDrawer({
                 </div>
               ) : null}
 
-              <div
-                className={cn(
-                  "grid grid-cols-1 gap-3",
-                  mobileDrawerExpanded && "md:grid-cols-2 md:gap-4"
-                )}
-              >
-                <Card className="p-5" data-tour="tech-drawer-client-card">
-                  <CardContent className="space-y-4 p-0">
-                    <div className="space-y-3">
-                      <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />
-                        <span className={TECH_DRAWER_BODY}>{selectedTask.address}</span>
-                      </p>
-                      <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-                        <Clock className="h-4 w-4 shrink-0 text-primary-ink" />
-                        <span className={TECH_DRAWER_BODY}>
-                          {selectedTask.dueDate.toLocaleTimeString("pt-PT", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </p>
-                      {selectedTask.isOverdue && (
-                        <p className="rounded-xl border border-warning-border bg-warning-surface px-3 py-2 text-xs font-black uppercase tracking-wider text-warning-solid">
-                          Visita atrasada — conclua ou contacte o admin
-                        </p>
-                      )}
-                    </div>
-                    {clientPhones.length > 0 ? (
-                      <div className="border-t border-border pt-4">
-                        <p className={`mb-3 ${TECH_DRAWER_KICKER}`}>
-                          Telefones do cliente
-                        </p>
-                        <ContactPhoneList phones={clientPhones} emptyLabel="Indisponível" />
-                      </div>
-                    ) : null}
-                  </CardContent>
-                </Card>
-
-                <Card
-                  ref={startVisitRef}
-                  className="flex flex-col gap-2 p-4 scroll-mt-4"
-                  data-tour="tech-drawer-contact-card"
+              {!isTaskActive(selectedTask.status) && showMeasurementsUi ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("measurements")}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-border-strong bg-primary px-4 text-sm font-black text-primary-foreground"
                 >
-                  {needsArrivalCheckIn && (
-                    <Button
-                      data-tour="tech-drawer-start-visit"
-                      onClick={handleStartVisit}
-                      disabled={isStartingVisit}
-                      className="w-full min-h-12 border-2 border-border-strong bg-primary py-3 font-black text-primary-foreground hover:bg-primary-hover"
-                      loading={isStartingVisit}
-                      loadingText="A iniciar visita..."
-                    >
-                      <PlayCircle className="mr-2 h-5 w-5" /> Cheguei ao local
-                    </Button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={isGeocoding}
-                    onClick={async () => {
-                      if (isOnboardingDemoEntity(selectedTask)) {
-                        toast.info("Formação", "Sincronização de GPS simulada — nada foi enviado.");
-                        return;
-                      }
-                      if (!isOnline) {
-                        toast.warning("Sem rede", "A sincronização de GPS requer ligação à internet.");
-                        return;
-                      }
-                      setIsGeocoding(true);
-                      try {
-                        toast.info("A geolocalizar...", "A recalcular coordenadas com a morada fornecida.");
-                        const geoResult = await geocodeTaskAddressAction(selectedTask.address);
-                        if (!geoResult.success) {
-                          throw new Error(geoResult.error || "Erro ao geolocalizar.");
-                        }
-                        const newCoords = geoResult.data;
-                        if (newCoords && newCoords[0]) {
-                          const coordResult = await updateTaskCoordinatesAction(
-                            selectedTask.id,
-                            newCoords[0],
-                            newCoords[1]
-                          );
-                          if (!coordResult.success) {
-                            throw new Error(coordResult.error || "Erro ao guardar coordenadas.");
-                          }
-                          setSelectedTask({
-                            ...selectedTask,
-                            coordinates: newCoords,
-                          });
-                          mutateTasks();
-                          toast.success("GPS atualizado", "Coordenadas sincronizadas com o CRM.");
-                        } else {
-                          toast.error("GPS não encontrado", "Não foi possível geolocalizar a morada fornecida.");
-                        }
-                      } catch (e: unknown) {
-                        toast.error("Erro no GPS", toUserMessage(e, "Não foi possível atualizar o GPS."));
-                      } finally {
-                        setIsGeocoding(false);
-                      }
-                    }}
-                    className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-3 py-2 text-xs font-bold uppercase tracking-wider text-foreground transition-all hover:bg-secondary hover:text-foreground disabled:opacity-60"
-                  >
-                    {isGeocoding ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <MapIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                    )}
-                    {isGeocoding ? "A sincronizar..." : "Sincronizar coordenadas"}
-                  </button>
-                  <NavigationChooser
-                    address={selectedTask.address}
-                    coordinates={selectedTask.coordinates}
-                    label="Abrir no GPS / Waze"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-border-strong bg-primary px-4 py-3 text-xs font-black uppercase tracking-wider text-primary-foreground transition-all hover:bg-primary-hover"
-                  />
-                </Card>
-              </div>
+                  Ver ficha de medições
+                </button>
+              ) : null}
 
-              <div className="space-y-3" data-tour="tech-drawer-services">
-                <div className="flex items-center justify-between">
-                  <h3 className={TECH_DRAWER_SECTION_TITLE}>
-                    Serviços nesta visita
-                  </h3>
-                  {isTaskActive(selectedTask.status) && (
-                    <button
-                      type="button"
-                      data-tour="tech-drawer-extra-add"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingService(null);
-                        setShowAddService(true);
-                      }}
-                      className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm"
-                      aria-label="Adicionar serviço extra no local"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {showPrimaryServiceInList
-                    ? visitServices
-                        .filter((svc) => svc.isPrimary)
-                        .map((svc) => {
-                          const colors = getServiceTypeColor(svc.serviceType);
-                          const label = getExtraServiceTypeLabel(svc.serviceType) || svc.name;
-                          const extraDetail = formatVisitServiceSupplementaryName({
-                            rawName: svc.name,
-                            serviceLabel: label,
-                            visitTitle: selectedTask.title,
-                            address: selectedTask.address,
-                          });
-                          return (
-                            <div
-                              key={svc.opportunityId}
-                              className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border bg-card px-4 py-3"
-                            >
-                              <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
-                                Principal
-                              </span>
-                              <span
-                                className="rounded-md border px-2.5 py-1 text-xs font-black uppercase tracking-wider"
-                                style={{
-                                  backgroundColor: colors.bg,
-                                  color: colors.text,
-                                  borderColor: `${colors.text}20`,
-                                }}
-                              >
-                                {label}
-                              </span>
-                              {extraDetail ? (
-                                <span className="min-w-0 text-xs font-medium text-muted-foreground">
-                                  {extraDetail}
-                                </span>
-                              ) : null}
-                            </div>
-                          );
-                        })
-                    : null}
-
-                  {visitServices.some((s) => s.createdOnSite) && (
-                    <p className={`pt-2 ${TECH_DRAWER_KICKER}`}>
-                      Serviços extra no local (CRM)
-                    </p>
-                  )}
-
-                  {visitServices
-                    .filter((svc) => svc.createdOnSite)
-                    .map((svc) => (
-                      <div
-                        key={svc.opportunityId}
-                        className="flex flex-col gap-2 rounded-2xl border border-primary/30 bg-primary/10/40 px-4 py-3 text-xs font-semibold text-foreground"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-bold text-foreground">
-                            {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
-                          </span>
-                          <span className="flex flex-wrap gap-2">
-                            {svc.mode === "later" && (
-                              <span className="rounded-full bg-warning-surface px-2 py-0.5 text-xs font-black uppercase text-warning-fg">
-                                Agendar depois
-                              </span>
-                            )}
-                            <span className="rounded-full bg-card px-2 py-0.5 text-xs font-black uppercase text-primary-ink">
-                              Registado no CRM
-                            </span>
-                          </span>
-                        </div>
-                        {svc.nsi && svc.nsi !== "N/A" && (
-                          <span className="text-muted-foreground">NSI: {svc.nsi}</span>
-                        )}
-                        {isTaskActive(selectedTask.status) && (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingService(svc);
-                                setShowAddService(true);
-                              }}
-                              className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border-2 border-border-strong bg-card text-xs font-black uppercase"
-                            >
-                              <Pencil className="h-3.5 w-3.5" /> Editar
-                            </button>
-                            <button
-                              type="button"
-                              disabled={deletingOppId === svc.opportunityId}
-                              onClick={() => handleDeleteExtraService(svc)}
-                              className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl border border-danger-border bg-danger-surface text-xs font-black uppercase text-danger-fg"
-                            >
-                              {deletingOppId === svc.opportunityId ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
-                              Apagar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              {/* Secção de Notas e Instruções do CRM */}
-              <div className="h-px bg-secondary w-full my-2"></div>
-              <div className="space-y-4" data-tour="tech-drawer-notes">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <MessageSquare className="h-4 w-4 shrink-0 text-primary-ink" />
-                    <h3 className={TECH_DRAWER_SECTION_TITLE}>
-                      Notas técnicas (CRM)
-                    </h3>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-border-strong bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">
-                    {notes.length}
-                  </span>
-                </div>
-
-                {/* Notas do CRM */}
-                {loadingNotes ? (
-                  <div className="flex items-center gap-2 py-4 text-muted-foreground text-xs font-bold uppercase justify-center">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary-ink" /> A carregar do Twenty...
-                  </div>
-                ) : !isOnline ? (
-                  <p className="rounded-xl border border-border-strong bg-card p-4 text-center text-sm font-medium leading-snug text-muted-foreground">
-                    Notas indisponíveis offline. Ligação necessária para ver o histórico do CRM.
-                  </p>
-                ) : notes.length === 0 ? (
-                  <p className="rounded-xl border border-border-strong bg-muted/40 p-4 text-center text-sm font-medium text-muted-foreground">
-                    Sem notas no CRM.
-                  </p>
-                ) : (
-                  <div className="space-y-3.5 max-h-60 overflow-y-auto pr-1.5 custom-scrollbar">
-                    {notes.map((note) => {
-                      const urgentNote = isUrgentSchedulingNote(note);
-                      return (
-                      <div
-                        key={note.id}
-                        className={`flex flex-col gap-1.5 rounded-xl border-2 p-3 ${
-                          urgentNote
-                            ? "border-danger-solid bg-danger-surface/70"
-                            : "border-border-strong bg-card"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`${TECH_DRAWER_KICKER} flex min-w-0 items-center gap-1.5`}>
-                            <User className={`h-3.5 w-3.5 shrink-0 ${urgentNote ? "text-danger-solid" : "text-primary-ink"}`} />
-                            {note.title?.trim()
-                              ? formatNoteTitleForDisplay(note.title)
-                              : "Técnico"}
-                            {urgentNote && (
-                              <span className="rounded-md border border-danger-border bg-danger-surface px-1.5 py-0.5 text-xs font-bold text-danger-fg">
-                                Urgente
-                              </span>
-                            )}
-                          </span>
-                          <span className="ds-num shrink-0 text-xs font-semibold text-muted-foreground">
-                            {new Date(note.createdAt).toLocaleDateString("pt-PT", {
-                              day: "2-digit",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                        <p
-                          className={`${TECH_DRAWER_NOTE_BODY} ${
-                            urgentNote ? "text-danger-fg" : "text-foreground"
-                          }`}
-                        >
-                          {formatNoteBodyForDisplay(note.body)}
-                        </p>
-                      </div>
-                    );
-                    })}
-                  </div>
-                )}
-
-                {/* Nova Nota */}
-                <div className="mt-3 flex items-end gap-2">
-                  <VoiceTextarea
-                    value={newNoteText}
-                    onChange={setNewNoteText}
-                    placeholder="Nota para o CRM…"
-                    rows={2}
-                    dataTour="tech-voice-note"
-                    className="min-h-12 flex-1"
-                    textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-12 flex-1`}
-                  />
-                  <Button
-                    variant="inverse"
-                    onClick={handleAddNote}
-                    disabled={isCreatingNote || !newNoteText.trim()}
-                    className="h-12 min-w-12 shrink-0 rounded-xl px-3"
-                    aria-label="Adicionar nota ao CRM"
-                  >
-                    {isCreatingNote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Fechar/Finalizar Tarefa */}
-              {isTaskActive(selectedTask.status) && (
-                <>
-                  <div className="h-px bg-secondary w-full my-8"></div>
-                  <div
-                    ref={finalizeSectionRef}
-                    className="space-y-6 scroll-mt-4"
-                    data-tour="tech-drawer-finalize"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-primary-ink" />
-                      <h3 className={TECH_DRAWER_SECTION_TITLE}>Finalizar visita</h3>
-                    </div>
-
-                    <div className="flex bg-muted p-1.5 rounded-2xl border border-border shadow-inner">
-                      <button
-                        type="button"
-                        disabled={isUploading}
-                        data-tour="tech-drawer-status-concluido"
-                        onClick={() => {
-                          if (needsArrivalCheckIn) {
-                            promptArrivalCheckIn();
-                            return;
-                          }
-                          hapticSelection();
-                          setStatusAction("Concluído");
-                          setReason("");
-                        }}
-                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 ${
-                          statusAction === "Concluído"
-                            ? "bg-primary text-primary-foreground shadow-md"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Concluído
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isUploading}
-                        data-tour="tech-drawer-status-incompleto"
-                        onClick={() => {
-                          if (needsArrivalCheckIn) {
-                            promptArrivalCheckIn();
-                            return;
-                          }
-                          hapticSelection();
-                          setStatusAction("Incompleto");
-                          setReason("");
-                        }}
-                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 ${
-                          statusAction === "Incompleto" ? "bg-warning-solid text-ink-foreground shadow-md" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Incompleto
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isUploading}
-                        data-tour="tech-drawer-status-cancelado"
-                        onClick={() => {
-                          if (needsArrivalCheckIn) {
-                            promptArrivalCheckIn();
-                            return;
-                          }
-                          hapticSelection();
-                          setStatusAction("Cancelado");
-                          setReason("");
-                        }}
-                        className={`min-h-12 flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 ${
-                          statusAction === "Cancelado" ? "bg-danger-solid text-ink-foreground shadow-md" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Cancelado
-                      </button>
-                    </div>
-
-                    {statusAction && (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {statusAction === "Incompleto" && (
-                          <div className="space-y-2">
-                            <label className={`block px-1 ${TECH_DRAWER_KICKER}`}>
-                              Motivo (obrigatório)
-                            </label>
-                            <div className="grid grid-cols-1 gap-2">
-                              {INCOMPLETE_REASONS.map((opt) => (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  onClick={() => setReasonPreset(opt.id)}
-                                  className={`text-left px-4 py-3 rounded-xl border text-sm font-bold transition-all ${
-                                    reasonPreset === opt.id
-                                      ? "bg-warning-surface border-warning-border text-warning-fg"
-                                      : "bg-card border-border text-foreground"
-                                  }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                            {(reasonPreset === "outro" || reasonPreset) && (
-                              <VoiceTextarea
-                                value={reason}
-                                disabled={isUploading}
-                                onChange={setReason}
-                                placeholder={reasonPreset === "outro" ? "Descreva o motivo…" : "Detalhes (opcional)"}
-                                rows={3}
-                                textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem] flex-1`}
-                                className="w-full"
-                              />
-                            )}
-                          </div>
-                        )}
-
-                        {statusAction === "Cancelado" && (
-                          <div className="space-y-2">
-                            <label className={`block px-1 ${TECH_DRAWER_KICKER}`}>
-                              Motivo do cancelamento (obrigatório)
-                            </label>
-                            <VoiceTextarea
-                              value={reason}
-                              onChange={setReason}
-                              placeholder="Motivo do cancelamento…"
-                              rows={3}
-                              disabled={isUploading}
-                              textareaClassName={`${TECH_DRAWER_TEXTAREA} min-h-[5.5rem] flex-1`}
-                              className="w-full"
-                            />
-                          </div>
-                        )}
-
-                        {(statusAction === "Incompleto" || statusAction === "Cancelado") &&
-                        (reason.trim() || (statusAction === "Incompleto" && reasonPreset)) ? (
-                          <VoiceSummarizeButton
-                            text={
-                              statusAction === "Incompleto" && reasonPreset
-                                ? formatIncompleteReason(reasonPreset, reason)
-                                : reason
-                            }
-                            onSummarized={setReason}
-                            disabled={isUploading}
-                            className="w-full"
-                          />
-                        ) : null}
-
-                        {!showStatusSubmitBar ? (
-                          <Button
-                            variant="inverse"
-                            data-tour="tech-drawer-submit-report"
-                            onClick={handleStatusUpdate}
-                            disabled={isUploading}
-                            className="w-full py-5 shadow-md"
-                            loading={isUploading}
-                          >
-                            Submeter Relatório de Serviço
-                          </Button>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ABA 2: MEDIÇÕES DE ESTORES (Dedicada e ultra limpa!) */}
-          {activeTab === "measurements" && showMeasurementsTab && (
-            <div className="animate-in fade-in duration-300">
-              {!measurementsFullscreen && measurementServices.length > 1 && (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {measurementServices.map((svc) => (
-                    <button
-                      key={svc.opportunityId}
-                      type="button"
-                      onClick={() => setMeasurementOppId(svc.opportunityId)}
-                      className={`min-h-12 rounded-xl px-4 text-xs font-black uppercase ${
-                        measurementOppId === svc.opportunityId
-                          ? "bg-primary text-primary-foreground border-2 border-border-strong"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {getExtraServiceTypeLabel(svc.serviceType) || svc.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <MeasurementsForm
-                ref={measurementsFormRef}
-                saveBarMode="external"
-                focusedLayout={measurementsFullscreen}
-                task={selectedTask}
-                opportunityId={measurementOppId || selectedTask.opportunityId}
-                isAdmin={false}
-                readOnly={!isTaskActive(selectedTask.status)}
-                onDirtyChange={setMeasurementsDirty}
-                onFocusedStatusChange={setMeasurementsFocusedStatus}
-                onSave={async (data) => {
-                  const oppId = measurementOppId || selectedTask.opportunityId;
-                  if (!oppId) {
-                    return { success: false, error: "Nenhum serviço selecionado para medições." };
-                  }
-                  let success = false;
-                  let errorMessage = "";
-                  let queued = false;
-
-                  const result = await enqueueMeasurementsSave(selectedTask.id, oppId, data);
-                  success = result.success;
-                  queued = result.queued;
-                  if (!success) {
-                    errorMessage = toUserMessage(
-                      result.error,
-                      "Não foi possível guardar as medições."
-                    );
-                  }
-
-                  if (!success) {
-                    return { success: false, error: errorMessage };
-                  }
-
-                  const updatedReport = formatMeasurementsReport(data);
-                  setSelectedTask({ ...selectedTask, report: updatedReport });
-                  mutateTasks();
-                  return { success: true, queued };
-                }}
+              <TaskDrawerClientSection
+                selectedTask={selectedTask}
+                clientPhones={clientPhones}
+                clientNifDisplay={clientNifDisplay}
+                mobileDrawerExpanded={mobileDrawerExpanded}
+                needsArrivalCheckIn={needsArrivalCheckIn}
+                isStartingVisit={isStartingVisit}
+                startVisitRef={startVisitRef}
+                isOnline={isOnline}
+                onStartVisit={handleStartVisit}
+                setSelectedTask={setSelectedTask}
+                mutateTasks={mutateTasks}
+                onGeocodingChange={setIsGeocoding}
               />
+
+              <TaskDrawerServicesSection
+                selectedTask={selectedTask}
+                visitServices={visitServices}
+                showPrimaryServiceInList={showPrimaryServiceInList}
+                needsArrivalCheckIn={needsArrivalCheckIn}
+                deletingOppId={deletingOppId}
+                onPromptArrivalCheckIn={promptArrivalCheckIn}
+                onAddExtra={() => {
+                  setEditingService(null);
+                  setShowAddService(true);
+                }}
+                onEditExtra={(svc) => {
+                  setEditingService(svc);
+                  setShowAddService(true);
+                }}
+                onDeleteExtra={handleDeleteExtraService}
+              />
+
+              <div className="h-px bg-secondary w-full my-2" />
+              <TaskDrawerNotesSection
+                notes={notes}
+                loadingNotes={loadingNotes}
+                isOnline={isOnline}
+                newNoteText={newNoteText}
+                setNewNoteText={setNewNoteText}
+                isCreatingNote={isCreatingNote}
+                onAddNote={() => void handleAddNote()}
+              />
+
+              {!isTaskActive(selectedTask.status) && filesOpportunityId && selectedTask.id ? (
+                <VisitServiceFiles
+                  taskId={selectedTask.id}
+                  opportunityId={filesOpportunityId}
+                />
+              ) : null}
+
+              {isTaskActive(selectedTask.status) && selectedTask.id ? (
+                <div className="mt-6">
+                  <VisitPhotoTray
+                    taskId={selectedTask.id}
+                    opportunityId={filesOpportunityId || selectedTask.opportunityId}
+                    disabled={drawerLocked}
+                    onRequestSync={onRequestPhotoSync}
+                    onQueueChanged={onPhotoQueueChanged}
+                  />
+                </div>
+              ) : null}
+
+              {isTaskActive(selectedTask.status) ? (
+                <TaskDrawerFinalizeSection
+                  finalizeSectionRef={finalizeSectionRef}
+                  statusAction={statusAction}
+                  setStatusAction={setStatusAction}
+                  setReason={setReason}
+                  reason={reason}
+                  reasonPreset={reasonPreset}
+                  setReasonPreset={setReasonPreset}
+                  isUploading={isUploading}
+                  needsArrivalCheckIn={needsArrivalCheckIn}
+                  onPromptArrivalCheckIn={promptArrivalCheckIn}
+                  repairServices={repairServices}
+                  repairPayments={repairPayments}
+                  setRepairPayments={setRepairPayments}
+                  repairPaymentDetails={repairPaymentDetails}
+                  setRepairPaymentDetails={setRepairPaymentDetails}
+                  repairPaymentMissing={repairPaymentMissing}
+                  showStatusSubmitBar={showStatusSubmitBar}
+                  onSubmitStatus={handleStatusUpdate}
+                />
+              ) : null}
             </div>
           )}
+
+          <TaskDrawerMeasurementsTab
+            selectedTask={selectedTask}
+            setSelectedTask={setSelectedTask}
+            mutateTasks={mutateTasks}
+            measurementServices={measurementServices}
+            measurementOppId={measurementOppId}
+            setMeasurementOppId={setMeasurementOppId}
+            measurementsFullscreen={measurementsFullscreen}
+            showMeasurementsTab={showMeasurementsTab}
+            showMeasurementsUi={showMeasurementsUi}
+            activeTab={activeTab}
+            measurementsFormRef={measurementsFormRef}
+            setMeasurementsDirty={setMeasurementsDirty}
+            setMeasurementsFocusedStatus={setMeasurementsFocusedStatus}
+            enqueueMeasurementsSave={enqueueMeasurementsSave}
+          />
         </div>
 
-        {showMeasurementsSaveBar && (
-          <div
-            className={`shrink-0 border-t border-border bg-card px-4 py-3 shadow-md ${
-              measurementsFullscreen ? "" : "md:px-8 md:py-4"
-            }`}
-            data-tour="tech-drawer-measurements-save"
-            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-          >
-            <MeasurementsSaveButton
-              onClick={handleDrawerMeasurementsSave}
-              loading={measurementsSaving}
-              dataTour="tech-drawer-measurements-save-btn"
-            />
-          </div>
-        )}
+        <TaskDrawerMeasurementsSaveBar
+          visible={showMeasurementsSaveBar}
+          measurementsFullscreen={measurementsFullscreen}
+          loading={measurementsSaving}
+          onSave={handleDrawerMeasurementsSave}
+        />
 
-        {showStatusSubmitBar && (
-          <div
-            className="shrink-0 border-t border-border bg-card px-4 py-3 shadow-md"
-            data-tour="tech-drawer-submit-report-bar"
-            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-          >
-            <Button
-              variant="inverse"
-              data-tour="tech-drawer-submit-report"
-              onClick={handleStatusUpdate}
-              disabled={isUploading}
-              className="w-full min-h-12 py-4 shadow-md"
-              loading={isUploading}
-            >
-              Submeter Relatório de Serviço
-            </Button>
-          </div>
-        )}
+        <TaskDrawerStatusSubmitBar
+          visible={showStatusSubmitBar}
+          isUploading={isUploading}
+          repairPaymentMissing={repairPaymentMissing}
+          onSubmit={handleStatusUpdate}
+        />
       </div>
       {showAddService && (
         <AddVisitServiceSheet

@@ -7,6 +7,7 @@ export function agendaKindToToastType(kind: AgendaDiffKind): ToastType {
     case "concluida":
       return "success";
     case "cancelada":
+    case "urgente":
       return "error";
     case "incompleta":
     case "atrasada":
@@ -27,6 +28,7 @@ export function inferAgendaKindFromNotificationTitle(title: string): AgendaDiffK
   if (t.includes("incomplet")) return "incompleta";
   if (t.includes("em curso")) return "em_curso";
   if (t.includes("reagendad")) return "reagendada";
+  if (t.includes("urgente")) return "urgente";
   if (t.includes("nova visita")) return "nova";
   if (t.includes("saiu da agenda") || t.includes("removida")) return "removida";
   if (t.includes("reatribu")) return "reatribuida";

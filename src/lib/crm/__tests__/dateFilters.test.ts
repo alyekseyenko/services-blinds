@@ -4,6 +4,7 @@ import {
   recentYears,
   ADMIN_HISTORY_PAGE_SIZE,
   isTerminalHistoryStatus,
+  sortOpportunitiesByRecentDate,
 } from "../dateFilters";
 
 describe("dateFilters", () => {
@@ -24,5 +25,13 @@ describe("dateFilters", () => {
   it("identifica estados terminais do histórico", () => {
     expect(isTerminalHistoryStatus("CONCLUIDO")).toBe(true);
     expect(isTerminalHistoryStatus("AGENDADO")).toBe(false);
+  });
+
+  it("ordena o histórico pela data da visita e não pela criação do serviço", () => {
+    const sorted = sortOpportunitiesByRecentDate([
+      { historyAt: "2026-01-10T09:00:00.000Z", dueDate: "2026-11-01T09:00:00.000Z" },
+      { historyAt: "2026-11-17T15:00:00.000Z", dueDate: "2025-02-01T09:00:00.000Z" },
+    ]);
+    expect(sorted[0].historyAt).toBe("2026-11-17T15:00:00.000Z");
   });
 });

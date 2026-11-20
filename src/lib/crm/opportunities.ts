@@ -22,10 +22,13 @@ import {
   CRM_ADDRESS_GRAPHQL_FIELDS,
 } from './contract';
 import { isOpportunityCreatedOnSite, isOpportunityDeferredInTask } from './visitServicesMarker';
+import { onSiteExtraDisplaysAsCompleted } from '@/lib/visits/onSiteExtraClose';
+import { formatNavigationAddressLine, formatServiceAddressLine } from '@/lib/visits/serviceAddressLine';
+import { formatServiceNumber } from './serviceNumber';
 import {
-  computeOnSiteDurationMs,
   formatOnSiteDurationPt,
   parseVisitSiteTimes,
+  sumOnSiteDurationMsFromMarkers,
 } from '@/lib/visitSiteTimes';
 import {
   ADMIN_HISTORY_PAGE_SIZE,
@@ -34,7 +37,11 @@ import {
   sortOpportunitiesByRecentDate,
 } from './dateFilters';
 import { fetchAllGraphqlPages } from './graphqlPagination';
+import type { MapHistoryOutcome } from '@/lib/admin/mapHistoryStatus';
+import { matchesHistoryOutcomeFilter } from '@/lib/admin/mapHistoryStatus';
+import { matchesHistoryVisitDate, type HistoryDateRange } from '@/lib/visits/historyFilters';
 import { extractPhonesFromTwenty, getPrimaryPhone } from './phones';
+import { normalizeClientNif } from './clientNif';
 import {
   CRM_CACHE_KEYS,
   ADMIN_TTL_SEC,
@@ -52,6 +59,7 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   id
   name
   nsi
+  numeroDeServico
   stage
   createdAt
   moradaDeServico {
@@ -66,6 +74,7 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
     emails {
       primaryEmail
     }
+    nif
     phones {
       primaryPhoneNumber
       primaryPhoneCallingCode
@@ -83,6 +92,7 @@ const OPPORTUNITY_ADMIN_NODE_FIELDS = `
           id
           status
           dueAt
+          horaDeFim
           assigneeId
           technicianName
           scheduledBy
@@ -200,19 +210,21 @@ async function fetchAdminHistoryOpportunitiesFromCrm() {
   return fetchOpportunitiesByStages(ADMIN_HISTORY_STAGES);
 }
 
-export async function fetchAdminOpportunities() {
+export async function fetchAdminOpportunities(options?: { fresh?: boolean }) {
   return cacheGetOrCompute(
     CRM_CACHE_KEYS.adminOpportunities,
     ADMIN_TTL_SEC,
-    fetchAdminOpportunitiesFromCrm
+    fetchAdminOpportunitiesFromCrm,
+    options
   );
 }
 
-export async function fetchAdminHistoryOpportunities() {
+export async function fetchAdminHistoryOpportunities(options?: { fresh?: boolean }) {
   return cacheGetOrCompute(
     CRM_CACHE_KEYS.adminHistory,
     ADMIN_TTL_SEC,
-    fetchAdminHistoryOpportunitiesFromCrm
+    fetchAdminHistoryOpportunitiesFromCrm,
+    options
   );
 }
 
@@ -234,15 +246,29 @@ export type AdminHistoryPageResult = {
 
 export async function fetchAdminHistoryPage(
   page: number,
-  pageSize: number = ADMIN_HISTORY_PAGE_SIZE
+  pageSize: number = ADMIN_HISTORY_PAGE_SIZE,
+  scope?: {
+    outcomes?: readonly MapHistoryOutcome[];
+    withCoordinates?: boolean;
+    fresh?: boolean;
+    from?: string | null;
+    to?: string | null;
+  }
 ): Promise<AdminHistoryPageResult> {
   const safePage = Math.max(1, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
-  const cacheKey = adminHistoryPageCacheKey(safePage, safePageSize);
+  const outcomeKey = scope?.outcomes?.length ? [...scope.outcomes].sort().join(",") : "";
+  const dateKey = `${scope?.from ?? ""}|${scope?.to ?? ""}`;
+  const cacheKey = adminHistoryPageCacheKey(
+    safePage,
+    safePageSize,
+    `${outcomeKey}${scope?.withCoordinates ? ":gps" : ""}${dateKey !== "|" ? `:d:${dateKey}` : ""}`
+  );
+  const fresh = scope?.fresh ? { fresh: true as const } : undefined;
   return cacheGetOrCompute(cacheKey, ADMIN_TTL_SEC, async () => {
   const [pipeline, archived] = await Promise.all([
-    fetchAdminOpportunities(),
-    fetchAdminHistoryOpportunities(),
+    fetchAdminOpportunities(fresh),
+    fetchAdminHistoryOpportunities(fresh),
   ]);
 
   const merged = new Map<string, ReturnType<typeof mapOpportunityNode>>();
@@ -255,9 +281,13 @@ export async function fetchAdminHistoryPage(
     Array.from(merged.values()).filter((opp) => isTerminalHistoryStatus(opp.status))
   );
 
+  const outcomes = scope?.outcomes ?? [];
+  const dateRange: HistoryDateRange = { from: scope?.from, to: scope?.to };
+  const dateFiltered = historyItems.filter((opp) => matchesHistoryVisitDate(opp, dateRange));
+
   let onSiteDurationTotalMs = 0;
   let onSiteDurationSampleCount = 0;
-  for (const opp of historyItems) {
+  for (const opp of dateFiltered) {
     const ms = opp.visitOnSiteDurationMs;
     if (ms != null && ms > 0) {
       onSiteDurationTotalMs += ms;
@@ -273,7 +303,15 @@ export async function fetchAdminHistoryPage(
       ? formatOnSiteDurationPt(Math.round(onSiteDurationTotalMs / onSiteDurationSampleCount))
       : null;
 
-  const total = historyItems.length;
+  const scopedItems = dateFiltered.filter((opp) => {
+    if (outcomes.length > 0 && !matchesHistoryOutcomeFilter(opp, outcomes)) return false;
+    if (scope?.withCoordinates) {
+      return Array.isArray(opp.coordinates) && opp.coordinates.length === 2;
+    }
+    return true;
+  });
+
+  const total = scopedItems.length;
   const totalPages = Math.max(1, Math.ceil(total / safePageSize));
   const start = (safePage - 1) * safePageSize;
 
@@ -282,15 +320,15 @@ export async function fetchAdminHistoryPage(
   const isCancelled = (status: string) => status === "Cancelado" || status === "CANCELADO";
 
   const result: AdminHistoryPageResult = {
-    items: historyItems.slice(start, start + safePageSize),
+    items: scopedItems.slice(start, start + safePageSize),
     total,
     page: safePage,
     pageSize: safePageSize,
     totalPages,
     summary: {
-      completed: historyItems.filter((opp) => isCompleted(opp.status || "")).length,
-      incomplete: historyItems.filter((opp) => isIncomplete(opp.status || "")).length,
-      cancelled: historyItems.filter((opp) => isCancelled(opp.status || "")).length,
+      completed: dateFiltered.filter((opp) => isCompleted(opp.status || "")).length,
+      incomplete: dateFiltered.filter((opp) => isIncomplete(opp.status || "")).length,
+      cancelled: dateFiltered.filter((opp) => isCancelled(opp.status || "")).length,
       onSiteDurationSampleCount,
       onSiteDurationAvgMinutes,
       onSiteDurationFormattedAvg,
@@ -305,6 +343,7 @@ type CrmTaskNode = {
   id: string;
   status?: string;
   dueAt?: string | null;
+  horaDeFim?: string | null;
   assigneeId?: string | null;
   technicianName?: string | null;
   scheduledBy?: string | null;
@@ -312,11 +351,20 @@ type CrmTaskNode = {
   bodyV2?: { markdown?: string | null } | null;
 };
 
-/** Escolhe a tarefa que define estado no mapa/histórico (concluídos/incompletos têm prioridade; cancelados não bloqueiam reagendamentos). */
+/** Escolhe a tarefa que define o mapa: uma visita ativa (agendada ou em curso) ganha a uma conclusão antiga. */
 export function pickRepresentativeTaskForOpportunity(
   tasks: CrmTaskNode[]
 ): CrmTaskNode | null {
   if (tasks.length === 0) return null;
+
+  const activeTasks = tasks.filter((t) => isTaskActive(t.status));
+  if (activeTasks.length > 0) {
+    return [...activeTasks].sort((a, b) => {
+      const dueB = new Date(b.dueAt || 0).getTime();
+      const dueA = new Date(a.dueAt || 0).getTime();
+      return dueB - dueA;
+    })[0];
+  }
 
   const outcomeTerminal = tasks.filter(
     (t) => isTaskCompleted(t.status) || isTaskIncomplete(t.status)
@@ -382,6 +430,9 @@ function mapOpportunityNode(node: any) {
   const createdOnSite = (node.taskTargets?.edges || []).some((e: any) =>
     isOpportunityCreatedOnSite(node.id, e.node?.task?.bodyV2?.markdown)
   );
+  const deferredOnSite = (node.taskTargets?.edges || []).some((e: any) =>
+    isOpportunityDeferredInTask(node.id, e.node?.task?.bodyV2?.markdown)
+  );
 
   let isTaskObsolete = false;
   if (task && isTaskActive(task.status)) {
@@ -423,7 +474,15 @@ function mapOpportunityNode(node: any) {
   }
 
   const stageNorm = normalizeString(node.stage);
-  if (
+  const finishedOnSiteDespiteParent = onSiteExtraDisplaysAsCompleted({
+    createdOnSite,
+    deferred: deferredOnSite,
+    stage: node.stage,
+    inheritedStatus: computedStatus,
+  });
+  if (finishedOnSiteDespiteParent) {
+    computedStatus = CRM_TASK_STATUS.CONCLUIDO;
+  } else if (
     (stageNorm === CRM_STAGES.PAGAMENTO_TOTAL || stageNorm === CRM_STAGES.CONCLUIDO) &&
     !isTerminalHistoryStatus(computedStatus)
   ) {
@@ -435,7 +494,9 @@ function mapOpportunityNode(node: any) {
   const pointOfContactPhones = extractPhonesFromTwenty(contact?.phones);
 
   const visitSiteTimes = task ? parseVisitSiteTimes(task.bodyV2?.markdown) : {};
-  const visitOnSiteDurationMs = computeOnSiteDurationMs(visitSiteTimes);
+  const visitOnSiteDurationMs = sumOnSiteDurationMsFromMarkers(
+    allTasks.map((t) => t.bodyV2?.markdown)
+  );
 
   return {
     id: node.id,
@@ -444,23 +505,27 @@ function mapOpportunityNode(node: any) {
     stage: node.stage,
     status: computedStatus,
     dueDate: node.createdAt,
-    address: [
-      node.moradaDeServico?.addressStreet1,
-      node.moradaDeServico?.addressCity,
-      node.moradaDeServico?.addressPostcode,
-    ].filter(Boolean).join(", ") || "N/A",
+    address: formatServiceAddressLine(node.moradaDeServico, "N/A"),
+    navigationAddress: formatNavigationAddressLine(node.moradaDeServico, "N/A"),
     addressCity: node.moradaDeServico?.addressCity || "Outros",
-    coordinates: node.moradaDeServico?.addressLat ? [node.moradaDeServico.addressLat, node.moradaDeServico.addressLng] : null,
+    coordinates:
+      node.moradaDeServico?.addressLat != null &&
+      node.moradaDeServico?.addressLng != null &&
+      Number.isFinite(node.moradaDeServico.addressLat) &&
+      Number.isFinite(node.moradaDeServico.addressLng)
+        ? [node.moradaDeServico.addressLat, node.moradaDeServico.addressLng]
+        : null,
     rawAddress: node.moradaDeServico,
     pointOfContactId: contact?.id,
     pointOfContactEmail: contact?.emails?.primaryEmail,
     pointOfContactPhone: getPrimaryPhone(pointOfContactPhones),
     pointOfContactPhones,
+    clientNif: normalizeClientNif(contact),
     client: contact ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim() : "Cliente",
     hasScheduledTask: !!task && isTaskActive(task.status) && !isTaskObsolete,
     hasPendingProposal:
       !!task && isTaskPendingConfirmation(task.status) && !isTaskObsolete,
-    taskStatus: isTaskObsolete ? "CONCLUIDO" : task?.status,
+    taskStatus: isTaskObsolete || finishedOnSiteDespiteParent ? "CONCLUIDO" : task?.status,
     taskId: task?.id,
     scheduledAt:
       isTaskObsolete || !task
@@ -468,10 +533,16 @@ function mapOpportunityNode(node: any) {
         : isTaskBlockingSchedule(task.status)
           ? task.dueAt
           : null,
+    scheduledEndAt:
+      isTaskObsolete || !task || !isTaskBlockingSchedule(task.status)
+        ? null
+        : task.horaDeFim ?? null,
+    historyAt: task?.dueAt || visitSiteTimes.closedAt || node.createdAt,
     technician: isTaskObsolete ? "Não Atribuído" : task?.technicianName || "Não Atribuído",
     technicianId: isTaskObsolete ? null : task?.assigneeId,
     scheduledBy: isTaskObsolete ? undefined : task?.scheduledBy || undefined,
-    nsi: node.nsi || "N/A",
+    nsi: node.nsi != null && String(node.nsi).trim() !== "" ? String(node.nsi).trim() : "N/A",
+    serviceNumber: formatServiceNumber(node.numeroDeServico),
     serviceType: deriveWorkflowMarkerKey(node.stage, node.name),
     createdOnSite,
     visitArrivedAt: visitSiteTimes.arrivedAt ?? null,
@@ -847,6 +918,7 @@ export async function fetchPreparationList() {
             id
             name
             nsi
+            numeroDeServico
             stage
             createdAt
             pointOfContact {
@@ -879,7 +951,8 @@ export async function fetchPreparationList() {
     return {
       id: node.id,
       name: node.name,
-      nsi: node.nsi || "N/A",
+      nsi: node.nsi != null && String(node.nsi).trim() !== "" ? String(node.nsi).trim() : "N/A",
+      serviceNumber: formatServiceNumber(node.numeroDeServico),
       createdAt: node.createdAt,
       client: contact
         ? `${contact.name?.firstName || ""} ${contact.name?.lastName || ""}`.trim()

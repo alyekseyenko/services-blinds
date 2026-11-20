@@ -1,11 +1,10 @@
 "use client";
 
-import { AlertTriangle, PanelRightOpen } from "lucide-react";
+import { AlertTriangle, MapPin, PanelRightOpen } from "lucide-react";
 import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { MapInfoWindowShell } from "@/components/map/MapInfoWindowShell";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import { resolveTaskOverdue } from "@/lib/taskUtils";
-import { isTaskActive, isTaskInProgress } from "@/lib/crm/contract";
 
 export interface TaskMapOpportunity {
   id?: string;
@@ -13,12 +12,18 @@ export interface TaskMapOpportunity {
   client?: string;
   company?: string;
   address?: string;
+  navigationAddress?: string;
+  nsi?: string;
+  serviceNumber?: string;
   dueDate?: string | Date | null;
   scheduledAt?: string | Date | null;
   status?: string;
   taskStatus?: string;
   coordinates?: [number, number] | null;
   serviceType?: string | string[];
+  clientPhone?: string | null;
+  clientPhones?: string[];
+  clientNif?: string | null;
 }
 
 interface TaskMapInfoWindowProps {
@@ -33,12 +38,21 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWin
   const status = task.status ?? task.taskStatus;
   const isLate = resolveTaskOverdue({
     status,
-    dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
-    dueAt: task.scheduledAt ?? task.dueDate ?? undefined,
+    scheduledAt: task.scheduledAt,
+    dueDate: task.dueDate,
   });
-  const needsArrival =
-    isTaskActive(status) && !isTaskInProgress(status);
 
+  const clientName = [task.client, task.company]
+    .map((value) => value?.trim())
+    .find((value) => value && value !== "Cliente");
+  const headline =
+    clientName ||
+    task.title.replace(/\s*\[[^\]]+\]\s*$/, "").trim() ||
+    "Visita";
+  const identifiers = [
+    task.serviceNumber ? `N.º ${task.serviceNumber}` : null,
+    task.nsi && task.nsi !== "N/A" ? `NSI ${task.nsi}` : null,
+  ].filter((value): value is string => Boolean(value));
   const when = task.scheduledAt || task.dueDate;
   const timeLabel =
     when &&
@@ -70,26 +84,20 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWin
         )}
       </div>
 
-      <h3 className="text-sm font-bold leading-snug text-foreground">
-        {task.client || task.company || task.title}
-      </h3>
-
-      {timeLabel && (
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Hora: <span className="font-semibold text-foreground">{timeLabel}</span>
-        </p>
-      )}
+      <h3 className="text-sm font-bold leading-snug text-foreground">{headline}</h3>
+      {identifiers.length > 0 ? (
+        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{identifiers.join(" · ")}</p>
+      ) : null}
 
       {task.address && (
-        <p className="mt-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-xs leading-snug text-muted-foreground">
-          {task.address}
+        <p className="mt-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-left text-xs leading-snug text-muted-foreground">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+          <span>{task.address}</span>
         </p>
       )}
 
-      {needsArrival ? (
-        <p className="mt-2 rounded-lg border-2 border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-semibold leading-snug text-warning-fg">
-          Abra a visita e toque em «Cheguei ao local» na morada.
-        </p>
+      {timeLabel ? (
+        <p className="mt-2 text-xs text-muted-foreground">{timeLabel}</p>
       ) : null}
 
       <div className="mt-3 grid grid-cols-1 gap-2">
@@ -103,7 +111,7 @@ export function TaskMapInfoWindow({ task, onClose, onOpenVisit }: TaskMapInfoWin
         </button>
         {task.address && (
           <NavigationChooser
-            address={task.address}
+            address={task.navigationAddress || task.address}
             coordinates={task.coordinates}
             label="Navegar"
             className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-xs font-bold uppercase tracking-wide text-foreground hover:bg-muted"

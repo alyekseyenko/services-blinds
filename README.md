@@ -8,6 +8,8 @@
 
 **Production software** (sanitized public copy). A multi-role PWA that runs the **field day** — agenda, millimetre measurements, warehouse prep, visit close — on top of **Twenty CRM**, even when the van has no signal.
 
+It does **not** price blinds. A **separate quoting app** (catalog grids, margins, printable proposals) writes commercial quotes into the **same CRM**. This repo never imports that codebase; they meet at Twenty + n8n. That is a bounded-context split, not a missing feature.
+
 UI copy is **Portuguese (Portugal)**. This README is English so a recruiter can read it in five minutes.
 
 > No customer PII, no real company name, no production hosts or keys. Secrets live only in server `.env.local`.
@@ -27,13 +29,15 @@ That gap is cash:
 | Ops dispatches from a whiteboard | Slow routes, double-booked techs |
 | CEO sees numbers at month-end | No live forecast, no ranking, no NPS loop |
 
-This app is the **operations system of record**. CRM stays the commercial source of truth. n8n sends WhatsApp / PDF / email. The app owns scheduling, field work, warehouse, and executive metrics.
+This app is the **operations system of record**. CRM is the shared commercial spine. A sibling **quoting** product owns price lists and proposals. n8n sends WhatsApp / PDF / email. Field ops live here.
 
 ```
-Lead → measure on site → warehouse prep → install → close visit → CRM stage + automation
+Lead → quote (other app) → CRM opportunity
+     → measure on site (this app) → warehouse prep → install → close visit
+     → CRM stage + n8n (PDF / WhatsApp / rating link)
 ```
 
-Each hand-off is a typed Server Action plus an **outbox event** (idempotent). No dual-write from the browser.
+Each field hand-off is a typed Server Action plus an **outbox event** (idempotent). No dual-write from the browser. Quotes never travel through this PWA.
 
 ---
 
@@ -56,7 +60,7 @@ Not a tutorial CRUD app. A **modular monolith** I designed, shipped, and operate
 
 | Bar | Evidence in this repo |
 |-----|------------------------|
-| **Product sense** | Roles, stages, and cash-flow path are explicit — not a generic “task list” |
+| **Product sense** | Roles, stages, and cash-flow path are explicit — quoting is another product on the same CRM, not a blob in this repo |
 | **Reliability** | IndexedDB queue (retries, multi-tab lock, telemetry) + transactional outbox to n8n |
 | **Integration** | Twenty GraphQL with timeouts, retries, **circuit breaker**; CRM field names live in one contract |
 | **Security** | JWT + RBAC (`proxy.ts` + actions), HMAC public portals, **no CRM writes from client bundles** |
@@ -105,11 +109,14 @@ graph TB
     end
 
     subgraph Outside
+        QUOTE[Quoting app — proposals]
         CRM[(Twenty CRM)]
         N8N[n8n automations]
         MAPS[Maps]
         PORTALS[HMAC portals]
     end
+
+    QUOTE -->|push quote / stage| CRM
 
     TECH --> PROXY
     ADMIN --> PROXY
@@ -126,11 +133,12 @@ graph TB
 
 **Ownership**
 
-| System | Owns |
-|--------|------|
-| Twenty | Accounts, commercial pipeline, proposals, payments |
-| This app | Agenda, measurements, warehouse, CEO analytics, public portals |
-| n8n | WhatsApp, email, PDF, Drive |
+| System | Owns | How it talks |
+|--------|------|----------------|
+| **Quoting app** (sibling repo) | Supplier catalogs, margins, printable proposals | Writes into Twenty (webhook). **Not** called from this PWA. |
+| **Twenty CRM** | Accounts, pipeline stages, proposals, payments | GraphQL from this app; REST/webhook from quoting |
+| **This app** | Agenda, mm measurements, warehouse, CEO ops metrics, HMAC portals | Server Actions → CRM; outbox → n8n |
+| **n8n** | WhatsApp, email, PDF, Drive | Env-routed webhooks from both apps |
 
 **Choices that matter (and why)**
 
@@ -140,7 +148,7 @@ graph TB
 - **HMAC portals** — rating / cancel without login; tokens expire and are scoped ([ADR 003](docs/adrs/003-public-portal-tokens.md)).
 - **Stage-first visits** — type comes from CRM stage + title, not a second “service type” field that drifts.
 
-**What we accepted:** eventual consistency with CRM; **one app instance** today (shared Redis/DB if we ever scale out); commercial rules stay in CRM+n8n, operational rules in this app.
+**What we accepted:** eventual consistency with CRM; **one app instance** today (shared Redis/DB if we ever scale out); quoting and field ops stay **two products** that share CRM, not one mega-app.
 
 **What we refused:** microservices for ~20 users; a plugin kernel inside the app (n8n already is that); client-side CRM mutations.
 

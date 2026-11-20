@@ -9,15 +9,7 @@ const MAX_LINES = 600;
  * Ratchet: legados acima do teto não podem crescer até serem extraídos.
  * Quando um ficheiro cai abaixo de MAX_LINES, remova-o deste mapa.
  */
-const LEGACY_LINE_LIMITS: Record<string, number> = {
-  "src/lib/ceo/metrics.ts": 977,
-  "src/lib/crm/opportunities.ts": 970,
-  "src/hooks/useSyncQueue.ts": 930,
-  "src/lib/measurements/repo.ts": 909,
-  "src/actions/measurements-actions.ts": 792,
-  "src/lib/crm/contract.ts": 658,
-  "src/components/warehouse/PreparationCard.tsx": 602,
-};
+const LEGACY_LINE_LIMITS: Record<string, number> = {};
 
 function shouldScan(rel: string): boolean {
   if (rel.includes("__tests__")) return false;

@@ -35,6 +35,11 @@ const restrictedCrmImports = {
       message:
         "Importe apenas @/lib/crm/tasks (fachada). Submódulos são internos ao domínio CRM.",
     },
+    {
+      group: ["@/lib/crm/opportunities/*"],
+      message:
+        "Importe apenas @/lib/crm/opportunities (fachada). Submódulos são internos ao domínio CRM.",
+    },
   ],
 };
 

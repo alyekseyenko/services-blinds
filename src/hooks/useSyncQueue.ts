@@ -1,101 +1,44 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, SyncQueueItem, type VisitPhotoQueueItem } from '@/lib/db';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { db, type SyncQueueItem } from "@/lib/db";
+import { countVisitPhotoQueue } from "@/lib/visits/visitPhotoQueue";
+import { isBrowserOnline } from "@/lib/networkOnline";
+import type { SyncFailedItem } from "@/lib/schemas/syncTelemetry";
+import { isTransientSyncFailure } from "@/lib/sync/syncQueuePolicy";
+import type { ActionErrorCode } from "@/lib/types/action-response";
+import type { RepairPaymentNote } from "@/lib/visits/repairPayment";
+import { useToast } from "@/components/ui/ToastContext";
+import { toUserMessage } from "@/lib/userMessages";
+import { getNotificationScope } from "@/lib/inAppNotifications";
+import { agendaDiffKindsForQueueAction, markLocalAgendaChange } from "@/lib/agendaLocalChanges";
+import { recordMeasurementsAgendaTimeline } from "@/lib/agendaMeasurementsTimeline";
 import {
-  countVisitPhotoQueue,
-  handleVisitPhotoQueueFailure,
-  uploadVisitPhotoQueueItem,
-} from '@/lib/visits/visitPhotoQueue';
-import { isBrowserOnline } from '@/lib/networkOnline';
-import { isOnboardingDemoEntity } from '@/lib/demo/demoIds';
-import { syncUpdateTaskStatusAction } from '@/actions/tasks-actions';
-import { submitMeasurementsAction } from '@/actions/measurements-actions';
-import { createOpportunityNoteAction } from '@/actions/notes-actions';
-import { createVisitServiceAction } from '@/actions/visit-services-actions';
-import type { SyncFailedItem } from '@/lib/schemas/syncTelemetry';
+  dispatchSyncQueueAction,
+  getNextRetryAt,
+  randomJitter,
+  sendSyncTelemetry,
+  sleep,
+  TELEMETRY_MIN_INTERVAL_MS,
+  withSyncQueueLock,
+} from "@/lib/sync/syncQueueRuntime";
 import {
-  isPermanentSyncFailure,
-  isTransientSyncFailure,
-  isSessionExpiredSyncError,
-  syncRetryBackoffMs,
-  SYNC_MAX_BUSINESS_RETRIES,
-  FIELDOPS_STALE_CLIENT_EVENT,
-} from '@/lib/sync/syncQueuePolicy';
-import type { ActionErrorCode } from '@/lib/types/action-response';
-import { resolveVisitArrivedAtMs } from '@/lib/visits/offlineStatusSync';
-import type { RepairPaymentNote } from '@/lib/visits/repairPayment';
-import { isStaleServerActionError, STALE_CLIENT_USER_MESSAGE } from '@/lib/staleClientError';
-
-const JITTER_MIN_MS = 50;
-const JITTER_MAX_MS = 500;
-const TELEMETRY_MIN_INTERVAL_MS = 30000;
-const SYNC_LOCK_NAME = 'fieldops-sync-queue';
-
-import { useToast } from '@/components/ui/ToastContext';
-import { toUserMessage } from '@/lib/userMessages';
-import { getNotificationScope } from '@/lib/inAppNotifications';
+  applySyncQueueItemFailure,
+  drainVisitPhotoQueue,
+  resetAllFailedQueueItems,
+  resetSingleFailedQueueItem,
+  STALE_CLIENT_USER_MESSAGE,
+} from "@/lib/sync/syncQueueRetry";
 import {
-  agendaDiffKindsForQueueAction,
-  agendaDiffKindsForTaskStatusUpdate,
-  markLocalAgendaChange,
-} from '@/lib/agendaLocalChanges';
-import { recordMeasurementsAgendaTimeline } from '@/lib/agendaMeasurementsTimeline';
+  enqueueMeasurementsSaveOp,
+  enqueueNoteOp,
+  enqueueStatusUpdateOp,
+  enqueueVisitServiceOp,
+  type SyncQueueEnqueueContext,
+} from "@/lib/sync/syncQueueEnqueue";
 
 export interface UseSyncQueueOptions {
   technicianId?: string;
   technicianName?: string;
   onOpenSyncQueue?: () => void;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function randomJitter() {
-  return Math.floor(Math.random() * (JITTER_MAX_MS - JITTER_MIN_MS + 1)) + JITTER_MIN_MS;
-}
-
-function newClientRequestId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `sync-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function withSyncQueueLock<T>(fn: () => Promise<T>): Promise<T> {
-  if (typeof navigator !== 'undefined' && navigator.locks?.request) {
-    let executedInLock = false;
-    try {
-      return await navigator.locks.request(SYNC_LOCK_NAME, { mode: 'exclusive' }, async () => {
-        executedInLock = true;
-        return await fn();
-      });
-    } catch (err) {
-      if (executedInLock) throw err;
-      return fn();
-    }
-  }
-  return fn();
-}
-
-const SERVER_ACTION_TIMEOUT_MS = 30_000;
-
-function withServerActionTimeout<T>(promise: Promise<T>): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error("timeout")), SERVER_ACTION_TIMEOUT_MS);
-    }),
-  ]);
-}
-
-function getNextRetryAt(item: SyncQueueItem): number | undefined {
-  const value = item.payload?.nextRetryAt;
-  return typeof value === 'number' ? value : undefined;
-}
-
-function getTransientAttempts(item: SyncQueueItem): number {
-  const value = item.payload?.transientAttempts;
-  return typeof value === 'number' ? value : 0;
 }
 
 export function useSyncQueue(options: UseSyncQueueOptions = {}) {
@@ -116,63 +59,56 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
   onOpenSyncQueueRef.current = onOpenSyncQueue;
   const queuePausedReasonRef = useRef<"stale" | "session" | null>(null);
 
-  const reportTelemetry = useCallback(async (pending: number, failed: number) => {
-    if (!technicianId || typeof window === 'undefined') return;
+  const reportTelemetry = useCallback(
+    async (pending: number, failed: number) => {
+      if (!technicianId || typeof window === "undefined") return;
 
-    const now = Date.now();
-    const shouldForce = failed > 0 && failed !== lastTelemetryFailedRef.current;
-    const idleInterval =
-      pending === 0 && failed === 0 ? TELEMETRY_MIN_INTERVAL_MS * 4 : TELEMETRY_MIN_INTERVAL_MS;
-    if (!shouldForce && now - lastTelemetryAtRef.current < idleInterval) {
-      return;
-    }
+      const now = Date.now();
+      const shouldForce = failed > 0 && failed !== lastTelemetryFailedRef.current;
+      const idleInterval =
+        pending === 0 && failed === 0 ? TELEMETRY_MIN_INTERVAL_MS * 4 : TELEMETRY_MIN_INTERVAL_MS;
+      if (!shouldForce && now - lastTelemetryAtRef.current < idleInterval) {
+        return;
+      }
 
-    lastTelemetryAtRef.current = now;
-    lastTelemetryFailedRef.current = failed;
+      lastTelemetryAtRef.current = now;
+      lastTelemetryFailedRef.current = failed;
 
-    let failedItems: SyncFailedItem[] = [];
-    try {
-      const rows = await db.syncQueue.where('status').equals('failed').toArray();
-      failedItems = rows.slice(0, 25).map((item) => ({
-        action: item.action,
-        taskId: item.taskId,
-        lastError: item.lastError,
-        retries: item.retries,
-        timestamp: item.timestamp,
-      }));
-    } catch {
-      // ignore
-    }
+      let failedItems: SyncFailedItem[] = [];
+      try {
+        const rows = await db.syncQueue.where("status").equals("failed").toArray();
+        failedItems = rows.slice(0, 25).map((item) => ({
+          action: item.action,
+          taskId: item.taskId,
+          lastError: item.lastError,
+          retries: item.retries,
+          timestamp: item.timestamp,
+        }));
+      } catch {
+        // ignore
+      }
 
-    try {
-      await fetch('/api/sync-telemetry', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          technicianId,
-          technicianName: technicianName || 'Técnico',
-          pendingCount: pending,
-          failedCount: failed,
-          isOnline: isBrowserOnline(),
-          lastSyncSuccess: lastSyncSuccessRef.current,
-          failedItems,
-        }),
+      await sendSyncTelemetry({
+        technicianId,
+        technicianName: technicianName || "Técnico",
+        pendingCount: pending,
+        failedCount: failed,
+        lastSyncSuccess: lastSyncSuccessRef.current,
+        failedItems,
       });
-    } catch {
-      // Telemetria não deve bloquear o técnico
-    }
-  }, [technicianId, technicianName]);
+    },
+    [technicianId, technicianName]
+  );
 
   useEffect(() => {
     lastSyncSuccessRef.current = lastSyncSuccess;
   }, [lastSyncSuccess]);
 
   const refreshCounts = useCallback(async () => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     try {
-      const pending = await db.syncQueue.where('status').equals('pending').count();
-      const failed = await db.syncQueue.where('status').equals('failed').count();
+      const pending = await db.syncQueue.where("status").equals("pending").count();
+      const failed = await db.syncQueue.where("status").equals("failed").count();
       const photoCounts = await countVisitPhotoQueue();
       setPendingCount(pending + photoCounts.pending);
       setFailedCount(failed + photoCounts.failed);
@@ -182,90 +118,17 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     }
   }, [reportTelemetry]);
 
-  const processQueueItem = useCallback(async (item: SyncQueueItem) => {
-    const clientRequestId =
-      typeof item.payload?.clientRequestId === 'string'
-        ? item.payload.clientRequestId
-        : undefined;
-
-    if (item.action === 'UPDATE_STATUS') {
-      const visitArrivedAt =
-        typeof item.payload.visitArrivedAt === 'number'
-          ? item.payload.visitArrivedAt
-          : undefined;
-      const statusResult = await withServerActionTimeout(
-        syncUpdateTaskStatusAction(
-        item.payload.taskId,
-        item.payload.status,
-        item.payload.reason,
-        item.payload.photos || [],
-        clientRequestId,
-        item.timestamp,
-        visitArrivedAt,
-        Array.isArray(item.payload.paymentNotes) ? item.payload.paymentNotes : undefined
-        )
-      );
-      if (!statusResult.success) {
-        const err = new Error(statusResult.error || 'Falha ao sincronizar o estado da visita.');
-        if (statusResult.errorCode) {
-          (err as Error & { errorCode?: ActionErrorCode }).errorCode = statusResult.errorCode;
-        }
-        throw err;
-      }
-      return;
-    }
-
-    if (item.action === 'SAVE_MEASUREMENTS') {
-      const result = await withServerActionTimeout(
-        submitMeasurementsAction(
-        item.payload.taskId,
-        item.payload.opportunityId,
-        item.payload.data,
-        clientRequestId
-        )
-      );
-      if (!result.success) {
-        throw new Error(result.error || 'Falha ao sincronizar medições.');
-      }
-      return;
-    }
-
-    if (item.action === 'ADD_NOTE') {
-      const noteResult = await withServerActionTimeout(
-        createOpportunityNoteAction(
-        item.payload.opportunityId,
-        item.payload.personId || null,
-        item.payload.title,
-        item.payload.body,
-        item.payload.taskId,
-        clientRequestId
-        )
-      );
-      if (!noteResult.success) {
-        throw new Error(noteResult.error || 'Falha ao sincronizar nota.');
-      }
-      return;
-    }
-
-    if (item.action === 'CREATE_VISIT_SERVICE') {
-      const visitResult = await withServerActionTimeout(createVisitServiceAction(item.payload));
-      if (!visitResult.success) {
-        throw new Error(visitResult.error || "Falha ao sincronizar o serviço no local.");
-      }
-    }
-  }, []);
-
   const notifyQueueFailure = useCallback(
     (message: string) => {
       const now = Date.now();
       if (now - lastFailedToastAtRef.current < 4000) return;
       lastFailedToastAtRef.current = now;
       toast.error(
-        'Alteração não sincronizada',
-        toUserMessage(message, 'Verifique a fila de sincronização.'),
+        "Alteração não sincronizada",
+        toUserMessage(message, "Verifique a fila de sincronização."),
         onOpenSyncQueueRef.current
           ? {
-              label: 'Ver fila',
+              label: "Ver fila",
               onClick: () => onOpenSyncQueueRef.current?.(),
             }
           : undefined
@@ -274,111 +137,33 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     [toast]
   );
 
-  const handleQueueItemFailure = useCallback(
-    async (item: SyncQueueItem, message: string, errorCode?: ActionErrorCode) => {
-      if (!item.id) return;
-
-      if (isStaleServerActionError(message)) {
+  const failureDeps = useCallback(
+    () => ({
+      onStaleClient: () => {
         queuePausedReasonRef.current = "stale";
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent(FIELDOPS_STALE_CLIENT_EVENT));
-        }
-        await db.syncQueue.update(item.id, {
-          lastError: message,
-          status: "pending",
-        });
         toast.warning("Versão desatualizada", STALE_CLIENT_USER_MESSAGE);
-        return;
-      }
-
-      if (isSessionExpiredSyncError(message)) {
+      },
+      onSessionExpired: () => {
         queuePausedReasonRef.current = "session";
-        await db.syncQueue.update(item.id, {
-          lastError: message,
-          status: "pending",
-        });
-        toast.warning(
-          "Sessão expirada",
-          "Inicie sessão para sincronizar as alterações pendentes."
-        );
-        return;
-      }
-
-      if (isPermanentSyncFailure(message, errorCode)) {
-        await db.syncQueue.update(item.id, {
-          retries: (item.retries || 0) + 1,
-          lastError: message,
-          status: 'failed',
-        });
-        notifyQueueFailure(message);
-        return;
-      }
-
-      if (isTransientSyncFailure(message, errorCode)) {
-        const attempts = getTransientAttempts(item) + 1;
-        const backoff = syncRetryBackoffMs(attempts);
-        await db.syncQueue.update(item.id, {
-          retries: item.retries || 0,
-          lastError: message,
-          status: 'pending',
-          payload: {
-            ...item.payload,
-            transientAttempts: attempts,
-            nextRetryAt: Date.now() + backoff,
-          },
-        });
-        return;
-      }
-
-      const currentRetries = (item.retries || 0) + 1;
-      const isFailed = currentRetries >= SYNC_MAX_BUSINESS_RETRIES;
-      await db.syncQueue.update(item.id, {
-        retries: currentRetries,
-        lastError: message,
-        status: isFailed ? 'failed' : 'pending',
-        payload: {
-          ...item.payload,
-          nextRetryAt: isFailed ? undefined : Date.now() + syncRetryBackoffMs(currentRetries),
-        },
-      });
-      if (isFailed) {
-        notifyQueueFailure(message);
-      }
-    },
+        toast.warning("Sessão expirada", "Inicie sessão para sincronizar as alterações pendentes.");
+      },
+      onPermanentFailure: notifyQueueFailure,
+    }),
     [notifyQueueFailure, toast]
   );
 
-  const processVisitPhotoQueue = useCallback(async (): Promise<boolean> => {
-    const pendingPhotos = await db.visitPhotoQueue.where('status').equals('pending').toArray();
-    pendingPhotos.sort((a, b) => a.capturedAt - b.capturedAt);
-    let syncedAny = false;
+  const handleQueueItemFailure = useCallback(
+    async (item: SyncQueueItem, message: string, errorCode?: ActionErrorCode) => {
+      await applySyncQueueItemFailure(item, message, errorCode, failureDeps());
+    },
+    [failureDeps]
+  );
 
-    for (const item of pendingPhotos) {
-      if (!isBrowserOnline()) break;
-      if (item.nextRetryAt && Date.now() < item.nextRetryAt) continue;
-
-      try {
-        await uploadVisitPhotoQueueItem(item);
-        if (item.id) {
-          await db.visitPhotoQueue.delete(item.id);
-          syncedAny = true;
-        }
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Erro desconhecido';
-        const errorCode =
-          error instanceof Error
-            ? (error as Error & { errorCode?: ActionErrorCode }).errorCode
-            : undefined;
-        console.error('[VisitPhotoQueue] Falha ao enviar foto:', error);
-        await handleVisitPhotoQueueFailure(item as VisitPhotoQueueItem, message, errorCode);
-      }
-    }
-    return syncedAny;
-  }, []);
+  const processVisitPhotoQueue = useCallback(async () => drainVisitPhotoQueue(), []);
 
   const processQueue = useCallback(async () => {
     if (queuePausedReasonRef.current) return;
-    if (syncingRef.current || typeof window === 'undefined' || !isBrowserOnline()) return;
+    if (syncingRef.current || typeof window === "undefined" || !isBrowserOnline()) return;
 
     const run = async () => {
       if (syncingRef.current) return;
@@ -392,7 +177,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           syncedAny = true;
         }
 
-        const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
+        const pendingItems = await db.syncQueue.where("status").equals("pending").toArray();
         pendingItems.sort((a, b) => (a.id || 0) - (b.id || 0));
 
         if (pendingItems.length === 0) {
@@ -403,9 +188,7 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
         const tasksWaitingBackoff = new Set<string>();
 
         for (const item of pendingItems) {
-          if (!isBrowserOnline()) {
-            break;
-          }
+          if (!isBrowserOnline()) break;
 
           const nextRetryAt = getNextRetryAt(item);
           if (nextRetryAt && Date.now() < nextRetryAt) {
@@ -420,17 +203,17 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
           await sleep(randomJitter());
 
           try {
-            await processQueueItem(item);
+            await dispatchSyncQueueAction(item);
             if (item.id) {
               await db.syncQueue.delete(item.id);
               syncedAny = true;
               if (technicianId) {
-                const scope = getNotificationScope('technician', technicianId);
-                if (item.action === 'SAVE_MEASUREMENTS' && item.taskId) {
+                const scope = getNotificationScope("technician", technicianId);
+                if (item.action === "SAVE_MEASUREMENTS" && item.taskId) {
                   const oppId = item.payload?.opportunityId;
                   void recordMeasurementsAgendaTimeline(scope, {
                     taskId: item.taskId,
-                    opportunityId: typeof oppId === 'string' ? oppId : undefined,
+                    opportunityId: typeof oppId === "string" ? oppId : undefined,
                     synced: true,
                   });
                 }
@@ -441,14 +224,14 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
                 if (kinds.length > 0) {
                   markLocalAgendaChange(scope, item.taskId, kinds);
                   const oppId = item.payload?.opportunityId;
-                  if (typeof oppId === 'string') {
+                  if (typeof oppId === "string") {
                     markLocalAgendaChange(scope, oppId, kinds);
                   }
                 }
               }
             }
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Erro desconhecido';
+            const message = error instanceof Error ? error.message : "Erro desconhecido";
             const errorCode =
               error instanceof Error
                 ? (error as Error & { errorCode?: ActionErrorCode }).errorCode
@@ -482,40 +265,12 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
     };
 
     await withSyncQueueLock(run);
-  }, [
-    refreshCounts,
-    processQueueItem,
-    handleQueueItemFailure,
-    technicianId,
-    processVisitPhotoQueue,
-  ]);
+  }, [refreshCounts, handleQueueItemFailure, technicianId, processVisitPhotoQueue]);
 
   const retryFailed = useCallback(async () => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     try {
-      const failedItems = await db.syncQueue.where('status').equals('failed').toArray();
-      for (const item of failedItems) {
-        if (item.id) {
-          await db.syncQueue.update(item.id, {
-            status: 'pending',
-            retries: 0,
-            lastError: undefined,
-            payload: { ...item.payload, nextRetryAt: undefined },
-          });
-        }
-      }
-      const failedPhotos = await db.visitPhotoQueue.where('status').equals('failed').toArray();
-      for (const photo of failedPhotos) {
-        if (photo.id) {
-          await db.visitPhotoQueue.update(photo.id, {
-            status: 'pending',
-            retries: 0,
-            lastError: undefined,
-            nextRetryAt: undefined,
-            transientAttempts: 0,
-          });
-        }
-      }
+      await resetAllFailedQueueItems();
       if (syncingRef.current) {
         rerunAfterCompleteRef.current = true;
       } else {
@@ -523,30 +278,24 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       }
     } catch (e) {
       console.error("[SyncQueue] Erro ao reiniciar itens falhados:", e);
-      toast.error('Fila de sincronização', toUserMessage(e, 'Não foi possível repetir a sincronização.'));
+      toast.error("Fila de sincronização", toUserMessage(e, "Não foi possível repetir a sincronização."));
     }
   }, [processQueue, toast]);
 
   const retryFailedItem = useCallback(
     async (itemId: number) => {
-      if (typeof window === 'undefined') return;
+      if (typeof window === "undefined") return;
       try {
-        const row = await db.syncQueue.get(itemId);
-        if (!row) return;
-        await db.syncQueue.update(itemId, {
-          status: 'pending',
-          retries: 0,
-          lastError: undefined,
-          payload: { ...row.payload, nextRetryAt: undefined, transientAttempts: 0 },
-        });
+        const ok = await resetSingleFailedQueueItem(itemId);
+        if (!ok) return;
         if (syncingRef.current) {
           rerunAfterCompleteRef.current = true;
         } else {
           processQueue();
         }
       } catch (e) {
-        console.error('[SyncQueue] Erro ao repetir item:', e);
-        toast.error('Fila de sincronização', toUserMessage(e, 'Não foi possível repetir este item.'));
+        console.error("[SyncQueue] Erro ao repetir item:", e);
+        toast.error("Fila de sincronização", toUserMessage(e, "Não foi possível repetir este item."));
       }
     },
     [processQueue, toast]
@@ -558,12 +307,12 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
   refreshCountsRef.current = refreshCounts;
 
   useEffect(() => {
-    if (!technicianId || typeof window === 'undefined') return;
+    if (!technicianId || typeof window === "undefined") return;
     void refreshCountsRef.current();
   }, [technicianId]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       setIsOnline(isBrowserOnline());
       void refreshCountsRef.current();
 
@@ -573,8 +322,8 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       };
       const handleOffline = () => setIsOnline(false);
 
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
 
       if (isBrowserOnline()) {
         void processQueueRef.current();
@@ -596,319 +345,47 @@ export function useSyncQueue(options: UseSyncQueueOptions = {}) {
       document.addEventListener("visibilitychange", onVisible);
 
       return () => {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
         document.removeEventListener("visibilitychange", onVisible);
         clearInterval(interval);
       };
     }
   }, []);
 
-  const enqueueStatusUpdate = useCallback(async (
-    taskId: string,
-    status: string,
-    reason: string,
-    photos: string[],
-    opportunityId?: string,
-    paymentNotes?: RepairPaymentNote[]
-  ) => {
-    if (isOnboardingDemoEntity({ id: taskId })) {
-      return { success: true, queued: false };
-    }
+  const enqueueCtx = useCallback((): SyncQueueEnqueueContext => ({
+    technicianId,
+    refreshCounts,
+  }), [technicianId, refreshCounts]);
 
-    const notifyScope = technicianId
-      ? getNotificationScope("technician", technicianId)
-      : null;
-    const statusKinds = agendaDiffKindsForTaskStatusUpdate(status);
-    const markOwnAgendaChange = () => {
-      if (!notifyScope || statusKinds.length === 0) return;
-      markLocalAgendaChange(notifyScope, taskId, statusKinds);
-      if (opportunityId) markLocalAgendaChange(notifyScope, opportunityId, statusKinds);
-    };
+  const enqueueStatusUpdate = useCallback(
+    (
+      taskId: string,
+      status: string,
+      reason: string,
+      photos: string[],
+      opportunityId?: string,
+      paymentNotes?: RepairPaymentNote[]
+    ) => enqueueStatusUpdateOp(enqueueCtx(), taskId, status, reason, photos, opportunityId, paymentNotes),
+    [enqueueCtx]
+  );
 
-    const clientRequestId = newClientRequestId();
-    const buildPayload = (occurredAt: number, visitArrivedAt?: number) => ({
-      taskId,
-      status,
-      reason,
-      photos,
-      opportunityId,
-      clientRequestId,
-      occurredAt,
-      ...(paymentNotes?.length ? { paymentNotes } : {}),
-      ...(visitArrivedAt !== undefined ? { visitArrivedAt } : {}),
-    });
-    const buildItem = (occurredAt: number, visitArrivedAt?: number): SyncQueueItem => ({
-      taskId,
-      action: 'UPDATE_STATUS',
-      payload: buildPayload(occurredAt, visitArrivedAt),
-      timestamp: occurredAt,
-      status: 'pending',
-      retries: 0,
-    });
+  const enqueueMeasurementsSave = useCallback(
+    (taskId: string, opportunityId: string, data: unknown) =>
+      enqueueMeasurementsSaveOp(enqueueCtx(), taskId, opportunityId, data),
+    [enqueueCtx]
+  );
 
-    if (isBrowserOnline()) {
-      try {
-        const direct = await withSyncQueueLock(async () =>
-          syncUpdateTaskStatusAction(
-            taskId,
-            status,
-            reason,
-            photos,
-            clientRequestId,
-            undefined,
-            undefined,
-            paymentNotes
-          )
-        );
-        if (!direct.success) {
-          if (isPermanentSyncFailure(direct.error || '', direct.errorCode)) {
-            return { success: false, queued: false, error: direct.error };
-          }
-          throw new Error(direct.error || 'Falha ao atualizar o estado da visita.');
-        }
-        markOwnAgendaChange();
-        await refreshCounts();
-        return { success: true, queued: false };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (isPermanentSyncFailure(message)) {
-          return { success: false, queued: false, error: message };
-        }
-        console.warn("[SyncQueue] Falha direta na rede, a colocar na fila offline...", error);
-      }
-    }
+  const enqueueVisitService = useCallback(
+    (payload: Record<string, unknown>) => enqueueVisitServiceOp(enqueueCtx(), payload),
+    [enqueueCtx]
+  );
 
-    const existing = await db.syncQueue
-      .where('taskId').equals(taskId)
-      .filter((i) => i.action === 'UPDATE_STATUS' && i.status === 'pending')
-      .first();
-
-    const occurredAt = Date.now();
-    const visitArrivedAt = resolveVisitArrivedAtMs(
-      existing?.payload as Record<string, unknown> | undefined,
-      status,
-      occurredAt
-    );
-
-    if (existing?.id) {
-      await db.syncQueue.delete(existing.id);
-    }
-    await db.syncQueue.add(buildItem(occurredAt, visitArrivedAt));
-    markOwnAgendaChange();
-
-    await refreshCounts();
-    return { success: true, queued: true };
-  }, [refreshCounts, technicianId]);
-
-  const enqueueMeasurementsSave = useCallback(async (
-    taskId: string,
-    opportunityId: string,
-    data: unknown
-  ) => {
-    if (isOnboardingDemoEntity({ id: taskId })) {
-      return { success: true, queued: false };
-    }
-
-    const clientRequestId = newClientRequestId();
-
-    if (isBrowserOnline()) {
-      try {
-        const result = await withSyncQueueLock(async () =>
-          submitMeasurementsAction(taskId, opportunityId, data, clientRequestId)
-        );
-        if (!result.success) {
-          if (isPermanentSyncFailure(result.error || '')) {
-            return { success: false, queued: false, error: result.error };
-          }
-          throw new Error(result.error || 'Falha ao guardar medições.');
-        }
-        await refreshCounts();
-        if (technicianId) {
-          const scope = getNotificationScope('technician', technicianId);
-          void recordMeasurementsAgendaTimeline(scope, {
-            taskId,
-            opportunityId,
-            synced: true,
-          });
-        }
-        return { success: true, queued: false };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (isPermanentSyncFailure(message)) {
-          return { success: false, queued: false, error: message };
-        }
-        console.warn("[SyncQueue] Falha direta na rede para medições, a colocar na fila offline...", error);
-      }
-    }
-
-    const item: SyncQueueItem = {
-      taskId,
-      action: 'SAVE_MEASUREMENTS',
-      payload: { taskId, opportunityId, data, clientRequestId },
-      timestamp: Date.now(),
-      status: 'pending',
-      retries: 0,
-    };
-
-    const existing = await db.syncQueue
-      .where('taskId').equals(taskId)
-      .filter((i) => i.action === 'SAVE_MEASUREMENTS' && i.status === 'pending')
-      .first();
-
-    if (existing?.id) {
-      await db.syncQueue.delete(existing.id);
-    }
-    await db.syncQueue.add(item);
-
-    await refreshCounts();
-    if (technicianId) {
-      const scope = getNotificationScope('technician', technicianId);
-      void recordMeasurementsAgendaTimeline(scope, {
-        taskId,
-        opportunityId,
-        synced: false,
-      });
-    }
-    return { success: true, queued: true };
-  }, [refreshCounts, technicianId]);
-
-  const enqueueVisitService = useCallback(async (payload: Record<string, unknown>) => {
-    const taskId = String(payload.taskId || '');
-    if (isOnboardingDemoEntity({ id: taskId })) {
-      return {
-        success: true,
-        queued: false,
-        opportunityId: `${taskId}-extra-${Date.now()}`,
-      };
-    }
-    const clientRequestId = String(payload.clientRequestId || newClientRequestId());
-    const enrichedPayload = { ...payload, clientRequestId };
-
-    if (isBrowserOnline()) {
-      try {
-        const result = await withSyncQueueLock(async () =>
-          createVisitServiceAction(enrichedPayload)
-        );
-        if (!result.success) {
-          if (isPermanentSyncFailure(result.error || '')) {
-            return { success: false, queued: false, error: result.error };
-          }
-          throw new Error(result.error || "Falha ao criar o serviço no local.");
-        }
-        if (technicianId) {
-          const scope = getNotificationScope("technician", technicianId);
-          const kinds = ["nova", "servico_extra"] as const;
-          markLocalAgendaChange(scope, taskId, [...kinds]);
-          const oppId = result.data?.opportunityId;
-          if (oppId) markLocalAgendaChange(scope, oppId, [...kinds]);
-        }
-        await refreshCounts();
-        return { success: true, queued: false, opportunityId: result.data?.opportunityId };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (isPermanentSyncFailure(message)) {
-          return { success: false, queued: false, error: message };
-        }
-        console.warn('[SyncQueue] On-site service failed online, queueing offline...', error);
-      }
-    }
-
-    const item: SyncQueueItem = {
-      taskId,
-      action: 'CREATE_VISIT_SERVICE',
-      payload: enrichedPayload,
-      timestamp: Date.now(),
-      status: 'pending',
-      retries: 0,
-    };
-
-    const existing = await db.syncQueue
-      .where('taskId')
-      .equals(taskId)
-      .filter(
-        (i) =>
-          i.action === 'CREATE_VISIT_SERVICE' &&
-          i.status === 'pending' &&
-          i.payload?.clientRequestId === clientRequestId
-      )
-      .first();
-
-    if (existing?.id) {
-      await db.syncQueue.delete(existing.id);
-    }
-    await db.syncQueue.add(item);
-    if (technicianId) {
-      const kinds = ["nova", "servico_extra"] as const;
-      markLocalAgendaChange(getNotificationScope("technician", technicianId), taskId, [...kinds]);
-    }
-
-    await refreshCounts();
-    return { success: true, queued: true };
-  }, [refreshCounts, technicianId]);
-
-  const enqueueNote = useCallback(async (
-    opportunityId: string,
-    personId: string | null,
-    title: string,
-    body: string,
-    taskId?: string
-  ) => {
-    if (taskId && isOnboardingDemoEntity({ id: taskId })) {
-      return { success: true, queued: false };
-    }
-
-    const clientRequestId = newClientRequestId();
-
-    if (isBrowserOnline()) {
-      try {
-        const result = await withSyncQueueLock(async () =>
-          createOpportunityNoteAction(
-            opportunityId,
-            personId,
-            title,
-            body,
-            taskId,
-            clientRequestId
-          )
-        );
-        if (!result.success) {
-          if (isPermanentSyncFailure(result.error || '')) {
-            return { success: false, queued: false, error: result.error };
-          }
-          throw new Error(result.error || 'Falha ao criar nota.');
-        }
-        await refreshCounts();
-        return { success: true, queued: false };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (isPermanentSyncFailure(message)) {
-          return { success: false, queued: false, error: message };
-        }
-        console.warn("[SyncQueue] Falha direta na rede para nota, a colocar na fila offline...", error);
-      }
-    }
-
-    const item: SyncQueueItem = {
-      taskId: taskId || opportunityId,
-      action: 'ADD_NOTE',
-      payload: {
-        opportunityId,
-        personId,
-        title,
-        body,
-        taskId,
-        clientRequestId,
-      },
-      timestamp: Date.now(),
-      status: 'pending',
-      retries: 0,
-    };
-
-    await db.syncQueue.add(item);
-    await refreshCounts();
-    return { success: true, queued: true };
-  }, [refreshCounts]);
+  const enqueueNote = useCallback(
+    (opportunityId: string, personId: string | null, title: string, body: string, taskId?: string) =>
+      enqueueNoteOp(enqueueCtx(), opportunityId, personId, title, body, taskId),
+    [enqueueCtx]
+  );
 
   return {
     isOnline,

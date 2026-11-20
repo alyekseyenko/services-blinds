@@ -1,55 +1,32 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
 import { useAppRouter } from "@/hooks/useAppRouter";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { scrollFocusedFieldIntoView } from "@/lib/scrollFocusedField";
-import {
-  X,
-  AlertCircle,
-  Trash2,
-  Calendar as CalendarIcon,
-  Map as MapIcon,
-  MapPin,
-  Mail,
-  Star,
-  Loader2,
-  User,
-  ShieldCheck,
-  Clock,
-} from "lucide-react";
+import { X, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { IconButton } from "@/components/ui/IconButton";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
 import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
 import { buildTechVisitDrawerHeader } from "@/lib/techVisitDisplay";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { formatNoteBodyForDisplay, formatNoteTitleForDisplay } from "@/lib/noteDisplay";
-import { createOpportunityNoteAction, fetchOpportunityNotesAction } from "@/actions/notes-actions";
-import { useToast } from "@/components/ui/ToastContext";
-import { toUserMessage } from "@/lib/userMessages";
-import { Opportunity } from '@/types/admin';
+import { Opportunity } from "@/types/admin";
 import { isNeedsSchedulingStage, isTaskCompleted, isTaskInProgress } from "@/lib/crm/contract";
-import ContactPhoneList from "@/components/ui/ContactPhoneList";
-import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import AdminOpportunityMeasurements from "@/components/admin/AdminOpportunityMeasurements";
-import {
-  countSchedulingNotes,
-  formatScheduleStatsLabel,
-} from "@/lib/opportunityScheduleStats";
 import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
 import { fairDurationForOpportunity } from "@/lib/admin/fairDurationDisplay";
-import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
+import { useAdminOpportunityNotes } from "@/hooks/admin/useAdminOpportunityNotes";
+import { OpportunityMetaSections } from "@/components/admin/drawer/OpportunityMetaSections";
+import { OpportunityNotesSection } from "@/components/admin/drawer/OpportunityNotesSection";
+import { OpportunityTailSections } from "@/components/admin/drawer/OpportunityTailSections";
 
-interface OpportunityDrawerProps {
+export interface OpportunityDrawerProps {
   selectedOpportunity: Opportunity | null;
   setSelectedOpportunity: (opp: Opportunity | null) => void;
   handleCancelAppointment: (opp: Opportunity) => Promise<void> | void;
@@ -58,36 +35,6 @@ interface OpportunityDrawerProps {
   openScheduleModal: (opp: Opportunity) => void;
   fairServiceTypeDurations?: FairServiceTypeDuration[];
   fairBenchmarksReady?: boolean;
-}
-
-interface Note {
-  id: string;
-  title: string;
-  body: string;
-  createdAt: string;
-}
-
-function AdminOppSection({
-  title,
-  action,
-  children,
-  className,
-  ...props
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-} & React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <Panel className={cn("space-y-3 p-4", className)} {...props}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="ds-kicker">{title}</h3>
-        {action}
-      </div>
-      {children}
-    </Panel>
-  );
 }
 
 export default function OpportunityDrawer({
@@ -100,11 +47,17 @@ export default function OpportunityDrawer({
   fairServiceTypeDurations = [],
   fairBenchmarksReady = false,
 }: OpportunityDrawerProps) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loadingNotes, setLoadingNotes] = useState(false);
-  const [noteDraft, setNoteDraft] = useState("");
-  const [savingNote, setSavingNote] = useState(false);
-  const toast = useToast();
+  const {
+    notes,
+    loadingNotes,
+    noteDraft,
+    setNoteDraft,
+    savingNote,
+    scheduleNoteStats,
+    scheduleNoteLabel,
+    submitNote,
+  } = useAdminOpportunityNotes(selectedOpportunity);
+
   const trapRef = useFocusTrap(Boolean(selectedOpportunity));
   const drawerHandleRef = useRef<HTMLButtonElement>(null);
   const [panelEl, setPanelEl] = useState<HTMLElement | null>(null);
@@ -136,41 +89,6 @@ export default function OpportunityDrawer({
     handleElement: drawerHandleRef.current,
     panelElement: panelEl,
   });
-
-  useEffect(() => {
-    if (!selectedOpportunity?.twentyId) {
-      setNotes([]);
-      setNoteDraft("");
-      return;
-    }
-    setNoteDraft("");
-    const opportunity = selectedOpportunity;
-    const twentyId = opportunity.twentyId;
-    let cancelled = false;
-    async function loadNotes() {
-      if (isOnboardingDemoEntity(opportunity)) {
-        setNotes([]);
-        setLoadingNotes(false);
-        return;
-      }
-      setLoadingNotes(true);
-      try {
-        const result = await fetchOpportunityNotesAction(twentyId);
-        if (cancelled) return;
-        if (result.success) {
-          setNotes((result.data as Note[]) || []);
-        } else {
-          console.error("Erro ao carregar notas no Admin:", result.error);
-        }
-      } finally {
-        if (!cancelled) setLoadingNotes(false);
-      }
-    }
-    void loadNotes();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedOpportunity?.twentyId, selectedOpportunity?.id]);
 
   const fairTypeDuration = useMemo(() => {
     if (!selectedOpportunity || !fairBenchmarksReady) return undefined;
@@ -213,12 +131,6 @@ export default function OpportunityDrawer({
     }
     return [];
   }, [selectedOpportunity]);
-
-  const scheduleNoteStats = useMemo(() => countSchedulingNotes(notes), [notes]);
-  const scheduleNoteLabel = useMemo(
-    () => formatScheduleStatsLabel(scheduleNoteStats),
-    [scheduleNoteStats]
-  );
 
   if (!selectedOpportunity) return null;
 
@@ -356,266 +268,40 @@ export default function OpportunityDrawer({
           onFocusCapture={(e) => scrollFocusedFieldIntoView(e.target)}
         >
           <div className="space-y-4">
-          {visitInProgress && (
-            <Panel
-              className="space-y-2 border-l-4 p-4 ds-accent-warning bg-warning-surface"
-              data-tour="admin-opp-in-progress-banner"
-            >
-              <p className="ds-kicker text-warning-fg">Visita em curso</p>
-              <p className="text-sm font-semibold text-warning-fg">
-                {technicianLabel
-                  ? `${technicianLabel} está no local do cliente.`
-                  : "O técnico marcou que chegou ao local."}
-              </p>
-            </Panel>
-          )}
-
-          <AdminOppSection title="Local e agenda">
-            <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
-              <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" aria-hidden />
-              <span className="text-foreground">{selectedOpportunity.address}</span>
-            </p>
-            {selectedOpportunity.scheduledAt ? (
-              <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-                <CalendarIcon className="h-5 w-5 shrink-0 text-primary-ink" aria-hidden />
-                <span className="text-foreground">
-                  {isCompleted ? "Realizado: " : "Agendado: "}
-                  <span className="ds-num">
-                    {selectedOpportunity.scheduledAt instanceof Date
-                      ? selectedOpportunity.scheduledAt.toLocaleString("pt-PT")
-                      : new Date(selectedOpportunity.scheduledAt).toLocaleString("pt-PT")}
-                  </span>
-                </span>
-              </p>
-            ) : (
-              <p className="text-xs font-medium text-muted-foreground">Sem visita agendada.</p>
+            {visitInProgress && (
+              <Panel
+                className="space-y-2 border-l-4 p-4 ds-accent-warning bg-warning-surface"
+                data-tour="admin-opp-in-progress-banner"
+              >
+                <p className="ds-kicker text-warning-fg">Visita em curso</p>
+                <p className="text-sm font-semibold text-warning-fg">
+                  {technicianLabel
+                    ? `${technicianLabel} está no local do cliente.`
+                    : "O técnico marcou que chegou ao local."}
+                </p>
+              </Panel>
             )}
-            {selectedOpportunity.visitOnSiteDurationLabel ? (
-              <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-                <Clock className="h-5 w-5 shrink-0 text-info-solid" aria-hidden />
-                <span className="text-foreground">
-                  Tempo no local:{" "}
-                  <span className="ds-num">{selectedOpportunity.visitOnSiteDurationLabel}</span>
-                  <span className="block text-xs font-medium text-muted-foreground">
-                    Entre «Cheguei ao local» e o encerramento na app.
-                  </span>
-                </span>
-              </p>
-            ) : null}
-            {fairBenchmarksReady ? (
-              <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
-                <Clock className="h-5 w-5 shrink-0 text-info-solid" aria-hidden />
-                <span className="min-w-0 flex-1 text-foreground">
-                  {fairTypeDuration ? (
-                    <>
-                      {fairTypeDuration.serviceLabel} · tempo médio na equipa:{" "}
-                      <span className="ds-num">{fairTypeDuration.formattedRecommended}</span>
-                    </>
-                  ) : (
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Tempo médio ainda indisponível para este tipo (menos de 5 visitas concluídas com
-                      tempo registado na app).
-                    </span>
-                  )}
-                  <span className="mt-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    {fairTypeDuration ? (
-                      <span>Referência para planear visitas deste tipo.</span>
-                    ) : null}
-                    <FairOnSiteDurationHelpButton className="min-h-10 min-w-10" />
-                  </span>
-                </span>
-              </p>
-            ) : null}
-            {scheduleNoteLabel ? (
-              <div className="space-y-0.5 text-xs font-semibold text-muted-foreground">
-                <p>
-                  Histórico: <span className="text-foreground">{scheduleNoteLabel}</span>
-                </p>
-                {scheduleNoteStats.schedulingNotes >= 2 ? (
-                  <p className="font-medium">
-                    Cada nota corresponde a um agendamento ou reagendamento pela operação.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="mt-1 w-full"
-              data-tour="admin-opp-gps-btn"
-              onClick={() => handleUpdateGps(selectedOpportunity)}
-            >
-              <MapIcon className="mr-2 h-4 w-4" aria-hidden />
-              Atualizar GPS
-            </Button>
-          </AdminOppSection>
 
-            <AdminOppSection title="Contactos" data-tour="admin-opp-client-block">
-              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                <div className="min-w-0 flex-1">
-                  {contactPhones.length > 0 ? (
-                    <ContactPhoneList phones={contactPhones} emptyLabel="Indisponível" />
-                  ) : (
-                    <p className="text-sm font-medium text-muted-foreground">Telefone indisponível</p>
-                  )}
-                </div>
-                {formatClientNifDisplay(selectedOpportunity.clientNif) ? (
-                  <p className="shrink-0 text-xs font-semibold text-muted-foreground">
-                    NIF{" "}
-                    <span className="ds-num font-bold text-foreground">
-                      {formatClientNifDisplay(selectedOpportunity.clientNif)}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-3">
-                <div className="min-w-0">
-                  <p className="ds-kicker">E-mail</p>
-                  <p className="mt-1 truncate text-sm font-bold text-foreground">
-                    {selectedOpportunity.pointOfContactEmail || "Indisponível"}
-                  </p>
-                </div>
-                {selectedOpportunity.pointOfContactEmail ? (
-                  <a
-                    href={`mailto:${selectedOpportunity.pointOfContactEmail}`}
-                    className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-card text-muted-foreground transition-all hover:border-primary hover:text-primary-ink active:scale-95"
-                    aria-label="Enviar e-mail ao cliente"
-                  >
-                    <Mail className="h-4 w-4 text-info-solid" />
-                  </a>
-                ) : null}
-              </div>
-            </AdminOppSection>
+            <OpportunityMetaSections
+              selectedOpportunity={selectedOpportunity}
+              isCompleted={isCompleted}
+              contactPhones={contactPhones}
+              fairBenchmarksReady={fairBenchmarksReady}
+              fairTypeDuration={fairTypeDuration}
+              scheduleNoteLabel={scheduleNoteLabel}
+              scheduleNoteStats={scheduleNoteStats}
+              handleUpdateGps={handleUpdateGps}
+            />
 
-            <AdminOppSection
-              title="Notas do CRM"
-              data-tour="admin-opp-notes"
-              action={
-                <span className="ds-chip ds-chip-neutral">
-                  {loadingNotes ? "…" : `${notes.length} notas`}
-                </span>
-              }
-            >
-
-              {selectedOpportunity.report && (
-                <div className="prose prose-sm max-w-none text-foreground pb-4 border-b border-border/60">
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      table: ({node, ...props}) => (
-                        <div className="overflow-x-auto my-4 rounded-xl border border-border shadow-sm">
-                          <table className="min-w-full divide-y divide-border" {...props} />
-                        </div>
-                      ),
-                      thead: ({node, ...props}) => <thead className="bg-muted" {...props} />,
-                      th: ({node, ...props}) => <th className="px-3 py-2 text-left text-xs font-black text-muted-foreground uppercase tracking-wider" {...props} />,
-                      td: ({node, ...props}) => <td className="px-3 py-2 text-sm text-muted-foreground border-t border-border font-medium" {...props} />,
-                      h2: ({node, ...props}) => <h2 className="text-lg font-bold text-foreground mt-6 mb-2 flex items-center gap-2 border-b border-border pb-2" {...props} />,
-                      h3: ({node, ...props}) => <h3 className="text-base font-bold text-foreground mt-4 mb-2" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-1 my-2" {...props} />,
-                      li: ({node, ...props}) => <li className="text-sm text-muted-foreground font-medium" {...props} />,
-                      hr: ({node, ...props}) => <hr className="my-6 border-border" {...props} />,
-                    }}
-                  >
-                    {selectedOpportunity.report}
-                  </ReactMarkdown>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Linha do tempo
-                </p>
-                {loadingNotes ? (
-                  <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary-ink" aria-hidden />
-                    A carregar notas do CRM…
-                  </div>
-                ) : notes.length === 0 ? (
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Nenhuma nota ou instrução no histórico.
-                  </p>
-                ) : (
-                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                    {notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="rounded-xl border-2 border-border bg-muted p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 shrink-0 text-primary-ink" aria-hidden />
-                            <span className="truncate">{formatNoteTitleForDisplay(note.title)}</span>
-                          </span>
-                          <span className="ds-num shrink-0">
-                            {new Date(note.createdAt).toLocaleDateString("pt-PT", {
-                              day: "2-digit",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                        <p className="mt-1.5 whitespace-pre-line text-sm font-medium leading-relaxed text-foreground">
-                          {formatNoteBodyForDisplay(note.body)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <form
-                  className="space-y-2 border-t border-border pt-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const body = noteDraft.trim();
-                    const opportunityId = selectedOpportunity.twentyId;
-                    if (!body || !opportunityId || savingNote) return;
-                    void (async () => {
-                      setSavingNote(true);
-                      const result = await createOpportunityNoteAction(
-                        opportunityId,
-                        selectedOpportunity.pointOfContactId || null,
-                        "Nota do painel",
-                        body
-                      );
-                      setSavingNote(false);
-                      if (!result.success) {
-                        toast.error(
-                          "Não foi possível guardar a nota",
-                          toUserMessage(result.error, "A nota não ficou ligada ao serviço.")
-                        );
-                        return;
-                      }
-                      setNoteDraft("");
-                      const refreshed = await fetchOpportunityNotesAction(opportunityId);
-                      if (refreshed.success) setNotes((refreshed.data as Note[]) || []);
-                      toast.success("Nota registada", "Ficou na linha do tempo deste serviço no Twenty.");
-                    })();
-                  }}
-                >
-                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground" htmlFor="admin-opp-note">
-                    Nova nota neste serviço
-                  </label>
-                  <textarea
-                    id="admin-opp-note"
-                    value={noteDraft}
-                    onChange={(event) => setNoteDraft(event.target.value)}
-                    rows={3}
-                    placeholder="Nota para o CRM…"
-                    className="min-h-12 w-full rounded-xl border-2 border-border-strong bg-card px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-primary"
-                  />
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={savingNote || !noteDraft.trim()}
-                    className="min-h-12 w-full"
-                  >
-                    {savingNote ? "A guardar…" : "Adicionar nota"}
-                  </Button>
-                </form>
-              </div>
-            </AdminOppSection>
+            <OpportunityNotesSection
+              selectedOpportunity={selectedOpportunity}
+              notes={notes}
+              loadingNotes={loadingNotes}
+              noteDraft={noteDraft}
+              setNoteDraft={setNoteDraft}
+              savingNote={savingNote}
+              onSubmitNote={submitNote}
+            />
 
             {selectedOpportunity.twentyId ? (
               <AdminOpportunityMeasurements
@@ -625,110 +311,10 @@ export default function OpportunityDrawer({
               />
             ) : null}
 
-            <AdminOppSection title="Comercial">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border-2 border-border bg-muted p-3">
-                  <p className="ds-kicker">Valor</p>
-                  <p className="mt-1 text-lg font-black text-foreground">
-                    {selectedOpportunity.amount ? (
-                      <span className="ds-num">{selectedOpportunity.amount}€</span>
-                    ) : (
-                      "Sob orçamento"
-                    )}
-                  </p>
-                </div>
-                <div className="rounded-xl border-2 border-border bg-muted p-3 text-right">
-                  <p className="ds-kicker">Estado CRM</p>
-                  <p className="mt-1 text-sm font-black uppercase text-foreground">
-                    {selectedOpportunity.stage}
-                  </p>
-                </div>
-              </div>
-            </AdminOppSection>
-
-            {!selectedOpportunity.coordinates && (
-              <AdminOppSection
-                title="Coordenadas em falta"
-                className="border-l-4 ds-accent-warning bg-warning-surface"
-              >
-                <p className="text-sm font-medium text-warning-fg">
-                  Esta morada ainda não tem pin. Tente o GPS ou indique a latitude e a longitude.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Latitude"
-                    className="ds-input min-h-12 flex-1 px-3 py-2 text-sm"
-                    id="manual-lat"
-                  />
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Longitude"
-                    className="ds-input min-h-12 flex-1 px-3 py-2 text-sm"
-                    id="manual-lng"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  className="w-full"
-                  onClick={() => {
-                    const latEl = document.getElementById("manual-lat") as HTMLInputElement;
-                    const lngEl = document.getElementById("manual-lng") as HTMLInputElement;
-                    handleManualCoordsUpdate(
-                      selectedOpportunity,
-                      latEl?.value ?? "",
-                      lngEl?.value ?? ""
-                    );
-                  }}
-                >
-                  Guardar coordenadas
-                </Button>
-              </AdminOppSection>
-            )}
-
-            {selectedOpportunity.technicianReport ? (
-              <AdminOppSection
-                title="Relatório do técnico"
-                className="border-l-4 ds-accent-warning bg-warning-surface"
-                data-tour="admin-opp-report"
-              >
-                <p className="flex gap-2 text-sm font-medium leading-relaxed text-warning-fg">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-solid" aria-hidden />
-                  <span className="italic">&ldquo;{selectedOpportunity.technicianReport}&rdquo;</span>
-                </p>
-              </AdminOppSection>
-            ) : null}
-
-            {selectedOpportunity.clientRating ? (
-              <AdminOppSection title="Avaliação do cliente" className="border-l-4 ds-accent-info">
-                <div className="flex items-center justify-between gap-2">
-                  <ShieldCheck className="h-5 w-5 text-info-solid" aria-hidden />
-                  <div className="flex gap-0.5" aria-label={`${selectedOpportunity.clientRating} em 5 estrelas`}>
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star
-                        key={s}
-                        className={cn(
-                          "h-4 w-4",
-                          s <= (selectedOpportunity.clientRating || 0)
-                            ? "fill-warning-solid text-warning-solid"
-                            : "text-muted-foreground"
-                        )}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {selectedOpportunity.clientFeedback ? (
-                  <p className="rounded-xl border-2 border-border bg-muted p-3 text-sm font-medium italic text-foreground">
-                    &ldquo;{selectedOpportunity.clientFeedback}&rdquo;
-                  </p>
-                ) : null}
-              </AdminOppSection>
-            ) : null}
-
+            <OpportunityTailSections
+              selectedOpportunity={selectedOpportunity}
+              handleManualCoordsUpdate={handleManualCoordsUpdate}
+            />
           </div>
         </div>
       </div>

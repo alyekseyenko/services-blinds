@@ -1,35 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  Filter,
-  X,
-  Sparkles,
-  Navigation,
-  Loader2,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Hand,
-  List,
-  Map as MapIcon,
-} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Filter, X, Sparkles, List, Map as MapIcon } from "lucide-react";
 import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
 import { cn } from "@/lib/cn";
-import {
-  MAP_FIELD_CLOSURE_FILTER,
-  MAP_HISTORY_OUTCOME_OPTIONS,
-  MAP_SERVICE_TYPE_OPTIONS,
-  MAP_STALL_FILTERS,
-  MAP_STATUS_TABS,
-} from "@/lib/admin/mapFilterConfig";
+import { MAP_HISTORY_OUTCOME_OPTIONS } from "@/lib/admin/mapFilterConfig";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
 import type { UnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
-import { citiesMatch } from "@/lib/admin/geo";
+import { countActiveFilters, formatActiveTypeLabel } from "@/lib/admin/mapFiltersBarHelpers";
 import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import type { MapCategoryFilter, MapStallFilter, ZoneInsight } from "@/types/admin";
+import { MapFilterPanelShell } from "@/components/admin/filters/MapFilterPanelShell";
+import { AdminMapFiltersPanel } from "@/components/admin/filters/AdminMapFiltersPanel";
+import { AdminMapZonesPanel } from "@/components/admin/filters/AdminMapZonesPanel";
 
 export interface AdminMapFiltersBarProps {
   mapTab: string;
@@ -73,113 +57,7 @@ export interface AdminMapFiltersBarProps {
 type MapPanel = null | "filters" | "zones";
 type ZoneMethod = "recommend" | "manual" | null;
 
-function countActiveFilters(
-  mapTab: string,
-  serviceTypeFilters: MapCategoryFilter[],
-  stallFilter: MapStallFilter,
-  pendingClosureOnly: boolean,
-  cityFilter: string | null,
-  mapTechnicianFilter: string | null,
-  historyOutcomes: MapHistoryOutcome[]
-): number {
-  let n = 0;
-  if (mapTab !== "unscheduled") n += 1;
-  if (serviceTypeFilters.length > 0) n += 1;
-  if (stallFilter !== "all") n += 1;
-  if (pendingClosureOnly) n += 1;
-  if (cityFilter) n += 1;
-  if (mapTechnicianFilter) n += 1;
-  if (historyOutcomes.length > 0) n += 1;
-  return n;
-}
-
-function priorityBadgeClass(priority: ZoneInsight["priority"]): string {
-  switch (priority) {
-    case "Critical":
-      return "bg-danger-solid text-ink-foreground";
-    case "High":
-      return "bg-warning-solid text-primary-foreground";
-    case "Medium":
-      return "bg-primary text-primary-foreground";
-    default:
-      return "bg-secondary text-foreground";
-  }
-}
-
-function withoutGpsHeading(svc: UnscheduledWithoutGps): string {
-  return svc.client || svc.title || "Serviço sem nome";
-}
-
-function withoutGpsIdentity(svc: UnscheduledWithoutGps): string {
-  const refs = [
-    svc.serviceNumber ? `N.º ${svc.serviceNumber}` : null,
-    svc.nsi ? `NSI ${svc.nsi}` : null,
-  ].filter(Boolean);
-  const title =
-    svc.title && svc.title !== svc.client && svc.title !== withoutGpsHeading(svc) ? svc.title : "";
-  return [refs.join(" · "), title].filter(Boolean).join(" · ");
-}
-
-function priorityLabel(priority: ZoneInsight["priority"]): string {
-  switch (priority) {
-    case "Critical":
-      return "Crítica";
-    case "High":
-      return "Alta";
-    case "Medium":
-      return "Média";
-    default:
-      return "Baixa";
-  }
-}
-
-type PanelPlacement = "dropdown" | "dock";
-
-function PanelShell({
-  title,
-  subtitle,
-  onClose,
-  children,
-  footer,
-  placement = "dropdown",
-}: {
-  title: string;
-  subtitle?: string;
-  onClose: () => void;
-  children: ReactNode;
-  footer?: ReactNode;
-  placement?: PanelPlacement;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-label={title}
-      className={cn(
-        "flex max-h-[min(50vh,28rem)] flex-col overflow-hidden rounded-2xl border-2 border-border-strong bg-card shadow-lg",
-        placement === "dropdown" &&
-          "absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[calc(100vw-1.5rem)] max-h-[min(68dvh,32rem)] sm:w-[28rem] lg:w-[32rem]",
-        placement === "dock" && "relative z-30 mt-1 w-full max-h-[min(55vh,32rem)]"
-      )}
-    >
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-wider text-foreground">{title}</p>
-          {subtitle && <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"
-          aria-label="Fechar"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scrollbar">{children}</div>
-      {footer && <div className="shrink-0 border-t border-border p-3">{footer}</div>}
-    </div>
-  );
-}
+const ZONE_STEP_LABELS = ["Método", "Zona", "Ação"];
 
 export default function AdminMapFiltersBar({
   mapTab,
@@ -222,10 +100,6 @@ export default function AdminMapFiltersBar({
   const rootRef = useRef<HTMLDivElement>(null);
   const [panel, setPanel] = useState<MapPanel>(null);
   const [zoneStep, setZoneStep] = useState(1);
-  const [openGpsId, setOpenGpsId] = useState<string | null>(null);
-  const [manualLat, setManualLat] = useState("");
-  const [manualLng, setManualLng] = useState("");
-  const [gpsBusyId, setGpsBusyId] = useState<string | null>(null);
   const [zoneMethod, setZoneMethod] = useState<ZoneMethod>(null);
   const [pickedZone, setPickedZone] = useState<string | null>(null);
   const pickedZoneRef = useRef<string | null>(null);
@@ -239,15 +113,7 @@ export default function AdminMapFiltersBar({
     mapTechnicianFilter,
     historyOutcomes
   );
-  const activeTypeLabel =
-    serviceTypeFilters.length === 0
-      ? "Todos os tipos"
-      : serviceTypeFilters.length === 1
-        ? MAP_SERVICE_TYPE_OPTIONS.find((o) => o.value === serviceTypeFilters[0])?.label ??
-          serviceTypeFilters[0]
-        : `${serviceTypeFilters.length} tipos`;
-
-  const serviceTypeChips = MAP_SERVICE_TYPE_OPTIONS.filter((o) => o.value !== "all");
+  const activeTypeLabel = formatActiveTypeLabel(serviceTypeFilters);
 
   const closeAll = () => {
     setPanel(null);
@@ -293,8 +159,7 @@ export default function AdminMapFiltersBar({
     onClearHistoryOutcomes();
   };
 
-  const zoneStepLabels = ["Método", "Zona", "Ação"];
-  const panelPlacement: PanelPlacement = layout === "inline" ? "dock" : "dropdown";
+  const panelPlacement = layout === "inline" ? "dock" : "dropdown";
   const isListView = mapDisplayMode === "list";
 
   useEffect(() => {
@@ -326,92 +191,92 @@ export default function AdminMapFiltersBar({
         </button>
       )}
       <div className="flex flex-wrap items-center gap-2">
-      {setMapDisplayMode && !routeSelectionMode ? (
-        <div
-          className="flex min-h-12 shrink-0 overflow-hidden rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur"
-          role="group"
-          aria-label="Vista mapa ou lista"
-          data-tour="admin-map-display-mode"
-        >
-          <button
-            type="button"
-            aria-pressed={mapDisplayMode === "map"}
-            onClick={() => setMapDisplayMode("map")}
-            className={cn(
-              "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 px-3 text-xs font-black uppercase tracking-wide",
-              mapDisplayMode === "map"
-                ? "bg-neon text-neon-foreground"
-                : "text-muted-foreground hover:bg-muted"
-            )}
+        {setMapDisplayMode && !routeSelectionMode ? (
+          <div
+            className="flex min-h-12 shrink-0 overflow-hidden rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur"
+            role="group"
+            aria-label="Vista mapa ou lista"
+            data-tour="admin-map-display-mode"
           >
-            <MapIcon className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Mapa</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={mapDisplayMode === "list"}
-            onClick={() => setMapDisplayMode("list")}
-            className={cn(
-              "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 border-l border-border px-3 text-xs font-black uppercase tracking-wide",
-              mapDisplayMode === "list"
-                ? "bg-neon text-neon-foreground"
-                : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            <List className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Lista</span>
-          </button>
-        </div>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => setPanel(panel === "filters" ? null : "filters")}
-        className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all hover:bg-card sm:flex-none sm:justify-start ${
-          panel === "filters" ? "ring-2 ring-primary/30" : ""
-        }`}
-        aria-expanded={panel === "filters"}
-      >
-        <Filter className="h-4 w-4 text-muted-foreground" aria-hidden />
-        <span>Filtros</span>
-        {activeCount > 0 && (
-          <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
-            {activeCount}
-          </span>
-        )}
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-          {visibleCount}
-        </span>
-      </button>
-
-      {!isListView ? (
+            <button
+              type="button"
+              aria-pressed={mapDisplayMode === "map"}
+              onClick={() => setMapDisplayMode("map")}
+              className={cn(
+                "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 px-3 text-xs font-black uppercase tracking-wide",
+                mapDisplayMode === "map"
+                  ? "bg-neon text-neon-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <MapIcon className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Mapa</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={mapDisplayMode === "list"}
+              onClick={() => setMapDisplayMode("list")}
+              className={cn(
+                "flex min-h-12 min-w-[4.5rem] items-center justify-center gap-1.5 border-l border-border px-3 text-xs font-black uppercase tracking-wide",
+                mapDisplayMode === "list"
+                  ? "bg-neon text-neon-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <List className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+          </div>
+        ) : null}
         <button
           type="button"
-          onClick={() => (panel === "zones" ? closeAll() : openZones())}
-          data-tour="admin-map-zones-button"
+          onClick={() => setPanel(panel === "filters" ? null : "filters")}
           className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all hover:bg-card sm:flex-none sm:justify-start ${
-            panel === "zones" || cityFilter ? "ring-2 ring-primary/25" : ""
+            panel === "filters" ? "ring-2 ring-primary/30" : ""
           }`}
-          aria-expanded={panel === "zones"}
+          aria-expanded={panel === "filters"}
         >
-          <Sparkles className="h-4 w-4 text-primary-ink" aria-hidden />
-          <span>Zonas</span>
-          {cityFilter && (
-            <span className="max-w-[5.5rem] truncate text-xs font-semibold normal-case text-primary-ink">
-              {cityFilter}
+          <Filter className="h-4 w-4 text-muted-foreground" aria-hidden />
+          <span>Filtros</span>
+          {activeCount > 0 && (
+            <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
+              {activeCount}
             </span>
           )}
+          <span className="rounded-lg bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+            {visibleCount}
+          </span>
         </button>
-      ) : null}
-      {isListView && cityFilter ? (
-        <button
-          type="button"
-          onClick={() => setCityFilter(null)}
-          className="flex min-h-12 max-w-full items-center gap-2 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary-ink"
-        >
-          <span className="truncate">Zona: {cityFilter}</span>
-          <X className="h-4 w-4 shrink-0" aria-hidden />
-        </button>
-      ) : null}
+
+        {!isListView ? (
+          <button
+            type="button"
+            onClick={() => (panel === "zones" ? closeAll() : openZones())}
+            data-tour="admin-map-zones-button"
+            className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-2 text-xs font-bold shadow-lg backdrop-blur transition-all hover:bg-card sm:flex-none sm:justify-start ${
+              panel === "zones" || cityFilter ? "ring-2 ring-primary/25" : ""
+            }`}
+            aria-expanded={panel === "zones"}
+          >
+            <Sparkles className="h-4 w-4 text-primary-ink" aria-hidden />
+            <span>Zonas</span>
+            {cityFilter && (
+              <span className="max-w-[5.5rem] truncate text-xs font-semibold normal-case text-primary-ink">
+                {cityFilter}
+              </span>
+            )}
+          </button>
+        ) : null}
+        {isListView && cityFilter ? (
+          <button
+            type="button"
+            onClick={() => setCityFilter(null)}
+            className="flex min-h-12 max-w-full items-center gap-2 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary-ink"
+          >
+            <span className="truncate">Zona: {cityFilter}</span>
+            <X className="h-4 w-4 shrink-0" aria-hidden />
+          </button>
+        ) : null}
       </div>
       {(serviceTypeFilters.length > 0 || mapTechnicianFilter || historyOutcomes.length > 0) && (
         <div className="flex max-w-[min(100%,20rem)] flex-wrap items-center gap-1 rounded-2xl border border-border bg-card/95 px-2 py-1 shadow-md backdrop-blur">
@@ -440,7 +305,7 @@ export default function AdminMapFiltersBar({
       )}
 
       {panel === "filters" && (
-        <PanelShell
+        <MapFilterPanelShell
           placement={panelPlacement}
           title={isListView ? "Filtros da lista" : "Filtros do mapa"}
           subtitle={activeTypeLabel}
@@ -455,581 +320,63 @@ export default function AdminMapFiltersBar({
             </button>
           }
         >
-          <div className="space-y-5">
-            <section>
-              <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">Estado</p>
-              <div className="grid grid-cols-3 gap-1.5" data-tour="admin-map-status-tabs">
-                {MAP_STATUS_TABS.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    onClick={() => setMapTab(tab.value)}
-                    className={`relative min-h-11 rounded-xl px-1 py-2 text-xs font-black uppercase tracking-wide transition-all ${
-                      mapTab === tab.value
-                        ? "bg-ink text-ink-foreground shadow-md"
-                        : "bg-muted text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {tab.label}
-                    {tab.value === "scheduled" && pendingClosureCount > 0 ? (
-                      <span
-                        className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-solid px-1 text-xs font-black leading-none text-ink-foreground"
-                        aria-label={`${pendingClosureCount} por fechar no terreno`}
-                      >
-                        {pendingClosureCount > 9 ? "9+" : pendingClosureCount}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                  Tipos de serviço
-                </p>
-                {serviceTypeFilters.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={onClearServiceTypeFilters}
-                    className="text-xs font-bold uppercase text-muted-foreground hover:text-foreground"
-                  >
-                    Limpar
-                  </button>
-                )}
-              </div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Toque para combinar vários (ex. MD + IN). Nenhum seleccionado = todos.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {serviceTypeChips.map((option) => {
-                  const selected = serviceTypeFilters.includes(option.value);
-                  const badge = serviceTypeConfig[option.value]?.badge ?? "";
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => onToggleServiceTypeFilter(option.value)}
-                      className={`flex min-h-10 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-left transition-all ${
-                        selected
-                          ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                          : "border-border bg-card hover:border-border"
-                      }`}
-                      aria-pressed={selected}
-                    >
-                      <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black text-ink-foreground"
-                        style={{ backgroundColor: option.pin }}
-                      >
-                        {badge}
-                      </span>
-                      <span className="text-xs font-bold leading-tight text-foreground">
-                        {option.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
-                Técnico
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setMapTechnicianFilter(null)}
-                  className={`min-h-10 rounded-xl px-3 text-xs font-black uppercase tracking-wide ${
-                    !mapTechnicianFilter
-                      ? "bg-ink text-ink-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  Todos
-                </button>
-                {mapTechnicianOptions.map((tech) => (
-                  <button
-                    key={tech.name}
-                    type="button"
-                    onClick={() => setMapTechnicianFilter(tech.name)}
-                    className={`flex min-h-10 max-w-full items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-left ${
-                      mapTechnicianFilter === tech.name
-                        ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                        : "border-border bg-card hover:border-border"
-                    }`}
-                    aria-pressed={mapTechnicianFilter === tech.name}
-                  >
-                    {tech.isLive && (
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse"
-                        title="Em campo (GPS ativo)"
-                        aria-hidden
-                      />
-                    )}
-                    <span className="truncate text-xs font-bold text-foreground">{tech.name}</span>
-                  </button>
-                ))}
-              </div>
-              {mapTechnicianOptions.length === 0 && (
-                <p className="text-xs italic text-muted-foreground">Sem técnicos com visitas ou GPS.</p>
-              )}
-            </section>
-
-            <section>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                  Histórico no mapa
-                </p>
-                {historyOutcomes.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={onClearHistoryOutcomes}
-                    className="text-xs font-bold uppercase text-muted-foreground hover:text-foreground"
-                  >
-                    Limpar
-                  </button>
-                )}
-              </div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                {isListView
-                  ? "Incluir concluídos, incompletos ou cancelados na lista."
-                  : "Mostra intervenções terminadas com GPS (como no separador Histórico)."}
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {MAP_HISTORY_OUTCOME_OPTIONS.map((item) => {
-                  const selected = historyOutcomes.includes(item.value);
-                  const tone =
-                    item.value === "completed"
-                      ? selected
-                        ? "border-success-solid bg-success-surface text-success-fg"
-                        : "border-border bg-card text-muted-foreground"
-                      : item.value === "incomplete"
-                        ? selected
-                          ? "border-warning-solid bg-warning-surface text-warning-fg"
-                          : "border-border bg-card text-muted-foreground"
-                        : selected
-                          ? "border-danger-solid bg-danger-surface text-danger-fg"
-                          : "border-border bg-card text-muted-foreground";
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => onToggleHistoryOutcome(item.value)}
-                      className={`min-h-11 rounded-xl border px-1 py-2 text-xs font-black uppercase tracking-wide ${tone}`}
-                      aria-pressed={selected}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
-                Fecho no terreno
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingClosureOnly(!pendingClosureOnly);
-                  if (!pendingClosureOnly) setMapTab("scheduled");
-                }}
-                className={`mb-4 w-full min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-black transition-all ${
-                  pendingClosureOnly
-                    ? "border-danger-border bg-danger-surface text-danger-fg"
-                    : "border-border bg-muted text-muted-foreground hover:border-border"
-                }`}
-                aria-pressed={pendingClosureOnly}
-              >
-                <span className="block">{MAP_FIELD_CLOSURE_FILTER.label}</span>
-                <span className="mt-0.5 block text-xs font-semibold normal-case tracking-normal opacity-90">
-                  {MAP_FIELD_CLOSURE_FILTER.hint}
-                  {pendingClosureCount > 0 ? ` · ${pendingClosureCount} agora` : ""}
-                </span>
-              </button>
-            </section>
-
-            <section>
-              <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">Tempo parado</p>
-              <div className="space-y-1">
-                {MAP_STALL_FILTERS.map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setStallFilter(item.value)}
-                    className={`w-full min-h-10 rounded-xl border px-3 py-2 text-left text-xs font-black transition-all ${
-                      stallFilter === item.value
-                        ? "border-warning-border bg-warning-surface text-foreground"
-                        : "border-border bg-muted text-muted-foreground hover:border-border"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {cityFilter && !isListView ? (
-              <p className="text-xs font-bold text-muted-foreground">
-                Zona ativa: <span className="text-primary-ink">{cityFilter}</span> — use o botão Zonas
-              </p>
-            ) : null}
-            {cityFilter && isListView ? (
-              <button
-                type="button"
-                onClick={() => setCityFilter(null)}
-                className="w-full min-h-10 rounded-xl border border-border text-xs font-black uppercase text-muted-foreground hover:bg-muted"
-              >
-                Remover filtro de zona ({cityFilter})
-              </button>
-            ) : null}
-          </div>
-        </PanelShell>
+          <AdminMapFiltersPanel
+            isListView={isListView}
+            mapTab={mapTab}
+            setMapTab={setMapTab}
+            serviceTypeFilters={serviceTypeFilters}
+            onToggleServiceTypeFilter={onToggleServiceTypeFilter}
+            onClearServiceTypeFilters={onClearServiceTypeFilters}
+            mapTechnicianFilter={mapTechnicianFilter}
+            setMapTechnicianFilter={setMapTechnicianFilter}
+            mapTechnicianOptions={mapTechnicianOptions}
+            historyOutcomes={historyOutcomes}
+            onToggleHistoryOutcome={onToggleHistoryOutcome}
+            onClearHistoryOutcomes={onClearHistoryOutcomes}
+            pendingClosureOnly={pendingClosureOnly}
+            setPendingClosureOnly={setPendingClosureOnly}
+            pendingClosureCount={pendingClosureCount}
+            stallFilter={stallFilter}
+            setStallFilter={setStallFilter}
+            cityFilter={cityFilter}
+            setCityFilter={setCityFilter}
+          />
+        </MapFilterPanelShell>
       )}
 
       {panel === "zones" && !isListView ? (
-        <PanelShell
+        <MapFilterPanelShell
           placement={panelPlacement}
           title="Zonas sugeridas"
-          subtitle={`Passo ${zoneStep} de 3 · ${zoneStepLabels[zoneStep - 1]}`}
+          subtitle={`Passo ${zoneStep} de 3 · ${ZONE_STEP_LABELS[zoneStep - 1]}`}
           onClose={closeAll}
         >
-          <div className="space-y-5" data-tour="admin-map-zones-panel">
-          <div className="mb-4 flex gap-1">
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className={`h-1 flex-1 rounded-full ${n <= zoneStep ? "bg-primary" : "bg-secondary"}`}
-                aria-hidden
-              />
-            ))}
-          </div>
-
-          {withoutGpsCount > 0 && zoneStep === 1 && (
-            <div className="mb-4 rounded-xl border border-warning-border bg-warning-surface/90 p-3 space-y-2">
-              <p className="text-xs font-black uppercase text-warning-fg">
-                {withoutGpsCount} serviços sem GPS nas sugestões
-              </p>
-              {withoutGpsServices.length > 0 ? (
-                <ul className="space-y-2">
-                  {withoutGpsServices.map((svc) => {
-                    const open = openGpsId === svc.twentyId;
-                    return (
-                      <li key={svc.twentyId} className="rounded-lg border border-warning-border/60 bg-warning-surface">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenGpsId(open ? null : svc.twentyId);
-                            setManualLat("");
-                            setManualLng("");
-                          }}
-                          className="w-full min-h-12 px-2 py-1.5 text-left"
-                        >
-                          <span className="block truncate text-xs font-bold text-warning-fg">
-                            {withoutGpsHeading(svc)}
-                          </span>
-                          {withoutGpsIdentity(svc) ? (
-                            <span className="block truncate text-xs font-medium text-warning-fg">
-                              {withoutGpsIdentity(svc)}
-                            </span>
-                          ) : null}
-                          <span className="block truncate text-xs font-medium text-warning-fg opacity-90">
-                            {svc.address}
-                          </span>
-                        </button>
-                        {open ? (
-                          <div className="space-y-2 border-t border-warning-border/50 px-2 pb-2">
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                disabled={gpsBusyId === svc.twentyId}
-                                onClick={() => {
-                                  void (async () => {
-                                    setGpsBusyId(svc.twentyId);
-                                    try {
-                                      await onGeocodeWithoutGps?.(svc.twentyId);
-                                    } finally {
-                                      setGpsBusyId(null);
-                                    }
-                                  })();
-                                }}
-                                className="min-h-12 flex-1 rounded-lg bg-warning-solid px-2 text-xs font-black uppercase text-ink-foreground disabled:opacity-60"
-                              >
-                                {gpsBusyId === svc.twentyId ? "A procurar…" : "Tentar GPS"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onSelectWithoutGps?.(svc.twentyId)}
-                                className="min-h-12 rounded-lg border border-warning-border px-3 text-xs font-bold text-warning-fg"
-                              >
-                                Ficha
-                              </button>
-                            </div>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={manualLat}
-                                onChange={(event) => setManualLat(event.target.value)}
-                                placeholder="Latitude"
-                                className="ds-input min-h-12 flex-1 px-2 text-xs"
-                              />
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={manualLng}
-                                onChange={(event) => setManualLng(event.target.value)}
-                                placeholder="Longitude"
-                                className="ds-input min-h-12 flex-1 px-2 text-xs"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              disabled={!manualLat.trim() || !manualLng.trim()}
-                              onClick={() => onSaveWithoutGpsCoords?.(svc.twentyId, manualLat, manualLng)}
-                              className="min-h-12 w-full rounded-lg border border-warning-border bg-card text-xs font-black uppercase text-foreground disabled:opacity-50"
-                            >
-                              Guardar coordenadas
-                            </button>
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-              <p className="text-xs font-medium leading-snug text-warning-fg opacity-90">
-                Toque no serviço para tentar o GPS ou escrever a latitude e a longitude. Sem pin, a zona não entra nas sugestões.
-              </p>
-              <button
-                type="button"
-                onClick={onSyncAddresses}
-                disabled={isSyncing}
-                className="flex w-full min-h-12 items-center justify-center gap-2 rounded-lg bg-warning-solid text-xs font-black uppercase text-ink-foreground disabled:opacity-60"
-              >
-                {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Sincronizar moradas
-              </button>
-            </div>
-          )}
-
-          {zoneStep === 1 && (
-            <div className="space-y-3">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Escolha como quer organizar visitas por zona. Os filtros do mapa aplicam-se às sugestões.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setZoneMethod("recommend");
-                  setZoneStep(2);
-                }}
-                className="flex w-full min-h-14 items-start gap-3 rounded-xl border border-border bg-muted p-3 text-left hover:border-primary hover:bg-card"
-              >
-                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
-                <div>
-                  <p className="text-xs font-black text-foreground">Usar recomendações</p>
-                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-                    Lista por prioridade, distância e custo estimado
-                  </p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setZoneMethod("manual");
-                  setCityFilter(null);
-                  setZoneStep(3);
-                }}
-                className="flex w-full min-h-14 items-start gap-3 rounded-xl border border-border bg-muted p-3 text-left hover:border-primary hover:bg-card"
-              >
-                <Hand className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
-                <div>
-                  <p className="text-xs font-black text-foreground">Seleção manual no mapa</p>
-                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-                    Escolher paragens uma a uma, sem zona fixa
-                  </p>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {zoneStep === 2 && zoneMethod === "recommend" && (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Toque na zona para escolher. Toque outra vez para avançar, como em Seguinte.
-              </p>
-              {loading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary-ink" />
-                </div>
-              ) : zoneInsights.length > 0 ? (
-                <ul className="space-y-2">
-                  {zoneInsights.map((insight) => {
-                    const selected =
-                      pickedZone && citiesMatch(pickedZone, insight.name);
-                    const confirmZone = () => {
-                      pickedZoneRef.current = insight.name;
-                      setPickedZone(insight.name);
-                      setZoneStep(3);
-                    };
-                    return (
-                      <li key={insight.key}>
-                        <button
-                          type="button"
-                          aria-pressed={Boolean(selected)}
-                          onClick={() => {
-                            const current = pickedZoneRef.current ?? pickedZone;
-                            if (current && citiesMatch(current, insight.name)) {
-                              confirmZone();
-                              return;
-                            }
-                            pickedZoneRef.current = insight.name;
-                            setPickedZone(insight.name);
-                          }}
-                          onDoubleClick={confirmZone}
-                          className={`w-full min-h-12 touch-manipulation rounded-xl border p-3 text-left transition-all ${
-                            selected
-                              ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                              : "border-border bg-muted hover:border-primary/40"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span
-                              className={`text-xs font-black uppercase px-1.5 py-0.5 rounded ${priorityBadgeClass(insight.priority)}`}
-                            >
-                              {priorityLabel(insight.priority)}
-                            </span>
-                            <span className="text-xs font-black text-primary-ink">
-                              {insight.count} pend.
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs font-black text-foreground">{insight.name}</p>
-                          <p className="mt-1 text-xs font-bold text-muted-foreground">
-                            {insight.distance} km · ~{insight.logisticsCost} €
-                          </p>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="py-6 text-center text-xs italic text-muted-foreground">
-                  Sem zonas com os filtros atuais.
-                </p>
-              )}
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setZoneStep(1)}
-                  className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-border text-xs font-black uppercase text-muted-foreground"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Voltar
-                </button>
-                <button
-                  type="button"
-                  disabled={!pickedZone}
-                  onClick={() => setZoneStep(3)}
-                  className="flex min-h-10 flex-[2] items-center justify-center gap-1 rounded-xl bg-ink text-xs font-black uppercase text-ink-foreground disabled:opacity-40"
-                >
-                  Seguinte <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {zoneStep === 3 && (
-            <div className="space-y-3">
-              {zoneMethod === "recommend" && pickedZone && (
-                <div className="rounded-xl border border-primary/30 bg-primary/10/80 p-3">
-                  <p className="text-xs font-black uppercase text-primary-ink">Zona escolhida</p>
-                  <p className="text-sm font-black text-foreground">{pickedZone}</p>
-                </div>
-              )}
-              {zoneMethod === "manual" && (
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Ative a seleção no mapa e toque nos pinos para montar o roteiro.
-                </p>
-              )}
-
-              {zoneMethod === "recommend" && pickedZone && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCityFilter(pickedZone);
-                      setMapTab("unscheduled");
-                      closeAll();
-                    }}
-                    className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card text-xs font-black uppercase text-foreground hover:border-primary"
-                  >
-                    <MapPin className="h-4 w-4 text-primary-ink" />
-                    Ver só esta zona no mapa
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      autoGenerateRouteForZone(pickedZone);
-                      closeAll();
-                    }}
-                    className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-primary text-xs font-black uppercase text-primary-foreground hover:bg-ink hover:text-ink-foreground"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Planear rota automática
-                  </button>
-                </>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (zoneMethod === "recommend" && pickedZone) {
-                    setCityFilter(pickedZone);
-                    setMapTab("unscheduled");
-                  }
-                  setRouteSelectionMode(true);
-                  closeAll();
-                }}
-                className={`flex w-full min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-black uppercase ${
-                  routeSelectionMode ? "bg-warning-solid text-ink-foreground" : "bg-ink text-neon"
-                }`}
-              >
-                <Navigation className="h-4 w-4" />
-                {zoneMethod === "manual"
-                  ? "Começar seleção manual"
-                  : "Ajustar paragens à mão"}
-              </button>
-
-              {cityFilter && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCityFilter(null);
-                    setPickedZone(null);
-                  }}
-                  className="w-full min-h-10 text-xs font-black uppercase text-danger-solid hover:underline"
-                >
-                  Remover filtro de zona
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (zoneMethod === "manual") setZoneStep(1);
-                  else setZoneStep(2);
-                }}
-                className="flex w-full min-h-10 items-center justify-center gap-1 text-xs font-black uppercase text-muted-foreground"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" /> Voltar
-              </button>
-            </div>
-          )}
-          </div>
-        </PanelShell>
+          <AdminMapZonesPanel
+            zoneStep={zoneStep}
+            setZoneStep={setZoneStep}
+            zoneMethod={zoneMethod}
+            setZoneMethod={setZoneMethod}
+            pickedZone={pickedZone}
+            setPickedZone={setPickedZone}
+            pickedZoneRef={pickedZoneRef}
+            loading={loading}
+            zoneInsights={zoneInsights}
+            withoutGpsCount={withoutGpsCount}
+            withoutGpsServices={withoutGpsServices}
+            onSelectWithoutGps={onSelectWithoutGps}
+            onGeocodeWithoutGps={onGeocodeWithoutGps}
+            onSaveWithoutGpsCoords={onSaveWithoutGpsCoords}
+            onSyncAddresses={onSyncAddresses}
+            isSyncing={isSyncing}
+            cityFilter={cityFilter}
+            setCityFilter={setCityFilter}
+            setMapTab={setMapTab}
+            routeSelectionMode={routeSelectionMode}
+            setRouteSelectionMode={setRouteSelectionMode}
+            autoGenerateRouteForZone={autoGenerateRouteForZone}
+            onCloseAll={closeAll}
+          />
+        </MapFilterPanelShell>
       ) : null}
     </div>
   );

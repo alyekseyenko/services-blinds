@@ -133,7 +133,7 @@ export default function Admin() {
     mutate: mutateAgendaFeed,
     refreshNow: refreshAgenda,
   } = useSync<import("@/lib/schemas/agendaFeed").AdminAgendaFeedFromSchema>("/api/agenda/feed", {
-    refreshInterval: 45_000,
+    refreshInterval: 30_000,
     refreshWhenHidden: true,
   });
 

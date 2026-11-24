@@ -43,6 +43,14 @@ describe("resolveVisitPhase", () => {
     expect(notificationMatchesFilter("incompleta", "problems")).toBe(true);
     expect(notificationMatchesFilter("concluida", "done")).toBe(true);
   });
+
+  it("resolve fase avaliacao para avaliacao_cliente", () => {
+    const phase = resolveVisitPhase([{ kind: "avaliacao_cliente", at: Date.now(), detail: "5 estrelas" }]);
+    expect(phase.phase).toBe("avaliacao");
+    expect(phase.label).toBe("Avaliação");
+    expect(notificationMatchesFilter("avaliacao", "done")).toBe(true);
+    expect(notificationMatchesFilter("avaliacao", "active")).toBe(false);
+  });
 });
 
 describe("formatTimelinePathShort", () => {

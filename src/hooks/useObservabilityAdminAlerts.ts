@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { pushInAppNotification } from "@/lib/inAppNotifications";
+import { pushOrMergeObservabilityInAppNotification } from "@/lib/inAppNotifications";
 import { shouldNotifyObservabilityReport } from "@/lib/observabilityNotifyDedupe";
 import type { ObservabilityStatusPayload } from "@/lib/observability/e2eTypes";
 
@@ -43,7 +43,7 @@ export function useObservabilityAdminAlerts(
           ? "Observabilidade: regressão detetada"
           : `Observabilidade: ${failCount} verificação(ões) a falhar`;
 
-        pushInAppNotification(notificationScope, {
+        pushOrMergeObservabilityInAppNotification(notificationScope, {
           title,
           description: "Abra a consola SRE para ver detalhes e remediação.",
           notificationKind: "observability",

@@ -14,6 +14,7 @@ import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { formatOnSiteServiceDetail } from "@/lib/agenda/onSiteServiceCopy";
 import { timelineDetailForDiffEvent } from "@/lib/agenda/timelineCopy";
 import type { VisitServiceMode } from "@/lib/schemas";
+import { isVisitDueBeforeToday } from "@/lib/visits/pendingClosure";
 
 export type AgendaSnapshotItem = {
   id: string;
@@ -60,7 +61,8 @@ export type AgendaDiffKind =
   | "servico_extra"
   | "armazem_pronto"
   | "medicoes_guardadas"
-  | "urgente";
+  | "urgente"
+  | "avaliacao_cliente";
 
 export type AgendaDiffEvent = {
   kind: AgendaDiffKind;
@@ -272,10 +274,17 @@ function assigneeChanged(prev: AgendaSnapshotItem, item: AgendaSnapshotItem): bo
   return Boolean(a && b && a !== b && isTaskActive(item.status));
 }
 
+export type DiffAgendaSnapshotsOptions = {
+  /** Local calendar day; suppresses «nova»/«removida» for visits due before today. */
+  now?: Date;
+};
+
 export function diffAgendaSnapshots(
   previous: AgendaSnapshotItem[],
-  next: AgendaSnapshotItem[]
+  next: AgendaSnapshotItem[],
+  options?: DiffAgendaSnapshotsOptions
 ): AgendaDiffEvent[] {
+  const now = options?.now;
   const events: AgendaDiffEvent[] = [];
   const prevMap = new Map(previous.filter((p) => !skipAgendaEntity(p.id)).map((p) => [p.id, p]));
   const nextMap = new Map(next.filter((n) => !skipAgendaEntity(n.id)).map((n) => [n.id, n]));
@@ -284,7 +293,9 @@ export function diffAgendaSnapshots(
     if (skipAgendaEntity(item.id)) continue;
     const prev = prevMap.get(item.id);
     if (!prev) {
-      if (!isTaskTerminal(item.status)) {
+      const skipHistoricalNova =
+        now != null && isVisitDueBeforeToday(item.dueAt, now);
+      if (!isTaskTerminal(item.status) && !skipHistoricalNova) {
         events.push({ kind: "nova", id: item.id, ...snapshotToEventFields(item) });
       }
       events.push(...collectNewOnSiteEvents(undefined, item));
@@ -361,7 +372,11 @@ export function diffAgendaSnapshots(
       continue;
     }
 
-    events.push({ kind: "removida", id: item.id, ...snapshotToEventFields(item) });
+    const skipHistoricalRemovida =
+      now != null && isVisitDueBeforeToday(item.dueAt, now);
+    if (!skipHistoricalRemovida) {
+      events.push({ kind: "removida", id: item.id, ...snapshotToEventFields(item) });
+    }
   }
 
   return events;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Menu, Search, Bell } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { resolveWorkspaceMemberId, type AppSessionUser } from "@/lib/auth/session";
+import { isStrictAdminRole, resolveWorkspaceMemberId, type AppSessionUser } from "@/lib/auth/session";
 import type { AppRole } from "@/lib/schemas/auth";
 import { APP_LOGO_PATH } from "@/lib/branding";
 import InAppNotificationBell from "@/components/ui/InAppNotificationBell";
@@ -199,6 +199,7 @@ export default function AdminHeader({
                   <InAppNotificationBell
                     scope={notificationScope}
                     onInvestigate={onInvestigateAgendaNotification}
+                    showSystemAlerts={Boolean(userRole && isStrictAdminRole(userRole))}
                     iconButtonSize={ADMIN_TOOLBAR_ICON_SIZE}
                     iconButtonClassName={ADMIN_TOOLBAR_ICON_CLASS}
                   />

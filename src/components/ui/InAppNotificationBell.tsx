@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAppRouter } from "@/hooks/useAppRouter";
 import { cn } from "@/lib/cn";
-import { Bell, X } from "lucide-react";
+import { Bell, ChevronDown, X } from "lucide-react";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import {
   IN_APP_NOTIFICATIONS_UPDATED_EVENT,
@@ -14,6 +14,7 @@ import {
   type InAppNotificationOpenPanelDetail,
   dispatchOpenTaskFromNotification,
   loadInAppNotifications,
+  clearReadInAppNotifications,
   markAllInAppNotificationsRead,
   markInAppNotificationRead,
   type InAppNotification,
@@ -22,6 +23,8 @@ import {
   type AgendaNotificationFilter,
   filterInAppNotifications,
   groupInAppNotificationsByDay,
+  isAgendaOperationalNotification,
+  partitionAgendaAndSystemNotifications,
 } from "@/lib/agendaNotificationPanel";
 import { IconButton } from "@/components/ui/IconButton";
 import {
@@ -39,6 +42,8 @@ interface InAppNotificationBellProps {
   /** Alinha com outros IconButton do cabeçalho (ex. admin toolbar). */
   iconButtonSize?: "sm" | "md" | "lg";
   iconButtonClassName?: string;
+  /** Alertas SRE colapsáveis (apenas admin estrito). */
+  showSystemAlerts?: boolean;
 }
 
 const FILTER_CHIPS: { id: AgendaNotificationFilter; label: string }[] = [
@@ -55,12 +60,15 @@ export default function InAppNotificationBell({
   onInvestigate,
   iconButtonSize = "md",
   iconButtonClassName,
+  showSystemAlerts = false,
 }: InAppNotificationBellProps) {
   const router = useAppRouter();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [filter, setFilter] = useState<AgendaNotificationFilter>("all");
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const [systemPanelOpen, setSystemPanelOpen] = useState(false);
   const pendingActivateRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -108,19 +116,37 @@ export default function InAppNotificationBell({
 
   useEffect(() => {
     if (!open) return;
-    const interval = window.setInterval(() => refresh(), 60_000);
+    const interval = window.setInterval(() => refresh(), 30_000);
     return () => window.clearInterval(interval);
   }, [open, scope]);
 
   const isTechScope = scope.startsWith("tech_");
   const isAdminScope = scope.startsWith("admin_");
   const useAdminSidebar = isAdminScope;
-  const unreadCount = useMemo(() => items.filter((n) => !n.read).length, [items]);
-
-  const filteredItems = useMemo(
-    () => filterInAppNotifications(items, filter),
-    [items, filter]
+  const unreadCount = useMemo(
+    () => items.filter((n) => !n.read && isAgendaOperationalNotification(n)).length,
+    [items]
   );
+
+  const { systemItems } = useMemo(
+    () => partitionAgendaAndSystemNotifications(items),
+    [items]
+  );
+  const systemUnread = useMemo(
+    () => systemItems.filter((n) => !n.read).length,
+    [systemItems]
+  );
+
+  const hasReadAgendaItems = useMemo(
+    () => items.some((n) => n.read && isAgendaOperationalNotification(n)),
+    [items]
+  );
+
+  const filteredItems = useMemo(() => {
+    let list = filterInAppNotifications(items, filter);
+    if (onlyUnread) list = list.filter((n) => !n.read);
+    return list;
+  }, [items, filter, onlyUnread]);
   const dayGroups = useMemo(
     () => groupInAppNotificationsByDay(filteredItems),
     [filteredItems]
@@ -215,6 +241,14 @@ export default function InAppNotificationBell({
         spacious={useAdminSidebar || isTechScope}
         actionLabel={actionLabel}
         onActivate={() => handleActivate(n)}
+        onMarkRead={
+          !n.read
+            ? () => {
+                markInAppNotificationRead(scope, n.id);
+                setItems(loadInAppNotifications(scope));
+              }
+            : undefined
+        }
       />
     );
   };
@@ -331,15 +365,38 @@ export default function InAppNotificationBell({
                   }))}
                 />
 
-                {unreadCount > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setItems(markAllInAppNotificationsRead(scope))}
-                    className="self-start text-xs font-bold text-info-fg"
+                    onClick={() => setOnlyUnread((v) => !v)}
+                    className={cn(
+                      "min-h-12 rounded-xl border px-3 text-xs font-bold",
+                      onlyUnread
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground"
+                    )}
                   >
-                    Marcar tudo como lido
+                    Só por ler{unreadCount > 0 ? ` (${unreadCount})` : ""}
                   </button>
-                )}
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setItems(markAllInAppNotificationsRead(scope))}
+                      className="min-h-12 rounded-xl px-2 text-xs font-bold text-info-fg"
+                    >
+                      Marcar tudo como lido
+                    </button>
+                  )}
+                  {hasReadAgendaItems && (
+                    <button
+                      type="button"
+                      onClick={() => setItems(clearReadInAppNotifications(scope))}
+                      className="min-h-12 rounded-xl px-2 text-xs font-bold text-muted-foreground"
+                    >
+                      Limpar lidos
+                    </button>
+                  )}
+                </div>
               </div>
 
               {filteredItems.length === 0 ? (
@@ -378,6 +435,44 @@ export default function InAppNotificationBell({
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {showSystemAlerts && systemItems.length > 0 && (
+                <div
+                  className={cn(
+                    "shrink-0 border-t border-border",
+                    useAdminSidebar ? "px-5 py-3 md:px-6" : "px-0 py-2"
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSystemPanelOpen((o) => !o)}
+                    className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl px-2 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground"
+                    aria-expanded={systemPanelOpen}
+                  >
+                    <span>
+                      Sistema
+                      {systemUnread > 0 ? ` · ${systemUnread} por ler` : ""}
+                    </span>
+                    <ChevronDown
+                      className={cn("h-4 w-4 shrink-0 transition-transform", systemPanelOpen && "rotate-180")}
+                      aria-hidden
+                    />
+                  </button>
+                  {systemPanelOpen && (
+                    <ul className="mt-2 space-y-2">
+                      {systemItems.map((n) => (
+                        <li key={n.id}>
+                          <ObservabilityNotificationCard
+                            notification={n}
+                            spacious={useAdminSidebar || isTechScope}
+                            onActivate={() => handleActivate(n)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           </>,

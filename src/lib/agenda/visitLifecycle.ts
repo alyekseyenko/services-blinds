@@ -16,7 +16,8 @@ export type VisitPhaseId =
   | "incompleta"
   | "cancelada"
   | "saiu"
-  | "armazem";
+  | "armazem"
+  | "avaliacao";
 
 export type VisitPhaseToastVariant = "success" | "error" | "warning" | "info";
 
@@ -38,6 +39,7 @@ const PHASE_LABEL_PT: Record<VisitPhaseId, string> = {
   cancelada: "Cancelada",
   saiu: "Saiu da agenda",
   armazem: "Armazém pronto",
+  avaliacao: "Avaliação",
 };
 
 function capTimeline(timeline: AgendaTimelineEntry[]): AgendaTimelineEntry[] {
@@ -78,6 +80,8 @@ function kindToPhase(kind: AgendaDiffKind): VisitPhaseId {
       return "saiu";
     case "armazem_pronto":
       return "armazem";
+    case "avaliacao_cliente":
+      return "avaliacao";
     case "servico_extra":
     case "medicoes_guardadas":
       return "em_curso";
@@ -90,6 +94,7 @@ function phaseToastVariant(phase: VisitPhaseId): VisitPhaseToastVariant {
   switch (phase) {
     case "concluida":
     case "armazem":
+    case "avaliacao":
       return "success";
     case "cancelada":
       return "error";
@@ -200,6 +205,7 @@ export function timelineKindLabelPt(kind: AgendaDiffKind): string {
     armazem_pronto: "Armazém pronto",
     medicoes_guardadas: "Medições guardadas",
     urgente: "Urgente",
+    avaliacao_cliente: "Avaliação do cliente",
   };
   return map[kind] ?? kind;
 }
@@ -214,7 +220,7 @@ export function notificationMatchesFilter(
     case "active":
       return phase === "agendada" || phase === "em_curso" || phase === "atrasada";
     case "done":
-      return phase === "concluida" || phase === "armazem";
+      return phase === "concluida" || phase === "armazem" || phase === "avaliacao";
     case "problems":
       return (
         phase === "incompleta" ||

@@ -1,10 +1,13 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
+  agendaNotificationThreadKey,
+  clearReadInAppNotifications,
   getNotificationScope,
   loadInAppNotifications,
   migrateLegacyInAppNotificationScope,
   partitionInAppNotifications,
   pushOrMergeAgendaInAppNotification,
+  pushOrMergeObservabilityInAppNotification,
   saveInAppNotifications,
 } from "../inAppNotifications";
 
@@ -179,6 +182,83 @@ describe("pushOrMergeAgendaInAppNotification", () => {
     );
     const items = loadInAppNotifications(scope);
     expect(items[0].agendaTimeline?.map((e) => e.kind)).toEqual(["em_curso", "concluida"]);
+  });
+});
+
+describe("pushOrMergeObservabilityInAppNotification", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createStorage());
+    vi.stubGlobal("window", {
+      ...globalThis,
+      dispatchEvent: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  it("mantém um único cartão de observabilidade", () => {
+    const scope = "admin_obs";
+    pushOrMergeObservabilityInAppNotification(scope, {
+      title: "Falha A",
+      description: "Detalhe A",
+      notificationKind: "observability",
+    });
+    pushOrMergeObservabilityInAppNotification(scope, {
+      title: "Falha B",
+      description: "Detalhe B",
+      notificationKind: "observability",
+    });
+    const items = loadInAppNotifications(scope);
+    expect(items.filter((n) => n.notificationKind === "observability")).toHaveLength(1);
+    expect(items[0].title).toBe("Falha B");
+  });
+});
+
+describe("avaliacao_cliente thread", () => {
+  it("usa rating:opportunityId sem colidir com task", () => {
+    expect(
+      agendaNotificationThreadKey({
+        agendaKind: "avaliacao_cliente",
+        opportunityId: "opp-9",
+        taskId: "task-9",
+      })
+    ).toBe("rating:opp-9");
+  });
+});
+
+describe("clearReadInAppNotifications", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createStorage());
+    vi.stubGlobal("window", {
+      ...globalThis,
+      dispatchEvent: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  it("remove só avisos lidos", () => {
+    const scope = "admin_clear";
+    saveInAppNotifications(scope, [
+      {
+        id: "r",
+        title: "Lido",
+        description: "",
+        createdAt: 1,
+        read: true,
+      },
+      {
+        id: "u",
+        title: "Por ler",
+        description: "",
+        createdAt: 2,
+        read: false,
+      },
+    ]);
+    clearReadInAppNotifications(scope);
+    const left = loadInAppNotifications(scope);
+    expect(left).toHaveLength(1);
+    expect(left[0].id).toBe("u");
   });
 });
 

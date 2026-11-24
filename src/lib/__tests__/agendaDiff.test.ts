@@ -255,6 +255,44 @@ describe("diffAgendaSnapshots", () => {
     expect(events[0].kind).toBe("atrasada");
   });
 
+  it("com now, tarefa antiga reentrada não emite nova", () => {
+    const today = new Date("2026-06-20T12:00:00.000Z");
+    const oldDue = "2026-06-17T10:00:00.000Z";
+    const next = [{ id: "1", dueAt: oldDue, status: "AGENDADO", label: "David · NSI 14362" }];
+    const events = diffAgendaSnapshots([], next, { now: today });
+    expect(events.filter((e) => e.kind === "nova")).toHaveLength(0);
+  });
+
+  it("com now, visita antiga que sai da janela não emite removida", () => {
+    const today = new Date("2026-06-20T12:00:00.000Z");
+    const oldDue = "2026-06-17T10:00:00.000Z";
+    const prev = [{ id: "1", dueAt: oldDue, status: "AGENDADO", label: "A" }];
+    const events = diffAgendaSnapshots(prev, [], { now: today });
+    expect(events.filter((e) => e.kind === "removida")).toHaveLength(0);
+  });
+
+  it("com now, visita de hoje continua a emitir nova", () => {
+    const today = new Date("2026-06-20T08:00:00.000Z");
+    today.setHours(10, 0, 0, 0);
+    const dueToday = new Date(today);
+    dueToday.setHours(14, 0, 0, 0);
+    const next = [
+      { id: "1", dueAt: dueToday.toISOString(), status: "AGENDADO", label: "Cliente hoje" },
+    ];
+    const events = diffAgendaSnapshots([], next, { now: today });
+    expect(events.some((e) => e.kind === "nova")).toBe(true);
+  });
+
+  it("não emite atrasada para visita com dueAt antes de hoje", () => {
+    const today = new Date("2026-06-20T18:00:00.000Z");
+    const oldDue = "2026-06-17T10:00:00.000Z";
+    const events = detectLateVisits(
+      [{ id: "1", dueAt: oldDue, status: "AGENDADO", label: "Cliente" }],
+      today.getTime()
+    );
+    expect(events).toHaveLength(0);
+  });
+
   it("formata cancelamento com cliente, NSI e hora", () => {
     const item = buildAgendaSnapshotItem({
       id: "1",

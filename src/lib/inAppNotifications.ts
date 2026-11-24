@@ -39,6 +39,9 @@ export function agendaNotificationThreadKey(entry: {
   opportunityId?: string;
   agendaKind?: AgendaDiffKind;
 }): string | null {
+  if (entry.agendaKind === "avaliacao_cliente" && entry.opportunityId) {
+    return `rating:${entry.opportunityId}`;
+  }
   if (entry.taskId) return `task:${entry.taskId}`;
   if (entry.agendaKind === "armazem_pronto" && entry.opportunityId) {
     return `pipeline:${entry.opportunityId}`;
@@ -305,6 +308,38 @@ export function patchAgendaVisitNumbers(
   notifyInAppListeners(scope);
 }
 
+/** Um único cartão técnico SRE — substitui o anterior em vez de empilhar. */
+export function pushOrMergeObservabilityInAppNotification(
+  scope: string,
+  entry: Omit<InAppNotification, "id" | "createdAt" | "read">
+): InAppNotification[] {
+  const loaded = loadInAppNotifications(scope);
+  const existingIdx = loaded.findIndex((n) => n.notificationKind === "observability");
+  const now = Date.now();
+  const payload: InAppNotification = {
+    ...entry,
+    notificationKind: "observability",
+    id:
+      existingIdx >= 0
+        ? loaded[existingIdx].id
+        : `${now}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: now,
+    read: false,
+  };
+  const cap = notificationCapForScope(scope);
+  if (existingIdx >= 0) {
+    const rest = loaded.filter((_, i) => i !== existingIdx);
+    const items = [payload, ...rest].slice(0, cap);
+    saveInAppNotifications(scope, items);
+    notifyInAppListeners(scope);
+    return items;
+  }
+  const items = [payload, ...loaded].slice(0, cap);
+  saveInAppNotifications(scope, items);
+  notifyInAppListeners(scope);
+  return items;
+}
+
 export function pushInAppNotification(
   scope: string,
   entry: Omit<InAppNotification, "id" | "createdAt" | "read">
@@ -380,6 +415,13 @@ export function pushOrMergeAgendaInAppNotification(
   return items;
 }
 
+export function clearReadInAppNotifications(scope: string): InAppNotification[] {
+  const items = loadInAppNotifications(scope).filter((n) => !n.read);
+  saveInAppNotifications(scope, items);
+  notifyInAppListeners(scope);
+  return items;
+}
+
 export function markAllInAppNotificationsRead(scope: string): InAppNotification[] {
   const items = loadInAppNotifications(scope).map((n) => ({ ...n, read: true }));
   saveInAppNotifications(scope, items);
@@ -397,7 +439,9 @@ export function markInAppNotificationRead(scope: string, id: string): InAppNotif
 }
 
 export function unreadInAppCount(scope: string): number {
-  return loadInAppNotifications(scope).filter((n) => !n.read).length;
+  return loadInAppNotifications(scope).filter(
+    (n) => !n.read && n.notificationKind !== "observability"
+  ).length;
 }
 
 export function partitionInAppNotifications(items: InAppNotification[]): {

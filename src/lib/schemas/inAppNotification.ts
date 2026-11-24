@@ -20,6 +20,7 @@ export const AgendaDiffKindSchema = z.enum([
   "armazem_pronto",
   "medicoes_guardadas",
   "urgente",
+  "avaliacao_cliente",
 ]);
 
 export const OnSiteServiceSnapshotSchema = z.object({

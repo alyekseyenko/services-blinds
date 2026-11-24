@@ -1,5 +1,6 @@
 import type { AgendaDiffEvent, AgendaSnapshotItem } from "@/lib/agenda/diff";
 import { CRM_TASK_STATUS, normalizeTaskStatus } from "@/lib/crm/contract";
+import { isVisitDueBeforeToday } from "@/lib/visits/pendingClosure";
 
 export const DEFAULT_LATE_GRACE_MS = 30 * 60 * 1000;
 const LEDGER_PREFIX = "fieldops_agenda_late_notify_";
@@ -47,9 +48,11 @@ export function detectLateVisits(
   graceMs: number = DEFAULT_LATE_GRACE_MS
 ): AgendaDiffEvent[] {
   const events: AgendaDiffEvent[] = [];
+  const nowDate = new Date(now);
   for (const item of items) {
     if (normalizeTaskStatus(item.status) !== CRM_TASK_STATUS.AGENDADO) continue;
     if (!item.dueAt?.trim()) continue;
+    if (isVisitDueBeforeToday(item.dueAt, nowDate)) continue;
     const dueMs = new Date(item.dueAt).getTime();
     if (Number.isNaN(dueMs)) continue;
     if (dueMs + graceMs >= now) continue;

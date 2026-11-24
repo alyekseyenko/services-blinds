@@ -15,6 +15,7 @@ export function agendaKindToToastType(kind: AgendaDiffKind): ToastType {
     case "servico_extra":
     case "armazem_pronto":
     case "medicoes_guardadas":
+    case "avaliacao_cliente":
       return "success";
     default:
       return "info";
@@ -35,6 +36,7 @@ export function inferAgendaKindFromNotificationTitle(title: string): AgendaDiffK
   if (t.includes("atrasad")) return "atrasada";
   if (t.includes("serviço extra") || t.includes("servico extra")) return "servico_extra";
   if (t.includes("armazém") || t.includes("armazem")) return "armazem_pronto";
+  if (t.includes("avaliação") || t.includes("avaliacao")) return "avaliacao_cliente";
   return undefined;
 }
 

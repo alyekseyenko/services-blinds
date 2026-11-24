@@ -10,7 +10,9 @@ import {
   MapPin,
   Package,
   PlayCircle,
+  Star,
   XCircle,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { InAppNotification } from "@/lib/inAppNotifications";
@@ -41,6 +43,7 @@ type AgendaVisitNotificationCardProps = {
   spacious?: boolean;
   actionLabel: string;
   onActivate: () => void;
+  onMarkRead?: () => void;
 };
 
 function formatRelativeTime(ts: number): string {
@@ -87,6 +90,8 @@ function phaseIcon(phase: VisitPhaseId) {
       return AlertTriangle;
     case "em_curso":
       return PlayCircle;
+    case "avaliacao":
+      return Star;
     default:
       return Clock;
   }
@@ -101,6 +106,7 @@ export function AgendaVisitNotificationCard({
   spacious = false,
   actionLabel,
   onActivate,
+  onMarkRead,
 }: AgendaVisitNotificationCardProps) {
   const [expanded, setExpanded] = useState(false);
   const actionable = Boolean(n.taskId || n.opportunityId || n.href);
@@ -124,28 +130,39 @@ export function AgendaVisitNotificationCard({
   const visibleTimeline = expanded ? timeline : timeline.slice(-3);
   const hiddenCount = timeline.length - visibleTimeline.length;
 
+  const cardLabel =
+    visit?.urgent
+      ? n.read
+        ? "Urgente — já visto"
+        : "Urgente — novo"
+      : n.read
+        ? `${phaseLabel} — já visto`
+        : `${phaseLabel} — novo`;
+
   return (
-    <button
-      type="button"
-      disabled={!actionable}
-      onClick={onActivate}
+    <div
+      role={actionable ? "button" : undefined}
+      tabIndex={actionable ? 0 : undefined}
+      onClick={actionable ? onActivate : undefined}
+      onKeyDown={
+        actionable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onActivate();
+              }
+            }
+          : undefined
+      }
       className={cn(
         "ds-panel flex w-full flex-col border border-l-4 text-left transition-colors",
         visit?.urgent
           ? "border-2 border-danger-solid bg-danger-surface"
           : cn("border-border/90", DS_ACCENT_CLASS[tone]),
-        actionable && "hover:bg-muted/80 active:scale-[0.995]",
+        actionable && "cursor-pointer hover:bg-muted/80 active:scale-[0.995]",
         spacious ? "gap-3 p-4" : "gap-2 p-3"
       )}
-      aria-label={
-        visit?.urgent
-          ? n.read
-            ? "Urgente — já visto"
-            : "Urgente — novo"
-          : n.read
-            ? `${phaseLabel} — já visto`
-            : `${phaseLabel} — novo`
-      }
+      aria-label={cardLabel}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
@@ -162,12 +179,27 @@ export function AgendaVisitNotificationCard({
             {formatRelativeTime(n.createdAt)}
           </span>
         </div>
-        {!n.read && (
-          <span
-            className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[var(--shadow-glow-primary)]"
-            aria-hidden
-          />
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {!n.read && onMarkRead ? (
+            <button
+              type="button"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-info-fg hover:bg-muted active:bg-muted"
+              aria-label="Marcar como lido"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkRead();
+              }}
+            >
+              <Check className="h-5 w-5" aria-hidden />
+            </button>
+          ) : null}
+          {!n.read && (
+            <span
+              className="h-2.5 w-2.5 rounded-full bg-primary shadow-[var(--shadow-glow-primary)]"
+              aria-hidden
+            />
+          )}
+        </div>
       </div>
 
       {(headline || n.title) && (
@@ -282,7 +314,7 @@ export function AgendaVisitNotificationCard({
           <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
         </div>
       )}
-    </button>
+    </div>
   );
 }
 

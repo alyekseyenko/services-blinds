@@ -34,6 +34,7 @@ export function visitPhaseToTone(phase: VisitPhaseId): DesignTone {
   switch (phase) {
     case "concluida":
     case "armazem":
+    case "avaliacao":
       return "success";
     case "cancelada":
       return "danger";

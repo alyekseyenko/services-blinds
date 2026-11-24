@@ -7,7 +7,7 @@ import {
   type ClientRatingNotice,
 } from "@/lib/agenda/clientRatingDiff";
 import { showDesktopAgendaNotification } from "@/lib/agenda/desktopNotifications";
-import { pushInAppNotification } from "@/lib/inAppNotifications";
+import { pushOrMergeAgendaInAppNotification } from "@/lib/inAppNotifications";
 import type { useToast } from "@/components/ui/ToastContext";
 
 const STORAGE_PREFIX = "fieldops_client_ratings_v1_";
@@ -53,14 +53,27 @@ export function useClientRatingNotifications(options: {
         for (const item of fresh) {
           const copy = formatClientRatingNotice(item);
           toastRef.current.info(copy.title, copy.description);
-          const [saved] = pushInAppNotification(scope, {
+          const now = Date.now();
+          const stars = item.rating === 1 ? "1 estrela" : `${item.rating} estrelas`;
+          const detail = [stars, item.feedback?.trim()].filter(Boolean).join(" · ");
+          const list = pushOrMergeAgendaInAppNotification(scope, {
             title: copy.title,
             description: copy.description,
             taskId: item.taskId,
             dueAtIso: item.dueAt,
             opportunityId: item.opportunityId,
             notificationKind: "agenda",
+            agendaKind: "avaliacao_cliente",
+            visit: {
+              clientName: item.clientName,
+              serviceNumber: item.serviceNumber,
+              nsi: item.nsi,
+              technicianName: item.technicianName,
+              dueAtIso: item.dueAt,
+            },
+            agendaTimeline: [{ kind: "avaliacao_cliente", at: now, detail: detail || undefined }],
           });
+          const saved = list[0];
           if (saved) void showDesktopAgendaNotification(scope, saved);
         }
       } catch {

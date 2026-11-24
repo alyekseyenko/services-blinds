@@ -296,7 +296,7 @@ export function useAgendaNotifications({
         return;
       }
 
-      const rawEvents = diffAgendaSnapshots(previous, items);
+      const rawEvents = diffAgendaSnapshots(previous, items, { now: new Date() });
       emitAgendaEvents(scope, rawEvents, toast);
 
       if (pipelineItems) {

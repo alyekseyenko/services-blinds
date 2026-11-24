@@ -8,6 +8,25 @@ import {
 
 export type AgendaNotificationFilter = "all" | "active" | "done" | "problems";
 
+export function isAgendaOperationalNotification(n: InAppNotification): boolean {
+  return n.notificationKind !== "observability";
+}
+
+export function partitionAgendaAndSystemNotifications(items: InAppNotification[]): {
+  agendaItems: InAppNotification[];
+  systemItems: InAppNotification[];
+} {
+  const agendaItems: InAppNotification[] = [];
+  const systemItems: InAppNotification[] = [];
+  for (const n of items) {
+    if (n.notificationKind === "observability") systemItems.push(n);
+    else agendaItems.push(n);
+  }
+  agendaItems.sort((a, b) => b.createdAt - a.createdAt);
+  systemItems.sort((a, b) => b.createdAt - a.createdAt);
+  return { agendaItems, systemItems };
+}
+
 export function resolveNotificationTimeline(n: InAppNotification): AgendaTimelineEntry[] {
   if (n.agendaTimeline?.length) return n.agendaTimeline;
   if (n.agendaProgress?.length) {
@@ -21,9 +40,9 @@ export function filterInAppNotifications(
   items: InAppNotification[],
   filter: AgendaNotificationFilter
 ): InAppNotification[] {
-  if (filter === "all") return items;
-  return items.filter((n) => {
-    if (n.notificationKind === "observability") return true;
+  const operational = items.filter(isAgendaOperationalNotification);
+  if (filter === "all") return operational;
+  return operational.filter((n) => {
     const phase = resolveVisitPhase(resolveNotificationTimeline(n)).phase;
     return notificationMatchesFilter(phase, filter);
   });

@@ -60,7 +60,7 @@ export function useTechnicianAgendaData(params: {
     mutate: mutateTasks,
     lastSuccessAt: agendaLastSuccessAt,
     isStale: agendaDataStale,
-  } = useSync<any[]>(endpoint, { revalidateOnFocus: false, refreshInterval: 60_000 });
+  } = useSync<any[]>(endpoint, { revalidateOnFocus: true, refreshInterval: 30_000 });
   const rawTasks = rawTasksData ?? EMPTY_TASK_LIST;
 
   const {

@@ -45,6 +45,10 @@ export type AdminClientSearchHit = {
   displayName: string;
   email?: string;
   phone?: string;
+  nif?: string;
+  addressCity?: string;
+  addressPostcode?: string;
+  addressStreet1?: string;
 };
 
 export const AdminPersonMoradaSchema = z.object({

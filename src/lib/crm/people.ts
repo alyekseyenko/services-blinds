@@ -35,24 +35,56 @@ function buildPeopleSearchOrFilters(trimmed: string, pattern: string): Record<st
     const tail = digits.length > 9 ? digits.slice(-9) : digits;
     or.push({ phones: { primaryPhoneNumber: { ilike: `%${tail}%` } } });
   }
+  if (/^\d{9}$/.test(digits)) {
+    or.push({ nif: { eq: digits } });
+  }
   return or;
 }
 
-function nodeToAdminClientHit(node: {
+const PERSON_ADMIN_SEARCH_FIELDS = `
+  id
+  name { firstName lastName }
+  emails { primaryEmail }
+  phones { primaryPhoneNumber primaryPhoneCallingCode }
+  nif
+  morada {
+    addressStreet1
+    addressCity
+    addressPostcode
+  }
+`;
+
+type PersonAdminSearchNode = {
   id: string;
   name?: { firstName?: string | null; lastName?: string | null };
   emails?: { primaryEmail?: string | null };
-  phones?: { primaryPhoneNumber?: string | null; primaryPhoneCallingCode?: string | null };
-}): AdminClientSearchHit {
+  phones?: {
+    primaryPhoneNumber?: string | null;
+    primaryPhoneCallingCode?: string | null;
+  };
+  nif?: string | null;
+  morada?: {
+    addressStreet1?: string | null;
+    addressCity?: string | null;
+    addressPostcode?: string | null;
+  } | null;
+};
+
+function nodeToAdminClientHit(node: PersonAdminSearchNode): AdminClientSearchHit {
   const calling = node.phones?.primaryPhoneCallingCode?.trim() || "";
   const number = node.phones?.primaryPhoneNumber?.trim() || "";
   const phone =
     number && calling ? `${calling} ${number}`.trim() : number || undefined;
+  const nif = node.nif?.trim() || undefined;
   return {
     id: node.id,
     displayName: formatPersonName(node.name),
     email: node.emails?.primaryEmail || undefined,
     phone,
+    nif,
+    addressCity: node.morada?.addressCity?.trim() || undefined,
+    addressPostcode: node.morada?.addressPostcode?.trim() || undefined,
+    addressStreet1: node.morada?.addressStreet1?.trim() || undefined,
   };
 }
 
@@ -69,10 +101,7 @@ export async function findPersonByEmailForAdmin(
       people(filter: $filter, first: 1) {
         edges {
           node {
-            id
-            name { firstName lastName }
-            emails { primaryEmail }
-            phones { primaryPhoneNumber primaryPhoneCallingCode }
+            ${PERSON_ADMIN_SEARCH_FIELDS}
           }
         }
       }
@@ -100,10 +129,7 @@ export async function findPersonByPhoneForAdmin(
       people(filter: $filter, first: 5) {
         edges {
           node {
-            id
-            name { firstName lastName }
-            emails { primaryEmail }
-            phones { primaryPhoneNumber primaryPhoneCallingCode }
+            ${PERSON_ADMIN_SEARCH_FIELDS}
           }
         }
       }
@@ -225,24 +251,14 @@ export async function searchPeopleForAdmin(
 
   const data = await crmFetch<{
     people: {
-      edges: Array<{
-        node?: {
-          id: string;
-          name?: { firstName?: string | null; lastName?: string | null };
-          emails?: { primaryEmail?: string | null };
-          phones?: { primaryPhoneNumber?: string | null };
-        };
-      }>;
+      edges: Array<{ node?: PersonAdminSearchNode }>;
     };
   }>(
     `query searchPeopleForAdmin($filter: PersonFilterInput!, $first: Int!) {
       people(filter: $filter, first: $first, orderBy: { updatedAt: DescNullsLast }) {
         edges {
           node {
-            id
-            name { firstName lastName }
-            emails { primaryEmail }
-            phones { primaryPhoneNumber }
+            ${PERSON_ADMIN_SEARCH_FIELDS}
           }
         }
       }
@@ -268,24 +284,14 @@ export async function searchPeopleForAdmin(
 export async function fetchPersonByIdForAdmin(personId: string): Promise<AdminClientSearchHit | null> {
   const data = await crmFetch<{
     people: {
-      edges: Array<{
-        node?: {
-          id: string;
-          name?: { firstName?: string | null; lastName?: string | null };
-          emails?: { primaryEmail?: string | null };
-          phones?: { primaryPhoneNumber?: string | null };
-        };
-      }>;
+      edges: Array<{ node?: PersonAdminSearchNode }>;
     };
   }>(
     `query personById($filter: PersonFilterInput!) {
       people(filter: $filter, first: 1) {
         edges {
           node {
-            id
-            name { firstName lastName }
-            emails { primaryEmail }
-            phones { primaryPhoneNumber }
+            ${PERSON_ADMIN_SEARCH_FIELDS}
           }
         }
       }
@@ -295,12 +301,7 @@ export async function fetchPersonByIdForAdmin(personId: string): Promise<AdminCl
 
   const node = data.people.edges[0]?.node;
   if (!node?.id) return null;
-  return {
-    id: node.id,
-    displayName: formatPersonName(node.name),
-    email: node.emails?.primaryEmail || undefined,
-    phone: node.phones?.primaryPhoneNumber || undefined,
-  };
+  return nodeToAdminClientHit(node);
 }
 
 export async function fetchPersonClientAddress(

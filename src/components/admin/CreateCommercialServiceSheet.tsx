@@ -14,6 +14,7 @@ import type {
   AdminServiceAddress,
 } from "@/lib/schemas/adminCommercialService";
 import { ADMIN_COMMERCIAL_SERVICE_OPTIONS } from "@/lib/adminCommercialServiceOptions";
+import { formatAdminClientSearchSubtitle } from "@/lib/admin/clientSearchHitDisplay";
 import {
   createAdminCommercialServiceAction,
   getAdminClientServiceAddressAction,
@@ -285,9 +286,9 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                   <User className="h-4 w-4 shrink-0 text-primary-ink" aria-hidden />
                   {selectedClient.displayName}
                 </p>
-                {selectedClient.email ? (
-                  <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
-                    {selectedClient.email}
+                {formatAdminClientSearchSubtitle(selectedClient) ? (
+                  <p className="mt-1 text-xs font-semibold leading-snug text-muted-foreground">
+                    {formatAdminClientSearchSubtitle(selectedClient)}
                   </p>
                 ) : null}
               </div>
@@ -325,7 +326,7 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
                     setClientQuery(e.target.value);
                     clearError("client");
                   }}
-                  placeholder="Nome ou e-mail do cliente…"
+                  placeholder="Nome, e-mail, telefone ou NIF…"
                   className={cn(
                     fieldClass,
                     "pl-10",
@@ -344,20 +345,29 @@ export default function CreateCommercialServiceSheet({ open, onClose, onCreated 
               </div>
               {clientHits.length > 0 ? (
                 <ul className="max-h-48 overflow-y-auto rounded-xl border border-border bg-card">
-                  {clientHits.map((hit) => (
+                  {clientHits.map((hit) => {
+                    const subtitle = formatAdminClientSearchSubtitle(hit);
+                    return (
                     <li key={hit.id}>
                       <button
                         type="button"
                         onClick={() => void pickClient(hit)}
-                        className="flex w-full flex-col gap-0.5 px-3 py-3 text-left hover:bg-muted"
+                        className="flex w-full min-h-12 flex-col gap-0.5 px-3 py-3 text-left hover:bg-muted"
                       >
                         <span className="text-sm font-bold text-foreground">{hit.displayName}</span>
-                        {hit.email ? (
-                          <span className="text-xs text-muted-foreground">{hit.email}</span>
-                        ) : null}
+                        {subtitle ? (
+                          <span className="text-xs font-semibold leading-snug text-muted-foreground">
+                            {subtitle}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            Sem telefone, e-mail nem morada no CRM
+                          </span>
+                        )}
                       </button>
                     </li>
-                  ))}
+                  );
+                  })}
                 </ul>
               ) : null}
               {clientQuery.trim().length >= 2 && !clientLoading && clientHits.length === 0 ? (

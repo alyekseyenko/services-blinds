@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageCircle, Phone } from "lucide-react";
-import { toTelHref } from "@/lib/crm/phones";
+import { toTelHref, uniquePhoneList } from "@/lib/crm/phones";
 import { toWhatsAppHref } from "@/lib/phoneWhatsApp";
 
 interface ContactPhoneListProps {
@@ -17,7 +17,7 @@ export default function ContactPhoneList({
   compact = false,
   className = "",
 }: ContactPhoneListProps) {
-  const normalizedPhones = (phones ?? []).filter(Boolean);
+  const normalizedPhones = uniquePhoneList(phones);
 
   if (normalizedPhones.length === 0) {
     return <p className="text-foreground font-bold">{emptyLabel}</p>;

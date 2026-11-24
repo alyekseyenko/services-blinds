@@ -11,6 +11,7 @@ import {
   isTaskInProgress,
 } from "@/lib/crm/contract";
 import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
+import { uniquePhoneList } from "@/lib/crm/phones";
 
 export interface MapMarkerOpportunity {
   id?: string;
@@ -87,10 +88,10 @@ export function MapMarkerInfoWindow({
     marker.serviceNumber ? `N.º ${marker.serviceNumber}` : null,
     marker.nsi && marker.nsi !== "N/A" ? `NSI ${marker.nsi}` : null,
   ].filter((value): value is string => Boolean(value));
-  const contactPhones = [
-    ...(marker.pointOfContactPhones?.filter(Boolean) ?? []),
-    ...(marker.pointOfContactPhone ? [marker.pointOfContactPhone] : []),
-  ];
+  const contactPhones = uniquePhoneList([
+    ...(marker.pointOfContactPhones ?? []),
+    marker.pointOfContactPhone,
+  ]);
   const nifLabel = formatClientNifDisplay(marker.clientNif);
   const canReschedule =
     Boolean(marker.hasScheduledTask) &&

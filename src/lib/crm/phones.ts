@@ -19,6 +19,28 @@ export function normalizePhoneDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+/** Same PT number even if one entry has +351 and the other does not. */
+export function phoneIdentityKey(raw: string): string {
+  let digits = normalizePhoneDigits(raw);
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("351") && digits.length > 9) digits = digits.slice(3);
+  return digits;
+}
+
+export function uniquePhoneList(phones: Array<string | null | undefined>): string[] {
+  const results: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of phones) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    const key = phoneIdentityKey(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    results.push(trimmed);
+  }
+  return results;
+}
+
 export function formatPhoneEntry(
   number?: string | null,
   callingCode?: string | null
@@ -35,14 +57,11 @@ export function extractPhonesFromTwenty(
   const parsed = TwentyPhonesSchema.safeParse(phones);
   if (!parsed.success) return [];
 
-  const results: string[] = [];
-  const seen = new Set<string>();
+  const collected: string[] = [];
 
   const addPhone = (value?: string | null) => {
     const formatted = value?.trim();
-    if (!formatted || seen.has(formatted)) return;
-    seen.add(formatted);
-    results.push(formatted);
+    if (formatted) collected.push(formatted);
   };
 
   addPhone(
@@ -56,7 +75,7 @@ export function extractPhonesFromTwenty(
     addPhone(formatPhoneEntry(phone.number, phone.callingCode));
   }
 
-  return results;
+  return uniquePhoneList(collected);
 }
 
 export function getPrimaryPhone(phones: string[]): string | null {

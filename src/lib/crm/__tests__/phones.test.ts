@@ -4,6 +4,7 @@ import {
   formatPhoneEntry,
   getPrimaryPhone,
   toTelHref,
+  uniquePhoneList,
 } from "../phones";
 
 describe("phones helpers", () => {
@@ -24,6 +25,12 @@ describe("phones helpers", () => {
   it("returns empty list when phones are missing", () => {
     expect(extractPhonesFromTwenty(null)).toEqual([]);
     expect(extractPhonesFromTwenty(undefined)).toEqual([]);
+  });
+
+  it("uniquePhoneList junta lista e telefone principal sem repetir", () => {
+    expect(
+      uniquePhoneList(["+351 966225197", "+351 966225197", "966225197"])
+    ).toEqual(["+351 966225197"]);
   });
 
   it("builds tel links without spaces", () => {

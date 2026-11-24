@@ -27,10 +27,12 @@ export function phoneIdentityKey(raw: string): string {
   return digits;
 }
 
-export function uniquePhoneList(phones: Array<string | null | undefined>): string[] {
+export function uniquePhoneList(
+  phones?: Array<string | null | undefined> | null
+): string[] {
   const results: string[] = [];
   const seen = new Set<string>();
-  for (const raw of phones) {
+  for (const raw of phones ?? []) {
     const trimmed = raw?.trim();
     if (!trimmed) continue;
     const key = phoneIdentityKey(trimmed);

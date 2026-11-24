@@ -30,6 +30,9 @@ import { useTechnicianAgendaData } from "@/hooks/dashboard/useTechnicianAgendaDa
 import { useTechnicianAgendaNotifications } from "@/hooks/dashboard/useTechnicianAgendaNotifications";
 import { useTechnicianLocationState } from "@/hooks/dashboard/useTechnicianLocationState";
 import { useTechnicianViewNavigation } from "@/hooks/dashboard/useTechnicianViewNavigation";
+import { useAgendaNotificationDeepLink } from "@/hooks/useAgendaNotificationDeepLink";
+import { useAgendaNotificationClickMessage } from "@/hooks/useAgendaNotificationClickMessage";
+import type { InAppNotificationOpenTaskDetail } from "@/lib/inAppNotifications";
 
 const TaskDetailsDrawer = dynamic(
   () => import("@/components/dashboard/TaskDetailsDrawer"),
@@ -108,6 +111,34 @@ export default function Dashboard() {
     setMapFitNonce: nav.setMapFitNonce,
     setSelectedTask,
     refreshTasksFromServer: agenda.refreshTasksFromServer,
+  });
+
+  const openAgendaFromDesktopNotify = useCallback(
+    (detail: InAppNotificationOpenTaskDetail) => {
+      openAgendaNotificationOnMap({
+        id: "",
+        title: "",
+        description: "",
+        createdAt: Date.now(),
+        read: true,
+        taskId: detail.taskId,
+        opportunityId: detail.opportunityId,
+        dueAtIso: detail.dueAtIso,
+      });
+    },
+    [openAgendaNotificationOnMap]
+  );
+
+  const techDeepLinkReady = Boolean(userId) && !agenda.loading && agenda.rawTasksData !== undefined;
+
+  useAgendaNotificationDeepLink({
+    ready: techDeepLinkReady,
+    onOpen: openAgendaFromDesktopNotify,
+  });
+
+  useAgendaNotificationClickMessage({
+    scope: techNotificationScope,
+    onOpenTask: openAgendaFromDesktopNotify,
   });
 
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;

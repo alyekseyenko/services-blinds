@@ -20,6 +20,9 @@ import { isPortaAmerica, lineDimensionMode, storedWidthHeightMm } from "@/lib/me
 export type MeasurementSheetHeaderInput = {
   opportunityId: string;
   clientName: string;
+  clientNif?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   nsi?: string;
   serviceNumber?: string;
   address: string;

@@ -14,6 +14,8 @@ import {
   type RepairPaymentMethodId,
   type RepairPaymentNote,
 } from "@/lib/visits/repairPayment";
+import { parseRepairPaymentAmountExVat } from "@/lib/visits/repairPaymentAmount";
+import type { useRepairPaymentDrawerState } from "@/components/dashboard/drawer/useRepairPaymentDrawerState";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { hapticConfirmAfterAsync, hapticTap } from "@/lib/haptics";
@@ -21,6 +23,7 @@ import { cueClick } from "@/lib/feedbackCue";
 import type { VisitService } from "@/lib/schemas";
 import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { db } from "@/lib/db";
 
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
 
@@ -45,8 +48,7 @@ export function useTaskDrawerVisitActions(params: {
   measurementOppId?: string;
   setActiveTab: (tab: "info" | "measurements") => void;
   visitServices: VisitService[];
-  repairPayments: Record<string, RepairPaymentMethodId>;
-  repairPaymentDetails: Record<string, string>;
+  repairPayment: ReturnType<typeof useRepairPaymentDrawerState>;
   statusAction: string;
   reason: string;
   reasonPreset: string;
@@ -70,8 +72,7 @@ export function useTaskDrawerVisitActions(params: {
     measurementOppId,
     setActiveTab,
     visitServices,
-    repairPayments,
-    repairPaymentDetails,
+    repairPayment,
     statusAction,
     reason,
     reasonPreset,
@@ -143,6 +144,14 @@ export function useTaskDrawerVisitActions(params: {
   }, [enqueueStatusUpdate, mutateTasks, selectedTask, setSelectedTask, toast]);
 
   const handleStatusUpdate = useCallback(async () => {
+    const {
+      repairPayments,
+      repairPaymentDetails,
+      repairPaymentAmounts,
+      repairPaymentAmountConfirmed,
+      repairPaymentAmountRevisedFrom,
+      repairPaymentAmountLocked,
+    } = repairPayment;
     const allowWithoutArrival = statusAction === "Cancelado";
     if (needsArrivalCheckIn && !allowWithoutArrival) {
       promptArrivalCheckIn("Antes de fechar a visita, registe que chegou ao local.");
@@ -151,17 +160,37 @@ export function useTaskDrawerVisitActions(params: {
 
     if (statusAction === "Concluído") {
       if (showMeasurementsTab) {
+        const oppId = measurementOppId || selectedTask.opportunityId;
+        const draftKey = getMeasurementsDraftKey(selectedTask.id, oppId);
         const draftStr =
-          typeof window !== "undefined"
-            ? localStorage.getItem(
-                getMeasurementsDraftKey(selectedTask.id, measurementOppId || selectedTask.opportunityId)
-              )
-            : null;
+          typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+        const draftSaved =
+          typeof window !== "undefined" && localStorage.getItem(`${draftKey}_saved`) === "true";
 
-        if (!hasValidMeasurements(selectedTask?.report, draftStr)) {
+        let hasQueuedMeasurements = false;
+        if (typeof window !== "undefined") {
+          const pending = await db.syncQueue
+            .where("taskId")
+            .equals(selectedTask.id)
+            .filter(
+              (i) =>
+                i.action === "SAVE_MEASUREMENTS" &&
+                (i.status === "pending" || i.status === "failed") &&
+                String(i.payload?.opportunityId ?? "") === oppId
+            )
+            .count();
+          hasQueuedMeasurements = pending > 0;
+        }
+
+        const measurementsReady =
+          hasValidMeasurements(selectedTask?.report, draftStr) ||
+          draftSaved ||
+          hasQueuedMeasurements;
+
+        if (!measurementsReady) {
           toast.error(
             "Medições Obrigatórias",
-            "Este serviço é de Tirar Medidas. É estritamente obrigatório preencher e guardar as medidas (Largura x Altura) na aba 'Medições' antes de concluir a visita."
+            "Este serviço é de Tirar Medidas. É estritamente obrigatório preencher e guardar as medidas na aba «Medições» antes de concluir a visita."
           );
           setActiveTab("measurements");
           return;
@@ -199,6 +228,20 @@ export function useTaskDrawerVisitActions(params: {
       return;
     }
 
+    if (statusAction === "Concluído") {
+      for (const service of repairsNeedingPayment(visitServices)) {
+        const raw = repairPaymentAmounts[service.opportunityId] ?? "";
+        const parsed = parseRepairPaymentAmountExVat(raw);
+        if (parsed != null && !repairPaymentAmountLocked[service.opportunityId]) {
+          toast.warning(
+            "Confirme o valor",
+            "Toque em «Confirmar valor» ou apague o montante antes de concluir a visita."
+          );
+          return;
+        }
+      }
+    }
+
     const paymentNotes: RepairPaymentNote[] =
       statusAction === "Concluído"
         ? repairsNeedingPayment(visitServices).flatMap((service) => {
@@ -206,7 +249,17 @@ export function useTaskDrawerVisitActions(params: {
             if (!isRepairPaymentComplete(method, repairPaymentDetails[service.opportunityId])) return [];
             const detail =
               method === "outros" ? repairPaymentDetails[service.opportunityId]?.trim() : undefined;
-            return [{ opportunityId: service.opportunityId, method, ...(detail ? { detail } : {}) }];
+            const amountExVat = repairPaymentAmountConfirmed[service.opportunityId];
+            const revisedFrom = repairPaymentAmountRevisedFrom[service.opportunityId];
+            return [
+              {
+                opportunityId: service.opportunityId,
+                method,
+                ...(detail ? { detail } : {}),
+                ...(amountExVat != null && amountExVat > 0 ? { amountExVatEuros: amountExVat } : {}),
+                ...(revisedFrom != null && revisedFrom > 0 ? { amountRevisedFromExVatEuros: revisedFrom } : {}),
+              },
+            ];
           })
         : [];
 
@@ -298,8 +351,7 @@ export function useTaskDrawerVisitActions(params: {
     promptArrivalCheckIn,
     reason,
     reasonPreset,
-    repairPaymentDetails,
-    repairPayments,
+    repairPayment,
     selectedTask,
     setActiveTab,
     setReason,

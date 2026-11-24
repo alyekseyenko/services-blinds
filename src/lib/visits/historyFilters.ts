@@ -172,6 +172,8 @@ export function historyFilterQuery(params: {
   from?: string | null;
   to?: string | null;
   outcomes?: readonly MapHistoryOutcome[];
+  q?: string | null;
+  technician?: string | null;
 }): string {
   const search = new URLSearchParams();
   if (params.page && params.page > 1) search.set("page", String(params.page));
@@ -182,6 +184,10 @@ export function historyFilterQuery(params: {
   if (params.outcomes && params.outcomes.length > 0) {
     search.set("outcomes", [...params.outcomes].join(","));
   }
+  const q = params.q?.trim();
+  if (q) search.set("q", q);
+  const tech = params.technician?.trim();
+  if (tech && tech !== "all") search.set("technician", tech);
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }

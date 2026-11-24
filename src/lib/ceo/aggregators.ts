@@ -286,6 +286,7 @@ export type CeoPipelineAndFeedbackResult = {
     rating: number;
     feedback?: string;
     date: string;
+    sortAt: string;
   }>;
 };
 
@@ -318,17 +319,15 @@ export function computeCeoPipelineAndFeedback(filteredOpps: OppNode[]): CeoPipel
     if (clientRating !== null || clientFeedback) {
       const updatedAt = node.updatedAt as string | undefined;
       const createdAt = node.createdAt as string | undefined;
+      const sortAt = updatedAt || createdAt || "";
       recentFeedback.push({
         id: String(node.id),
         clientName: String(node.name || "Cliente"),
         nsi: node.nsi != null ? String(node.nsi) : undefined,
         rating: clientRating ?? 0,
         feedback: clientFeedback || undefined,
-        date: updatedAt
-          ? new Date(updatedAt).toLocaleDateString("pt-PT")
-          : createdAt
-            ? new Date(createdAt).toLocaleDateString("pt-PT")
-            : "Recent",
+        date: sortAt ? new Date(sortAt).toLocaleDateString("pt-PT") : "Recent",
+        sortAt,
       });
     }
   });

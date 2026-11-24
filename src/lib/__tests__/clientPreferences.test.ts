@@ -1,4 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
+
+vi.mock("@/lib/db", () => ({
+  clearOfflineUserData: vi.fn(() => Promise.resolve()),
+}));
+
 import {
   CLIENT_PREF_KEYS,
   PWA_INSTALL_DISMISS_COOLDOWN_MS,
@@ -49,7 +54,6 @@ describe("clientPreferences", () => {
       }),
       navigator: { standalone: false },
     });
-    vi.restoreAllMocks();
   });
 
   it("preserves opt-in keys across logout cleanup", () => {

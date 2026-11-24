@@ -1,6 +1,7 @@
 import {
   CRM_STAGES,
   STAGE_GROUPS,
+  isNeedsSchedulingStage,
   isRemediationStage,
   isTaskBlockingSchedule,
   isTaskCompleted,
@@ -14,6 +15,8 @@ import {
   matchesTechnicianFilter,
 } from "@/lib/admin/mapFilterConfig";
 import { isOpportunityPendingTechnicianClosure } from "@/lib/visitPendingClosure";
+import { isOverdueScheduledToday } from "@/lib/admin/homeAttentionStats";
+import { isMissingGps } from "@/lib/geocodeQueue";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 import { resolveCalendarEventEnd } from "@/lib/visits/calendarVisitSpan";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
@@ -28,6 +31,8 @@ export interface MapFilterOptions {
   historyItems?: Opportunity[];
   /** When true, only visits active in CRM with due date before today (pending technician closure). */
   pendingClosureOnly?: boolean;
+  overdueTodayOnly?: boolean;
+  withoutGpsOnly?: boolean;
 }
 
 function dedupeOpportunities(items: Opportunity[]): Opportunity[] {
@@ -80,6 +85,8 @@ export function filterMapOpportunities(
     historyOutcomes = [],
     historyItems = [],
     pendingClosureOnly = false,
+    overdueTodayOnly = false,
+    withoutGpsOnly = false,
   } = options;
 
   let filtered = opportunities.map((opp) => {
@@ -129,13 +136,21 @@ export function filterMapOpportunities(
     filtered = filtered.filter((opp) => citiesMatch(opp.addressCity || "Other Zones", cityFilter));
   }
 
-  filtered = filtered.filter(
-    (opp) =>
-      matchesServiceTypeFilters(opp, serviceTypeFilters) &&
-      matchesStallFilter(opp, stallFilter) &&
-      matchesTechnicianFilter(opp, technicianFilter) &&
-      (!pendingClosureOnly || isOpportunityPendingTechnicianClosure(opp))
-  );
+  filtered = filtered.filter((opp) => {
+    if (!matchesServiceTypeFilters(opp, serviceTypeFilters)) return false;
+    if (!matchesStallFilter(opp, stallFilter)) return false;
+    if (!matchesTechnicianFilter(opp, technicianFilter)) return false;
+    if (pendingClosureOnly && !isOpportunityPendingTechnicianClosure(opp)) return false;
+    if (overdueTodayOnly && !isOverdueScheduledToday(opp)) return false;
+    if (withoutGpsOnly) {
+      const unscheduled =
+        isNeedsSchedulingStage(opp.stage) && !opp.hasScheduledTask;
+      if (!unscheduled || !isMissingGps(opp.coordinates)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const historyPins = filterHistoryPins(historyItems, {
     cityFilter,

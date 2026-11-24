@@ -61,6 +61,37 @@ describe("repairPayment", () => {
     ).toBe("Pagamento: Outros — Cliente enganou-se no tipo de serviço");
   });
 
+  it("inclui valor, IVA e total quando há montante", () => {
+    expect(
+      repairPaymentNoteBody({ method: "tpa_local", amountExVatEuros: 100 })
+    ).toBe(
+      [
+        "Pagamento: TPA no local",
+        "Valor (sem IVA): 100,00 €",
+        "IVA (23%): 23,00 €",
+        "Total: 123,00 €",
+        "Cópia de segurança: o montante fica registado nesta nota, mesmo que o campo Montante no CRM falhe ou seja alterado depois.",
+      ].join("\n")
+    );
+  });
+
+  it("regista revisão do valor confirmado na nota", () => {
+    expect(
+      repairPaymentNoteBody({
+        method: "tpa_local",
+        amountExVatEuros: 120,
+        amountRevisedFromExVatEuros: 100,
+      })
+    ).toContain("Valor revisto:");
+    expect(
+      repairPaymentNoteBody({
+        method: "tpa_local",
+        amountExVatEuros: 120,
+        amountRevisedFromExVatEuros: 100,
+      })
+    ).toContain("editado e confirmado para 120,00 €");
+  });
+
   it("não pede pagamento outra vez se o extra já ficou pago no local", () => {
     expect(
       repairsNeedingPayment([
@@ -88,6 +119,9 @@ describe("repairPayment", () => {
     );
     expect(extraRepairPaymentNoteBody("outros", "Não era reparação paga")).toBe(
       "Pagamento do serviço extra (feito no local): Outros — Não era reparação paga."
+    );
+    expect(extraRepairPaymentNoteBody("tpa_local", undefined, { amountExVatEuros: 100 })).toContain(
+      "Total: 123,00 €"
     );
     expect(extraServiceNeedsPaymentNow("REPARACAO", "now")).toBe(true);
     expect(extraServiceNeedsPaymentNow("REPARACAO", "later")).toBe(false);

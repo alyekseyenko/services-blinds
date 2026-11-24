@@ -13,6 +13,7 @@ import {
 import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
 import { CRM_ADDRESS_GRAPHQL_FIELDS } from "./contract";
 import { formatServiceNumber } from "./serviceNumber";
+import { extractPhonesFromTwenty, getPrimaryPhone } from "./phones";
 import { isMeasurementsDbConfigured } from "@/lib/measurements/db/client";
 import { processMeasurementsOutboxBatch } from "@/lib/measurements/processOutbox";
 import {
@@ -66,6 +67,9 @@ async function resolveMeasurementsPayloadFromCrm(
 
 type OppMeasurementContext = {
   clientName: string;
+  clientNif?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   nsi?: string;
   serviceNumber?: string;
   address: string;
@@ -93,6 +97,13 @@ async function fetchOpportunityMeasurementContext(
             }
             pointOfContact {
               name { firstName lastName }
+              nif
+              emails { primaryEmail }
+              phones {
+                primaryPhoneNumber
+                primaryPhoneCallingCode
+                additionalPhones { number callingCode }
+              }
             }
             taskTargets {
               edges {
@@ -121,10 +132,17 @@ async function fetchOpportunityMeasurementContext(
 
   const contact = node.pointOfContact as {
     name?: { firstName?: string; lastName?: string };
+    nif?: string | null;
+    emails?: { primaryEmail?: string | null };
+    phones?: Parameters<typeof extractPhonesFromTwenty>[0];
   } | undefined;
   const clientName =
     [contact?.name?.firstName, contact?.name?.lastName].filter(Boolean).join(" ").trim() ||
     String(node.name || "Cliente");
+  const clientPhones = extractPhonesFromTwenty(contact?.phones);
+  const clientPhone = getPrimaryPhone(clientPhones) ?? undefined;
+  const clientEmail = contact?.emails?.primaryEmail?.trim() || undefined;
+  const clientNif = contact?.nif?.trim() || undefined;
 
   const task = pickTaskForMeasurement(
     listOpportunityTasksFromTargets(
@@ -135,6 +153,9 @@ async function fetchOpportunityMeasurementContext(
 
   return {
     clientName,
+    clientNif,
+    clientPhone,
+    clientEmail,
     nsi: node.nsi ? String(node.nsi) : undefined,
     serviceNumber: formatServiceNumber(node.numeroDeServico),
     address: formatServiceAddress(
@@ -220,14 +241,29 @@ export async function fetchMeasurementsPayloadForOpportunity(
   return resolveMeasurementsPayloadFromCrm(opportunityId, notes);
 }
 
+function sheetNeedsCrmEnrichment(sheet: MeasurementSheet): boolean {
+  if (!sheet.opportunityId) return false;
+  if (!sheet.serviceNumber?.trim()) return true;
+  if (!sheet.clientNif?.trim() || !sheet.clientPhone?.trim() || !sheet.clientEmail?.trim()) {
+    return true;
+  }
+  return false;
+}
+
 export async function attachOpportunityServiceNumber(
   sheet: MeasurementSheet
 ): Promise<MeasurementSheet> {
-  if (sheet.serviceNumber || !sheet.opportunityId) return sheet;
+  if (!sheetNeedsCrmEnrichment(sheet)) return sheet;
   try {
     const ctx = await fetchOpportunityMeasurementContext(sheet.opportunityId);
-    if (!ctx?.serviceNumber) return sheet;
-    return { ...sheet, serviceNumber: ctx.serviceNumber };
+    if (!ctx) return sheet;
+    return {
+      ...sheet,
+      serviceNumber: sheet.serviceNumber?.trim() || ctx.serviceNumber,
+      clientNif: sheet.clientNif?.trim() || ctx.clientNif,
+      clientPhone: sheet.clientPhone?.trim() || ctx.clientPhone,
+      clientEmail: sheet.clientEmail?.trim() || ctx.clientEmail,
+    };
   } catch {
     return sheet;
   }
@@ -264,6 +300,9 @@ export async function fetchMeasurementSheet(opportunityId: string): Promise<Meas
     {
       opportunityId,
       clientName: ctx.clientName,
+      clientNif: ctx.clientNif,
+      clientPhone: ctx.clientPhone,
+      clientEmail: ctx.clientEmail,
       nsi: ctx.nsi,
       serviceNumber: ctx.serviceNumber,
       address: ctx.address,
@@ -310,6 +349,9 @@ export async function saveMeasurements(
       technicianUserId: technicianMeta?.technicianUserId,
       editedByName: technicianMeta?.editedByName,
       clientName: ctx.clientName,
+      clientNif: ctx.clientNif,
+      clientPhone: ctx.clientPhone,
+      clientEmail: ctx.clientEmail,
       nsi: ctx.nsi,
       address: ctx.address,
       serviceLabel: ctx.serviceLabel,

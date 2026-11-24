@@ -1,6 +1,11 @@
 import "server-only";
 
-import { cacheGet, cacheSet, ceoMetricsYearCacheKey } from "@/lib/crmCache";
+import {
+  cacheGet,
+  cacheInvalidatePrefix,
+  cacheSet,
+  ceoMetricsYearCacheKey,
+} from "@/lib/crmCache";
 import { CeoMetrics, CeoMetricsSchema } from "@/lib/schemas/ceoMetrics";
 import { createEmptyCeoMetricsFallback } from "@/lib/ceo/constants";
 import {
@@ -28,12 +33,20 @@ export async function fetchOpportunityNodesForOnSiteBenchmarks() {
   return fetchCeoOpportunityNodes(null);
 }
 
-export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Promise<CeoMetrics> {
+export async function fetchCeoMetricsFromCRM(
+  selectedYear?: number | null,
+  options?: { fresh?: boolean }
+): Promise<CeoMetrics> {
+  const fresh = options?.fresh === true;
   const availableYears = await fetchCeoYearSample();
   const activeYear = selectedYear === undefined ? availableYears[0] : selectedYear;
   const cacheKey = ceoMetricsYearCacheKey(activeYear ?? "all");
-  const cached = await cacheGet<CeoMetrics>(cacheKey);
-  if (cached) return cached;
+  if (fresh) {
+    await cacheInvalidatePrefix("crm:ceo:");
+  } else {
+    const cached = await cacheGet<CeoMetrics>(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const [oppsRes, tasksRes, warehouseRes] = await Promise.allSettled([
@@ -100,7 +113,10 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
       pipelineFunnel: pipeline.pipelineFunnel,
       fieldEfficiency: field.fieldEfficiency,
       warehouseStats,
-      recentFeedback: pipeline.recentFeedback.slice(0, 6),
+      recentFeedback: [...pipeline.recentFeedback]
+        .sort((a, b) => b.sortAt.localeCompare(a.sortAt))
+        .slice(0, 6)
+        .map(({ sortAt: _sortAt, ...rest }) => rest),
       topTechnicians: field.topTechnicians,
       technicianRankings: field.technicianRankings,
       onSiteDuration: onSite.onSiteDuration,
@@ -115,6 +131,11 @@ export async function fetchCeoMetricsFromCRM(selectedYear?: number | null): Prom
     return parsed;
   } catch (error) {
     console.error("❌ Erro ao compilar métricas do CEO no Twenty CRM:", error);
+    if (fresh) {
+      throw error instanceof Error
+        ? error
+        : new Error("Não foi possível atualizar as métricas do CRM.");
+    }
     return createEmptyCeoMetricsFallback(selectedYear ?? undefined);
   }
 }

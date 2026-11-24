@@ -7,7 +7,8 @@ import { fetchAdminOpportunities, updateOpportunityCoordinates } from "@/lib/crm
 import { cancelAppointment } from "@/lib/crm/tasks";
 import { findScheduleConflicts } from "@/lib/admin/routeScheduleSlots";
 import { scheduleVisitCore } from "@/lib/crm/scheduleVisit";
-import { getReusableTaskId } from "@/lib/crm/contract";
+import { getReusableTaskId, isTaskInProgress } from "@/lib/crm/contract";
+import { getTaskIdForReschedule } from "@/lib/admin/scheduleFormPrefill";
 import { serverGeocodeAddress } from "@/lib/geocodeAction";
 import type { RawAddress } from "@/types/admin";
 import { toUserMessage } from "@/lib/userMessages";
@@ -137,6 +138,8 @@ export interface ScheduleVisitInput {
   taskId?: string;
   currentStage: string;
   urgent?: boolean;
+  /** Actualiza a proposta/visita existente (AGENDADO/POR_AGENDAR) sem cancelar. */
+  rescheduleExistingTask?: boolean;
 }
 
 export interface ScheduleVisitActionData {
@@ -182,9 +185,24 @@ export async function scheduleTechnicalVisitAction(
     }
 
     const existingOpp = opportunities.find((opp) => opp.twentyId === input.opportunityId);
-    const reusableTaskId =
-      getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus) ||
-      getReusableTaskId(input.taskId, existingOpp?.taskStatus);
+    const taskStatus = existingOpp?.taskStatus;
+
+    if (input.rescheduleExistingTask) {
+      const inProgress =
+        isTaskInProgress(existingOpp?.taskStatus) || isTaskInProgress(existingOpp?.status);
+      if (inProgress) {
+        return {
+          success: false,
+          error:
+            "Não é possível reagendar: o técnico já marcou a visita como em curso no terreno.",
+        };
+      }
+    }
+
+    const reusableTaskId = input.rescheduleExistingTask
+      ? getTaskIdForReschedule(existingOpp?.taskId ?? input.taskId, taskStatus ?? existingOpp?.status)
+      : getReusableTaskId(existingOpp?.taskId, existingOpp?.taskStatus) ||
+        getReusableTaskId(input.taskId, existingOpp?.taskStatus);
 
     const horaDeFim = input.horaDeFimIso ? new Date(input.horaDeFimIso) : null;
 

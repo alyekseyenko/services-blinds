@@ -11,6 +11,7 @@ import {
   type InAppNotificationOpenTaskDetail,
 } from "@/lib/inAppNotifications";
 import { useAgendaNotifications } from "@/hooks/useAgendaNotifications";
+import { useClientRatingNotifications } from "@/hooks/useClientRatingNotifications";
 import { useToast } from "@/components/ui/ToastContext";
 
 type TechnicianToast = ReturnType<typeof useToast>;
@@ -107,6 +108,11 @@ export function useTechnicianAgendaNotifications(params: {
   useAgendaNotifications({
     scope: techNotificationScope,
     items: agendaSnapshotItems,
+    ready: agendaNotificationsReady,
+    toast,
+  });
+  useClientRatingNotifications({
+    scope: techNotificationScope,
     ready: agendaNotificationsReady,
     toast,
   });

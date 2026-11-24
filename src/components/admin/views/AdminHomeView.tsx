@@ -48,6 +48,8 @@ type Props = {
   onNavigate: (view: AdminViewId) => void;
   onOpenPendingClosure?: () => void;
   onOpenMapFilter?: (action: AdminHomeMapFilterAction) => void;
+  onOpenMapZone?: (cityKey: string) => void;
+  onOpenHistoryIncomplete?: () => void;
   onOpenSearch: () => void;
   onOpenMedicoes: () => void;
   onOpenCreateService?: () => void;
@@ -60,6 +62,8 @@ export default function AdminHomeView({
   onNavigate,
   onOpenPendingClosure,
   onOpenMapFilter,
+  onOpenMapZone,
+  onOpenHistoryIncomplete,
   onOpenSearch,
   onOpenMedicoes,
   onOpenCreateService,
@@ -133,7 +137,10 @@ export default function AdminHomeView({
       hint: "Ver histórico",
       value: stats.incomplete,
       tone: "danger" as const,
-      onClick: () => onNavigate("history"),
+      onClick: () =>
+        onOpenHistoryIncomplete
+          ? onOpenHistoryIncomplete()
+          : onNavigate("history"),
     },
     {
       id: "idle14",
@@ -291,7 +298,9 @@ export default function AdminHomeView({
                     <li key={zone.key}>
                       <button
                         type="button"
-                        onClick={() => onNavigate("map")}
+                        onClick={() =>
+                          onOpenMapZone ? onOpenMapZone(zone.key) : onNavigate("map")
+                        }
                         className="flex w-full min-h-12 items-center justify-between gap-2 rounded-xl border-2 border-border bg-card px-3 py-2 text-left transition-colors hover:border-border-strong active:scale-[0.99]"
                       >
                         <span className="flex min-w-0 items-center gap-2 text-xs font-bold text-foreground">

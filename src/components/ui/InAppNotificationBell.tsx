@@ -29,6 +29,7 @@ import {
   ObservabilityNotificationCard,
 } from "@/components/ui/AgendaVisitNotificationCard";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { runNotificationActivateSteps } from "@/lib/agenda/notificationActivate";
 
 interface InAppNotificationBellProps {
   scope: string;
@@ -127,25 +128,33 @@ export default function InAppNotificationBell({
 
   const actionLabel = isAdminScope ? "Abrir no mapa" : isTechScope ? "Ver no mapa" : "Abrir";
 
-  const dismissPanel = (markAllRead: boolean) => {
-    if (markAllRead && scope && unreadCount > 0) {
-      setItems(markAllInAppNotificationsRead(scope));
-    }
-    setOpen(false);
-  };
+  const dismissPanel = useCallback(
+    (markAllRead: boolean) => {
+      if (markAllRead && scope && unreadCount > 0) {
+        setItems(markAllInAppNotificationsRead(scope));
+      }
+      setOpen(false);
+    },
+    [scope, unreadCount]
+  );
 
-  useBackToClose(open, () => dismissPanel(true), "in-app-notifications-panel");
+  const { dismissWithoutHistoryBack } = useBackToClose(
+    open,
+    () => dismissPanel(false),
+    "in-app-notifications-panel"
+  );
 
   const runAfterOverlayDismiss = useCallback(
     (action: () => void) => {
       if (open) {
         pendingActivateRef.current = action;
+        dismissWithoutHistoryBack();
         dismissPanel(false);
         return;
       }
       action();
     },
-    [open]
+    [open, dismissPanel, dismissWithoutHistoryBack]
   );
 
   const handleActivate = useCallback(
@@ -154,25 +163,12 @@ export default function InAppNotificationBell({
       setItems(loadInAppNotifications(scope));
 
       runAfterOverlayDismiss(() => {
-        if (n.href) {
-          router.push(n.href);
-          return;
-        }
-        if (onInvestigate && (n.taskId || n.opportunityId)) {
-          onInvestigate(n);
-          return;
-        }
-        if (onOpenTaskOnMap && (n.taskId || n.opportunityId)) {
-          onOpenTaskOnMap(n);
-          return;
-        }
-        if (n.taskId || n.opportunityId) {
-          dispatchOpenTaskFromNotification({
-            taskId: n.taskId,
-            opportunityId: n.opportunityId,
-            dueAtIso: n.dueAtIso,
-          });
-        }
+        runNotificationActivateSteps(n, {
+          onInvestigate,
+          onOpenTaskOnMap,
+          onNavigateHref: (href) => router.push(href),
+          onDispatchOpenTask: (detail) => dispatchOpenTaskFromNotification(detail),
+        });
       });
     },
     [scope, router, onInvestigate, onOpenTaskOnMap, runAfterOverlayDismiss]
@@ -239,7 +235,7 @@ export default function InAppNotificationBell({
         onClick={() => {
           setOpen((wasOpen) => {
             if (wasOpen) {
-              dismissPanel(true);
+              dismissPanel(false);
               return false;
             }
             refresh();
@@ -269,7 +265,7 @@ export default function InAppNotificationBell({
                 useAdminSidebar ? "md:bg-scrim" : "md:bg-scrim"
               )}
               aria-label="Fechar avisos"
-              onClick={() => dismissPanel(true)}
+              onClick={() => dismissPanel(false)}
             />
             <div
               className={cn(
@@ -316,7 +312,7 @@ export default function InAppNotificationBell({
                   </div>
                   <button
                     type="button"
-                    onClick={() => dismissPanel(true)}
+                    onClick={() => dismissPanel(false)}
                     className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl text-muted-foreground active:bg-muted dark:text-muted-foreground md:min-h-11 md:min-w-11"
                     aria-label="Fechar avisos"
                   >

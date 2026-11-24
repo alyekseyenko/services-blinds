@@ -25,6 +25,7 @@ export function TaskDrawerMeasurementsTab(props: {
   setMeasurementOppId: (id: string) => void;
   measurementsFullscreen: boolean;
   showMeasurementsTab: boolean;
+  showActiveInstallationFicha: boolean;
   showMeasurementsUi: boolean;
   activeTab: "info" | "measurements";
   measurementsFormRef: RefObject<MeasurementsFormHandle | null>;
@@ -44,11 +45,17 @@ export function TaskDrawerMeasurementsTab(props: {
     setMeasurementsDirty,
     setMeasurementsFocusedStatus,
     enqueueMeasurementsSave,
+    showActiveInstallationFicha,
   } = props;
 
   if (props.activeTab !== "measurements" || !props.showMeasurementsUi) {
     return null;
   }
+
+  const measurementOpp =
+    measurementOppId || selectedTask.opportunityId;
+  const showReadOnlyFicha =
+    showActiveInstallationFicha || !isTaskActive(selectedTask.status);
 
   return (
         <div className="animate-in fade-in duration-300">
@@ -70,10 +77,10 @@ export function TaskDrawerMeasurementsTab(props: {
               ))}
             </div>
           ) : null}
-          {!isTaskActive(selectedTask.status) ? (
+          {showReadOnlyFicha && measurementOpp ? (
             <TechnicianMeasurementFicha
               taskId={selectedTask.id}
-              opportunityId={measurementOppId || selectedTask.opportunityId}
+              opportunityId={measurementOpp}
             />
           ) : (
             <MeasurementsForm

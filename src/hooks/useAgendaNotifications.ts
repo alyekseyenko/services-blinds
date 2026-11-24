@@ -46,6 +46,7 @@ import {
   type AgendaNotificationVisit,
 } from "@/lib/agendaNotificationPayload";
 import type { ToastType } from "@/components/ui/ToastContext";
+import { showDesktopAgendaNotification } from "@/lib/agenda/desktopNotifications";
 
 const MAX_TOASTS = 3;
 const LATE_CHECK_INTERVAL_MS = 60_000;
@@ -246,6 +247,13 @@ function emitAgendaEvents(
         threadEvents,
         toastOpenHandlerForThread(scope, threadEvents, notificationForThread(threadEvents))
       );
+    }
+  }
+
+  for (const threadEvents of threads) {
+    const n = notificationForThread(threadEvents);
+    if (n) {
+      void showDesktopAgendaNotification(scope, n);
     }
   }
 

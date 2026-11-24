@@ -19,6 +19,7 @@ import { getRtsCommandSpecs } from "@/lib/measurements/rtsCommands";
 import { isMeasurementRowComplete } from "@/lib/measurements/completeness";
 import { getDimensionSanityWarnings } from "@/lib/measurements/dimensionSanity";
 import { cn } from "@/lib/cn";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { RtsChannelFields } from "../RtsChannelFields";
 import {
   MeasurementControlsPicker,
@@ -73,6 +74,7 @@ export function MobileMeasurementRow({
   onHeightFocused,
   onRequestFocusRow,
 }: MobileMeasurementRowProps) {
+  const confirm = useConfirm();
   const heightInputRef = useRef<HTMLInputElement>(null);
   const widthInputRef = useRef<HTMLInputElement>(null);
   const collapsed = isMeasurementLineCollapsed(row);
@@ -181,8 +183,18 @@ export function MobileMeasurementRow({
               </button>
               <button
                 onClick={() => {
-                  triggerHaptic(50);
-                  onRemoveRow(group.id, rIdx);
+                  void (async () => {
+                    const ok = await confirm({
+                      title: "Eliminar esta janela?",
+                      description: "Esta medição será removida da ficha.",
+                      confirmLabel: "Eliminar",
+                      cancelLabel: "Cancelar",
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    triggerHaptic(50);
+                    onRemoveRow(group.id, rIdx);
+                  })();
                 }}
                 className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-danger-solid bg-danger-surface text-danger-solid transition-all hover:bg-danger-surface/80"
                 aria-label="Eliminar janela"

@@ -38,6 +38,7 @@ interface ScheduleModalProps {
   isScheduling: boolean;
   handleScheduleVisit: () => Promise<void> | void;
   isOnboardingDemoSchedule?: boolean;
+  isRescheduleMode?: boolean;
   fairServiceTypeDurations?: FairServiceTypeDuration[];
   fairBenchmarksReady?: boolean;
 }
@@ -58,6 +59,7 @@ export default function ScheduleModal({
   isScheduling,
   handleScheduleVisit,
   isOnboardingDemoSchedule = false,
+  isRescheduleMode = false,
   fairServiceTypeDurations = [],
   fairBenchmarksReady = false,
 }: ScheduleModalProps) {
@@ -177,11 +179,13 @@ export default function ScheduleModal({
       size="wide"
       scrollBody={!isDesktopLg}
       panelDataTour="admin-schedule-modal"
-      title="Agendar visita"
+      title={isRescheduleMode ? "Reagendar / Trocar técnico" : "Agendar visita"}
       description={
         isOnboardingDemoSchedule
           ? "Modo formação — preencha como num agendamento real; nada é enviado ao CRM."
-          : "Visita confirmada no CRM de imediato (sem confirmação ao cliente)."
+          : isRescheduleMode
+            ? "Actualiza hora e técnico na mesma tarefa do CRM, sem cancelar a visita."
+            : "Visita confirmada no CRM de imediato (sem confirmação ao cliente)."
       }
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3" data-tour="admin-schedule-submit">
@@ -191,11 +195,11 @@ export default function ScheduleModal({
           <Button
             disabled={cannotConfirm}
             loading={isScheduling}
-            loadingText="A agendar..."
+            loadingText={isRescheduleMode ? "A guardar..." : "A agendar..."}
             onClick={handleScheduleVisit}
             className="min-w-[10rem] bg-primary text-primary-foreground hover:bg-primary-hover"
           >
-            Agendar visita
+            {isRescheduleMode ? "Guardar alterações" : "Agendar visita"}
           </Button>
         </div>
       }

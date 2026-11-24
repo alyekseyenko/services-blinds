@@ -123,15 +123,17 @@ export function buildAgendaSnapshotItem(input: {
   const serviceNumber = serviceNumberRaw && serviceNumberRaw !== "N/A" ? serviceNumberRaw : "";
   const title = input.visitTitle?.trim() || "";
 
+  const genericClient = !client || client === "Cliente";
   const label =
     [
-      client && client !== "Cliente" ? client : null,
+      genericClient ? null : client,
+      genericClient && title ? title : null,
       serviceNumber ? `N.º ${serviceNumber}` : null,
       nsi ? `NSI ${nsi}` : null,
-      title || null,
+      !genericClient && title ? title : null,
     ]
       .filter(Boolean)
-      .join(" · ") || client || title || "Visita";
+      .join(" · ") || title || client || "Visita";
 
   return {
     id: input.id,
@@ -399,16 +401,25 @@ export function formatAgendaDiffToast(event: AgendaDiffEvent): { title: string; 
   const statusLine = event.status ? formatTaskStatusLabel(event.status) : "";
 
   switch (event.kind) {
-    case "nova":
+    case "nova": {
+      const tech = event.technicianName?.trim();
+      const techBit =
+        tech && tech !== "Não Atribuído" ? (when ? ` · ${tech}` : ` · Técnico: ${tech}`) : "";
+      const headline =
+        who !== "Visita" && who !== "Cliente"
+          ? who
+          : event.visitTitle?.trim() || who;
+      const descCore = event.urgent
+        ? when
+          ? `${headline} — urgente · ${when}${techBit}`
+          : `${headline} — urgente${techBit}`
+        : when
+          ? `${headline} — ${when}${techBit}`
+          : `${headline}${techBit}`;
       return event.urgent
-        ? {
-            title: "Visita urgente",
-            description: when ? `${who} — urgente · ${when}` : `${who} — urgente`,
-          }
-        : {
-            title: "Nova visita",
-            description: when ? `${who} — ${when}` : who,
-          };
+        ? { title: "Visita urgente", description: descCore }
+        : { title: "Nova visita", description: descCore };
+    }
     case "urgente":
       return {
         title: "Visita urgente",

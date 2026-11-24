@@ -3,9 +3,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ExtraServiceType, VisitService, VisitServiceMode } from "@/lib/schemas";
 import {
+  RepairPaymentAmountField,
   RepairPaymentMethodPicker,
   RepairPaymentOtherDetailField,
 } from "@/components/dashboard/RepairPaymentMethodPicker";
+import {
+  formatExVatEurosForInput,
+  parseRepairPaymentAmountExVat,
+} from "@/lib/visits/repairPaymentAmount";
 import {
   extraServiceNeedsPaymentNow,
   isRepairPaymentComplete,
@@ -62,6 +67,10 @@ export default function AddVisitServiceSheet({
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<RepairPaymentMethodId | "">("");
   const [paymentDetail, setPaymentDetail] = useState("");
+  const [paymentAmountInput, setPaymentAmountInput] = useState("");
+  const [paymentAmountConfirmed, setPaymentAmountConfirmed] = useState<number | undefined>();
+  const [paymentAmountRevisedFrom, setPaymentAmountRevisedFrom] = useState<number | undefined>();
+  const [paymentAmountLocked, setPaymentAmountLocked] = useState(false);
   const [measurementsPayload, setMeasurementsPayload] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,6 +93,18 @@ export default function AddVisitServiceSheet({
           : ""
       );
       setPaymentDetail(editService.paymentDetail?.trim() ?? "");
+      const savedExVat = editService.amountExVatEuros;
+      if (savedExVat != null && savedExVat > 0) {
+        setPaymentAmountInput(formatExVatEurosForInput(savedExVat));
+        setPaymentAmountConfirmed(savedExVat);
+        setPaymentAmountLocked(true);
+        setPaymentAmountRevisedFrom(undefined);
+      } else {
+        setPaymentAmountInput("");
+        setPaymentAmountConfirmed(undefined);
+        setPaymentAmountRevisedFrom(undefined);
+        setPaymentAmountLocked(false);
+      }
       setMeasurementsPayload(null);
     } else {
       setServiceType(null);
@@ -91,6 +112,10 @@ export default function AddVisitServiceSheet({
       setNotes("");
       setPaymentMethod("");
       setPaymentDetail("");
+      setPaymentAmountInput("");
+      setPaymentAmountConfirmed(undefined);
+      setPaymentAmountRevisedFrom(undefined);
+      setPaymentAmountLocked(false);
       setMeasurementsPayload(null);
     }
   }, [editService]);
@@ -125,6 +150,23 @@ export default function AddVisitServiceSheet({
       return;
     }
 
+    if (needsPaymentNow && paymentAmountInput.trim()) {
+      const parsed = parseRepairPaymentAmountExVat(paymentAmountInput);
+      if (parsed != null && !paymentAmountLocked) {
+        toast.warning(
+          "Confirme o valor",
+          "Toque em «Confirmar» ou apague o montante antes de criar o serviço."
+        );
+        return;
+      }
+    }
+
+    const amountExVatEuros = paymentAmountLocked ? paymentAmountConfirmed : undefined;
+    const amountRevisedFromExVatEuros =
+      amountExVatEuros != null && paymentAmountRevisedFrom != null && paymentAmountRevisedFrom > 0
+        ? paymentAmountRevisedFrom
+        : undefined;
+
     setSubmitting(true);
     try {
       if (isOnboardingDemoEntity({ id: task.id })) {
@@ -152,6 +194,8 @@ export default function AddVisitServiceSheet({
           paymentMethod: needsPaymentNow && isRepairPaymentMethod(paymentMethod) ? paymentMethod : undefined,
           paymentDetail:
             needsPaymentNow && paymentMethod === "outros" ? paymentDetail.trim() : undefined,
+          amountExVatEuros,
+          amountRevisedFromExVatEuros,
         };
         const result = await updateVisitServiceAction(updatePayload);
         if (!result.success) {
@@ -182,6 +226,8 @@ export default function AddVisitServiceSheet({
         paymentMethod: needsPaymentNow && isRepairPaymentMethod(paymentMethod) ? paymentMethod : undefined,
         paymentDetail:
           needsPaymentNow && paymentMethod === "outros" ? paymentDetail.trim() : undefined,
+        amountExVatEuros,
+        amountRevisedFromExVatEuros,
       };
 
       const result = await enqueueVisitService(payload);
@@ -326,19 +372,47 @@ export default function AddVisitServiceSheet({
           </section>
 
           {needsPaymentNow ? (
-            <section className="space-y-2">
-              <p className={FIELD_KICKER}>Forma de pagamento (obrigatório)</p>
+            <section className="space-y-3">
+              <p className={FIELD_KICKER}>Pagamento da reparação extra</p>
               <p className={cn(FIELD_BODY, "text-muted-foreground")}>
-                Fica nas notas deste serviço extra, não no serviço principal da visita.
+                Fica neste serviço extra (nota e Montante no CRM), não no serviço principal.
               </p>
-              <RepairPaymentMethodPicker
-                value={paymentMethod}
-                onChange={(method) => {
-                  setPaymentMethod(method);
-                  if (method !== "outros") setPaymentDetail("");
-                }}
-                disabled={submitting}
-              />
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <div className="col-span-2 min-w-0 sm:col-span-1 sm:order-2">
+                  <RepairPaymentAmountField
+                    id="extra-repair-pay-amount"
+                    value={paymentAmountInput}
+                    disabled={submitting}
+                    amountLocked={paymentAmountLocked}
+                    onConfirmAmount={(exVat) => {
+                      setPaymentAmountConfirmed((prev) => {
+                        if (prev != null && Math.abs(prev - exVat) > 0.000_1) {
+                          setPaymentAmountRevisedFrom(prev);
+                        }
+                        return exVat;
+                      });
+                      setPaymentAmountLocked(true);
+                    }}
+                    onEditAmount={() => setPaymentAmountLocked(false)}
+                    onChange={(text) => {
+                      if (paymentAmountLocked) setPaymentAmountLocked(false);
+                      setPaymentAmountInput(text);
+                    }}
+                  />
+                </div>
+                <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1 sm:order-1">
+                  <p className={FIELD_KICKER}>Como pagou (obrigatório)</p>
+                  <RepairPaymentMethodPicker
+                    value={paymentMethod}
+                    onChange={(method) => {
+                      setPaymentMethod(method);
+                      if (method !== "outros") setPaymentDetail("");
+                    }}
+                    disabled={submitting}
+                    splitWithAmount
+                  />
+                </div>
+              </div>
               {paymentMethod === "outros" ? (
                 <RepairPaymentOtherDetailField
                   id="extra-repair-pay-detail"

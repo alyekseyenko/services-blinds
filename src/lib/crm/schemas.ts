@@ -57,6 +57,10 @@ export interface AppTask {
   clientNif?: string | null;
   clientPhone?: string | null;
   clientPhones?: string[];
+  /** Estrelas deixadas pelo cliente (1–5). */
+  clientRating?: number;
+  /** Comentário da avaliação, quando existe. */
+  clientFeedback?: string;
   report: string;
   opportunityId?: string;
   nsi?: string;

@@ -4,17 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchOpportunityNotesAction } from "@/actions/notes-actions";
 import { isUrgentSchedulingNote } from "@/lib/crm/urgentSchedulingUi";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
+import { db } from "@/lib/db";
 import { toUserMessage } from "@/lib/userMessages";
+import {
+  appendPendingOpportunityNote,
+  getCachedOpportunityNotes,
+  mergeCachedOpportunityNotes,
+  type CachedCrmNote,
+} from "@/lib/visits/offlineNotesCache";
 import { useToast } from "@/components/ui/ToastContext";
 
-type CrmNote = {
-  id: string;
-  title?: string | null;
-  body: string;
-  createdAt: string;
-};
-
 type QueueEnqueueResult = { success: boolean; queued: boolean; error?: string };
+
+export type OpportunityDrawerNote = CachedCrmNote;
 
 export function useTaskOpportunityNotes(params: {
   selectedTask: { id: string; opportunityId?: string } | null | undefined;
@@ -30,39 +32,92 @@ export function useTaskOpportunityNotes(params: {
 }) {
   const { selectedTask, isOnline, userName, enqueueNote } = params;
   const toast = useToast();
-  const [notes, setNotes] = useState<CrmNote[]>([]);
+  const [notes, setNotes] = useState<OpportunityDrawerNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
   const [isCreatingNote, setIsCreatingNote] = useState(false);
+  const [notesFromCache, setNotesFromCache] = useState(false);
+
+  const loadPendingFromQueue = useCallback(async (opportunityId: string) => {
+    try {
+      const rows = await db.syncQueue
+        .where("status")
+        .anyOf("pending", "failed")
+        .toArray();
+      return rows
+        .filter(
+          (item) =>
+            item.action === "ADD_NOTE" &&
+            item.payload?.opportunityId === opportunityId &&
+            typeof item.payload?.body === "string"
+        )
+        .map((item, index) => ({
+          id: `queue-${item.id ?? index}-${item.timestamp}`,
+          title: typeof item.payload?.title === "string" ? item.payload.title : "Nota",
+          body: item.payload.body as string,
+          createdAt: new Date(item.timestamp).toISOString(),
+          pendingSync: true,
+        }));
+    } catch {
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedTask?.opportunityId) {
       setNotes([]);
+      setNotesFromCache(false);
       return;
     }
     if (isOnboardingDemoEntity(selectedTask)) {
       setNotes([]);
       setLoadingNotes(false);
+      setNotesFromCache(false);
       return;
     }
     let cancelled = false;
     async function loadNotes() {
       const task = selectedTask;
       if (!task?.opportunityId) return;
+
       if (!isOnline) {
-        setNotes([]);
-        setLoadingNotes(false);
+        const cached = getCachedOpportunityNotes(task.opportunityId);
+        const queued = await loadPendingFromQueue(task.opportunityId);
+        const byBody = new Set(cached.filter((n) => !n.pendingSync).map((n) => n.body));
+        const merged = [
+          ...queued.filter((q) => !byBody.has(q.body)),
+          ...cached,
+        ];
+        if (!cancelled) {
+          setNotes(merged);
+          setNotesFromCache(cached.length > 0 || queued.length > 0);
+          setLoadingNotes(false);
+        }
         return;
       }
+
       setLoadingNotes(true);
       try {
         const result = await fetchOpportunityNotesAction(task.opportunityId, task.id);
         if (cancelled) return;
         if (result.success) {
-          setNotes(result.data || []);
+          const serverNotes = (result.data || []).map((n) => ({ ...n, pendingSync: false }));
+          const merged = mergeCachedOpportunityNotes(task.opportunityId, serverNotes);
+          const queued = await loadPendingFromQueue(task.opportunityId);
+          const serverBodies = new Set(merged.map((n) => n.body));
+          const withQueue = [
+            ...queued.filter((q) => !serverBodies.has(q.body)),
+            ...merged,
+          ];
+          setNotes(withQueue);
+          setNotesFromCache(false);
         }
       } catch {
-        if (!cancelled) setNotes([]);
+        if (!cancelled) {
+          const cached = getCachedOpportunityNotes(task.opportunityId);
+          setNotes(cached);
+          setNotesFromCache(cached.length > 0);
+        }
       } finally {
         if (!cancelled) setLoadingNotes(false);
       }
@@ -71,7 +126,7 @@ export function useTaskOpportunityNotes(params: {
     return () => {
       cancelled = true;
     };
-  }, [selectedTask?.id, selectedTask?.opportunityId, isOnline]);
+  }, [selectedTask?.id, selectedTask?.opportunityId, isOnline, loadPendingFromQueue]);
 
   const hasUrgentNote = useMemo(() => notes.some((n) => isUrgentSchedulingNote(n)), [notes]);
 
@@ -104,6 +159,14 @@ export function useTaskOpportunityNotes(params: {
       }
       if (result.queued) {
         toast.info("Nota guardada offline", "Será sincronizada quando houver rede.");
+        const optimistic: OpportunityDrawerNote = {
+          id: `pending-${Date.now()}`,
+          title,
+          body,
+          createdAt: new Date().toISOString(),
+          pendingSync: true,
+        };
+        setNotes(appendPendingOpportunityNote(selectedTask.opportunityId, optimistic));
       } else {
         toast.success("Nota registada", "Nota adicionada ao histórico do CRM.");
       }
@@ -113,7 +176,9 @@ export function useTaskOpportunityNotes(params: {
         try {
           const updated = await fetchOpportunityNotesAction(selectedTask.opportunityId);
           if (updated.success) {
-            setNotes(updated.data || []);
+            const serverNotes = (updated.data || []).map((n) => ({ ...n, pendingSync: false }));
+            const merged = mergeCachedOpportunityNotes(selectedTask.opportunityId, serverNotes);
+            setNotes(merged);
           }
         } catch {
           /* rede instável — nota já foi criada */
@@ -129,6 +194,7 @@ export function useTaskOpportunityNotes(params: {
   return {
     notes,
     loadingNotes,
+    notesFromCache,
     newNoteText,
     setNewNoteText,
     isCreatingNote,

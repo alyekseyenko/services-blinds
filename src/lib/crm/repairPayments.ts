@@ -5,11 +5,12 @@ import { createOpportunityNote } from "@/lib/crm/notes";
 import { parseVisitServicesMarker } from "@/lib/crm/visitServicesMarker";
 import {
   isRepairPaymentComplete,
-  isRepairPaymentMethod,
   opportunityRequiresRepairPayment,
   repairPaymentNoteBody,
   type RepairPaymentNote,
 } from "@/lib/visits/repairPayment";
+import { computeRepairPaymentWithVat } from "@/lib/visits/repairPaymentAmount";
+import { invalidateAdminCrmCache } from "@/lib/crmCache";
 
 type TargetNode = {
   targetOpportunityId?: string;
@@ -51,7 +52,40 @@ export async function recordRepairPaymentNotes(
       repairPaymentNoteBody(note),
       clientRequestId ? `${clientRequestId}-pay-${note.opportunityId}` : undefined
     );
+    await applyRepairOpportunityAmountExVat(note.opportunityId, note.amountExVatEuros);
   }
+}
+
+export async function applyRepairOpportunityAmountExVat(
+  opportunityId: string,
+  amountExVatEuros: number | null | undefined
+): Promise<void> {
+  if (amountExVatEuros == null || amountExVatEuros <= 0) return;
+  const breakdown = computeRepairPaymentWithVat(amountExVatEuros);
+  if (!breakdown) return;
+  try {
+    await updateOpportunityRepairAmount(opportunityId, breakdown.amountMicros);
+  } catch (amountErr) {
+    console.warn(
+      `[applyRepairOpportunityAmountExVat] Montante no CRM falhou para ${opportunityId}; valor mantido na nota.`,
+      amountErr
+    );
+  }
+}
+
+async function updateOpportunityRepairAmount(opportunityId: string, amountMicros: number): Promise<void> {
+  const mutation = `
+    mutation updateOppRepairAmount($id: UUID!, $amountMicros: BigInt!) {
+      updateOpportunity(
+        id: $id
+        data: { amount: { amountMicros: $amountMicros, currencyCode: "EUR" } }
+      ) {
+        id
+      }
+    }
+  `;
+  await crmFetch(mutation, { id: opportunityId, amountMicros }, { timeoutMs: 8000, maxRetries: 1 });
+  await invalidateAdminCrmCache();
 }
 
 async function repairOpportunityIdsForClose(taskId: string): Promise<string[]> {

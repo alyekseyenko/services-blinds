@@ -1,4 +1,8 @@
 import { classifyOpportunityWorkflow } from "@/lib/crm/contract";
+import {
+  computeRepairPaymentWithVat,
+  formatRepairPaymentEuros,
+} from "@/lib/visits/repairPaymentAmount";
 
 export const REPAIR_PAYMENT_OTHER_DETAIL_MAX = 500;
 
@@ -17,6 +21,10 @@ export type RepairPaymentNote = {
   opportunityId: string;
   method: RepairPaymentMethodId;
   detail?: string;
+  /** Valor recebido sem IVA (euros). Opcional; não bloqueia o fecho. */
+  amountExVatEuros?: number;
+  /** Montante sem IVA que estava confirmado antes da última confirmação (só para a nota). */
+  amountRevisedFromExVatEuros?: number;
 };
 
 type RepairCandidate = {
@@ -56,16 +64,57 @@ export function isRepairPaymentComplete(
 }
 
 export function repairPaymentNoteBody(
-  note: Pick<RepairPaymentNote, "method" | "detail">
+  note: Pick<
+    RepairPaymentNote,
+    "method" | "detail" | "amountExVatEuros" | "amountRevisedFromExVatEuros"
+  >
 ): string {
-  return `Pagamento: ${repairPaymentDisplayLabel(note.method, note.detail)}`;
+  const lines = [`Pagamento: ${repairPaymentDisplayLabel(note.method, note.detail)}`];
+  if (note.amountExVatEuros != null && note.amountExVatEuros > 0) {
+    const breakdown = computeRepairPaymentWithVat(note.amountExVatEuros);
+    if (breakdown) {
+      lines.push(
+        `Valor (sem IVA): ${formatRepairPaymentEuros(breakdown.exVatEuros)}`,
+        `IVA (23%): ${formatRepairPaymentEuros(breakdown.vatEuros)}`,
+        `Total: ${formatRepairPaymentEuros(breakdown.totalEuros)}`
+      );
+      lines.push(
+        "Cópia de segurança: o montante fica registado nesta nota, mesmo que o campo Montante no CRM falhe ou seja alterado depois."
+      );
+      if (note.amountRevisedFromExVatEuros != null && note.amountRevisedFromExVatEuros > 0) {
+        const prior = computeRepairPaymentWithVat(note.amountRevisedFromExVatEuros);
+        if (prior) {
+          lines.push(
+            `Valor revisto: estava confirmado ${formatRepairPaymentEuros(prior.exVatEuros)} (sem IVA) — editado e confirmado para ${formatRepairPaymentEuros(breakdown.exVatEuros)} (sem IVA); total ${formatRepairPaymentEuros(breakdown.totalEuros)}.`
+          );
+        }
+      }
+    }
+  }
+  return lines.join("\n");
 }
 
 export function extraRepairPaymentNoteBody(
   method: RepairPaymentMethodId,
-  detail?: string | null
+  detail?: string | null,
+  amounts?: Pick<RepairPaymentNote, "amountExVatEuros" | "amountRevisedFromExVatEuros">
 ): string {
-  return `Pagamento do serviço extra (feito no local): ${repairPaymentDisplayLabel(method, detail)}.`;
+  const head = `Pagamento do serviço extra (feito no local): ${repairPaymentDisplayLabel(method, detail)}.`;
+  if (amounts?.amountExVatEuros == null || amounts.amountExVatEuros <= 0) {
+    return head;
+  }
+  const withAmount = repairPaymentNoteBody({
+    method,
+    detail: detail ?? undefined,
+    amountExVatEuros: amounts.amountExVatEuros,
+    amountRevisedFromExVatEuros: amounts.amountRevisedFromExVatEuros,
+  });
+  const tail = withAmount
+    .split("\n")
+    .slice(1)
+    .join("\n")
+    .trim();
+  return tail ? `${head}\n${tail}` : head;
 }
 
 export function extraServiceNeedsPaymentNow(

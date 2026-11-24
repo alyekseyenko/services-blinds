@@ -17,6 +17,7 @@ import {
   isAssistanceService,
   deriveWorkflowMarkerKey,
   CRM_ADDRESS_GRAPHQL_FIELDS,
+  parseCrmClientRating,
 } from "../contract";
 import { isOpportunityCreatedOnSite, isOpportunityDeferredInTask } from "../visitServicesMarker";
 import { onSiteExtraDisplaysAsCompleted } from "@/lib/visits/onSiteExtraClose";
@@ -30,6 +31,7 @@ import {
 import { isTerminalHistoryStatus } from "../dateFilters";
 import { extractPhonesFromTwenty, getPrimaryPhone } from "../phones";
 import { normalizeClientNif } from "../clientNif";
+import { opportunityEurosFromAmountMicros } from "../opportunityAmount";
 
 export const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   id
@@ -37,6 +39,12 @@ export const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   nsi
   numeroDeServico
   stage
+  amount {
+    amountMicros
+    currencyCode
+  }
+  avaliacaoDoCliente
+  feedbackDoCliente
   createdAt
   moradaDeServico {
     ${CRM_ADDRESS_GRAPHQL_FIELDS}
@@ -289,5 +297,13 @@ export function mapOpportunityNode(node: any) {
     visitOnSiteDurationMs,
     visitOnSiteDurationLabel:
       visitOnSiteDurationMs != null ? formatOnSiteDurationPt(visitOnSiteDurationMs) : null,
+    clientRating: parseCrmClientRating(node.avaliacaoDoCliente) ?? undefined,
+    clientFeedback:
+      typeof node.feedbackDoCliente === "string" && node.feedbackDoCliente.trim()
+        ? node.feedbackDoCliente.trim()
+        : undefined,
+    amount: opportunityEurosFromAmountMicros(
+      (node.amount as { amountMicros?: unknown } | null | undefined)?.amountMicros
+    ),
   };
 }

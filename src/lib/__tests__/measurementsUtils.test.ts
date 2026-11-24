@@ -35,4 +35,36 @@ describe("measurementsUtils", () => {
   it("returns false when no measurements exist", () => {
     expect(hasValidMeasurements("notas normais", null)).toBe(false);
   });
+
+  it("aceita modo vão (openingWidth/openingHeight)", () => {
+    const draft = JSON.stringify({
+      groups: [
+        {
+          type: "ESTORE_EXTERIOR",
+          measurements: [{ qty: 1, openingWidth: "1200", openingHeight: "1500" }],
+        },
+      ],
+    });
+    expect(hasValidMeasurements("", draft)).toBe(true);
+  });
+
+  it("aceita clarabóia (skylight exterior)", () => {
+    const draft = JSON.stringify({
+      groups: [
+        {
+          type: "CLARABOIA",
+          measurements: [
+            {
+              qty: 1,
+              width: "800",
+              height: "900",
+              skylightExteriorWidth: "850",
+              skylightExteriorHeight: "950",
+            },
+          ],
+        },
+      ],
+    });
+    expect(hasValidMeasurements("", draft)).toBe(true);
+  });
 });

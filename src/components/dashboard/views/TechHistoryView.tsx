@@ -9,6 +9,7 @@ import { viewPanelStackClass } from "@/lib/ui/viewPanel";
 import { cn } from "@/lib/cn";
 import type { useHistoryListFilters } from "@/hooks/useHistoryListFilters";
 import { historyStatusLabel } from "./techDashboardFormat";
+import { ClientRatingSummary } from "@/components/visits/ClientRatingSummary";
 
 type HistoryTask = {
   id: string;
@@ -16,6 +17,8 @@ type HistoryTask = {
   client?: string;
   title?: string;
   dueDate: Date;
+  clientRating?: number;
+  clientFeedback?: string;
 };
 
 export function TechHistoryView({
@@ -170,6 +173,11 @@ export function TechHistoryView({
                             year: "numeric",
                           })}
                         </p>
+                        <ClientRatingSummary
+                          rating={task.clientRating}
+                          feedback={task.clientFeedback}
+                          compact
+                        />
                       </div>
                     </div>
                     <span

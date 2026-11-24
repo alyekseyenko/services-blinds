@@ -5,13 +5,14 @@ import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VoiceSummarizeButton, VoiceTextarea } from "@/components/ui/VoiceTextarea";
 import {
+  RepairPaymentAmountField,
   RepairPaymentMethodPicker,
   RepairPaymentOtherDetailField,
 } from "@/components/dashboard/RepairPaymentMethodPicker";
 import { INCOMPLETE_REASONS, formatIncompleteReason } from "@/lib/taskReasons";
 import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
 import type { VisitService } from "@/lib/schemas";
-import type { RepairPaymentMethodId } from "@/lib/visits/repairPayment";
+import type { useRepairPaymentDrawerState } from "@/components/dashboard/drawer/useRepairPaymentDrawerState";
 import { cueClick } from "@/lib/feedbackCue";
 import { hapticSelection } from "@/lib/haptics";
 import { TECH_DRAWER_KICKER, TECH_DRAWER_SECTION_TITLE, TECH_DRAWER_TEXTAREA } from "./drawerStyles";
@@ -28,10 +29,7 @@ export function TaskDrawerFinalizeSection(props: {
   needsArrivalCheckIn: boolean;
   onPromptArrivalCheckIn: (detail?: string) => void;
   repairServices: VisitService[];
-  repairPayments: Record<string, RepairPaymentMethodId>;
-  setRepairPayments: React.Dispatch<React.SetStateAction<Record<string, RepairPaymentMethodId>>>;
-  repairPaymentDetails: Record<string, string>;
-  setRepairPaymentDetails: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  repairPayment: ReturnType<typeof useRepairPaymentDrawerState>;
   repairPaymentMissing: boolean;
   showStatusSubmitBar: boolean;
   onSubmitStatus: () => void;
@@ -48,10 +46,7 @@ export function TaskDrawerFinalizeSection(props: {
     needsArrivalCheckIn,
     onPromptArrivalCheckIn,
     repairServices,
-    repairPayments,
-    setRepairPayments,
-    repairPaymentDetails,
-    setRepairPaymentDetails,
+    repairPayment,
     repairPaymentMissing,
     showStatusSubmitBar,
     onSubmitStatus,
@@ -142,27 +137,65 @@ export function TaskDrawerFinalizeSection(props: {
                 <p className={`px-1 ${TECH_DRAWER_KICKER}`}>Pagamento da reparação (obrigatório)</p>
                 {repairServices.map((service) => {
                   const label = getExtraServiceTypeLabel(service.serviceType) || service.name;
+                  const {
+                    repairPayments,
+                    setRepairPayments,
+                    repairPaymentDetails,
+                    setRepairPaymentDetails,
+                    repairPaymentAmounts,
+                    setRepairPaymentAmounts,
+                    repairPaymentAmountLocked,
+                    confirmRepairPaymentAmount,
+                    unlockRepairPaymentAmount,
+                    touchRepairPaymentAmountInput,
+                  } = repairPayment;
                   return (
-                    <div key={service.opportunityId} className="space-y-2">
+                    <div key={service.opportunityId} className="space-y-3">
                       <p className="px-1 text-xs font-bold text-foreground">
                         {label}
                         {service.isPrimary ? "" : " · serviço extra"}
                       </p>
-                      <RepairPaymentMethodPicker
-                        value={repairPayments[service.opportunityId]}
-                        onChange={(method) => {
-                          setRepairPayments((current) => ({
-                            ...current,
-                            [service.opportunityId]: method,
-                          }));
-                          if (method !== "outros") {
-                            setRepairPaymentDetails((current) => {
-                              const { [service.opportunityId]: _removed, ...rest } = current;
-                              return rest;
-                            });
-                          }
-                        }}
-                      />
+                      <div className="grid grid-cols-2 gap-3 items-start">
+                        <div className="col-span-2 min-w-0 sm:col-span-1 sm:order-2">
+                          <RepairPaymentAmountField
+                            id={`repair-pay-amount-${service.opportunityId}`}
+                            value={repairPaymentAmounts[service.opportunityId] ?? ""}
+                            disabled={isUploading}
+                            amountLocked={repairPaymentAmountLocked[service.opportunityId]}
+                            onConfirmAmount={(exVat) =>
+                              confirmRepairPaymentAmount(service.opportunityId, exVat)
+                            }
+                            onEditAmount={() => unlockRepairPaymentAmount(service.opportunityId)}
+                            onChange={(text) => {
+                              touchRepairPaymentAmountInput(service.opportunityId);
+                              setRepairPaymentAmounts((current) => ({
+                                ...current,
+                                [service.opportunityId]: text,
+                              }));
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1 sm:order-1">
+                          <p className={`px-1 ${TECH_DRAWER_KICKER}`}>Como pagou (obrigatório)</p>
+                          <RepairPaymentMethodPicker
+                            value={repairPayments[service.opportunityId]}
+                            onChange={(method) => {
+                              setRepairPayments((current) => ({
+                                ...current,
+                                [service.opportunityId]: method,
+                              }));
+                              if (method !== "outros") {
+                                setRepairPaymentDetails((current) => {
+                                  const { [service.opportunityId]: _removed, ...rest } = current;
+                                  return rest;
+                                });
+                              }
+                            }}
+                            disabled={isUploading}
+                            splitWithAmount
+                          />
+                        </div>
+                      </div>
                       {repairPayments[service.opportunityId] === "outros" ? (
                         <RepairPaymentOtherDetailField
                           id={`repair-pay-detail-${service.opportunityId}`}

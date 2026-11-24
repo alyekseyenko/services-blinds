@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navigation, MapPin } from "lucide-react";
 import { openNavigation } from "@/lib/navigationUtils";
+import {
+  getNavProviderPreference,
+  setNavProviderPreference,
+  type NavProviderPreference,
+} from "@/lib/clientPreferences";
 
 interface NavigationChooserProps {
   address: string;
@@ -20,27 +25,53 @@ export default function NavigationChooser({
   onClick,
 }: NavigationChooserProps) {
   const [showPicker, setShowPicker] = useState(false);
+  const [preferredProvider, setPreferredProvider] = useState<NavProviderPreference | null>(null);
 
-  const handleOpen = (e: React.MouseEvent, provider: "google" | "waze") => {
+  useEffect(() => {
+    setPreferredProvider(getNavProviderPreference());
+  }, []);
+
+  const handleOpen = useCallback(
+    (e: React.MouseEvent, provider: NavProviderPreference) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setNavProviderPreference(provider);
+      setPreferredProvider(provider);
+      openNavigation(provider, address, coordinates);
+      setShowPicker(false);
+    },
+    [address, coordinates]
+  );
+
+  const handlePrimaryClick = (e: React.MouseEvent) => {
+    onClick?.(e);
     e.stopPropagation();
-    e.preventDefault();
-    openNavigation(provider, address, coordinates);
-    setShowPicker(false);
+    if (preferredProvider) {
+      openNavigation(preferredProvider, address, coordinates);
+      return;
+    }
+    setShowPicker(true);
   };
 
   if (!showPicker) {
+    const providerLabel =
+      preferredProvider === "waze"
+        ? "Waze"
+        : preferredProvider === "google"
+          ? "Google Maps"
+          : null;
     return (
       <button
         type="button"
-        onClick={(e) => {
-          onClick?.(e);
-          e.stopPropagation();
+        onClick={handlePrimaryClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
           setShowPicker(true);
         }}
         className={className}
       >
         <Navigation className="w-4 h-4 text-primary-ink" />
-        <span>{label}</span>
+        <span>{providerLabel ? `${label} · ${providerLabel}` : label}</span>
       </button>
     );
   }

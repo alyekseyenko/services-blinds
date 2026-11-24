@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { isTaskActive, isTaskInProgress } from "@/lib/crm/contract";
-import { type RepairPaymentMethodId, type RepairPaymentNote } from "@/lib/visits/repairPayment";
+import { type RepairPaymentNote } from "@/lib/visits/repairPayment";
 import { useToast } from "@/components/ui/ToastContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -25,6 +25,7 @@ import { TaskDrawerServicesSection } from "@/components/dashboard/drawer/TaskDra
 import { TaskDrawerNotesSection } from "@/components/dashboard/drawer/TaskDrawerNotesSection";
 import { TaskDrawerFinalizeSection } from "@/components/dashboard/drawer/TaskDrawerFinalizeSection";
 import { useTaskDrawerVisitActions } from "@/components/dashboard/drawer/useTaskDrawerVisitActions";
+import { useRepairPaymentDrawerState } from "@/components/dashboard/drawer/useRepairPaymentDrawerState";
 import { useTaskDrawerVisitModel } from "@/components/dashboard/drawer/useTaskDrawerVisitModel";
 import {
   TaskDrawerMeasurementsTab,
@@ -81,8 +82,7 @@ export default function TaskDetailsDrawer({
   const drawerRef = useFocusTrap(!!selectedTask);
   const [reason, setReason] = useState("");
   const [reasonPreset, setReasonPreset] = useState("");
-  const [repairPayments, setRepairPayments] = useState<Record<string, RepairPaymentMethodId>>({});
-  const [repairPaymentDetails, setRepairPaymentDetails] = useState<Record<string, string>>({});
+  const repairPayment = useRepairPaymentDrawerState();
   const [statusAction, setStatusAction] = useState("");
   const [activeTab, setActiveTab] = useState<"info" | "measurements">("info");
   const [showAddService, setShowAddService] = useState(false);
@@ -103,6 +103,7 @@ export default function TaskDetailsDrawer({
   const {
     notes,
     loadingNotes,
+    notesFromCache,
     newNoteText,
     setNewNoteText,
     isCreatingNote,
@@ -143,8 +144,8 @@ export default function TaskDetailsDrawer({
     mutateTasks,
     isOnline,
     statusAction,
-    repairPayments,
-    repairPaymentDetails,
+    repairPayments: repairPayment.repairPayments,
+    repairPaymentDetails: repairPayment.repairPaymentDetails,
   });
 
   const {
@@ -162,6 +163,7 @@ export default function TaskDetailsDrawer({
     primaryServiceColors,
     measurementServices,
     showMeasurementsTab,
+    showActiveInstallationFicha,
     showMeasurementsUi,
   } = visitModel;
 
@@ -216,8 +218,7 @@ export default function TaskDetailsDrawer({
       measurementOppId,
       setActiveTab,
       visitServices,
-      repairPayments,
-      repairPaymentDetails,
+      repairPayment,
       statusAction,
       reason,
       reasonPreset,
@@ -493,6 +494,7 @@ export default function TaskDetailsDrawer({
               <TaskDrawerNotesSection
                 notes={notes}
                 loadingNotes={loadingNotes}
+                notesFromCache={notesFromCache}
                 isOnline={isOnline}
                 newNoteText={newNoteText}
                 setNewNoteText={setNewNoteText}
@@ -532,10 +534,7 @@ export default function TaskDetailsDrawer({
                   needsArrivalCheckIn={needsArrivalCheckIn}
                   onPromptArrivalCheckIn={promptArrivalCheckIn}
                   repairServices={repairServices}
-                  repairPayments={repairPayments}
-                  setRepairPayments={setRepairPayments}
-                  repairPaymentDetails={repairPaymentDetails}
-                  setRepairPaymentDetails={setRepairPaymentDetails}
+                  repairPayment={repairPayment}
                   repairPaymentMissing={repairPaymentMissing}
                   showStatusSubmitBar={showStatusSubmitBar}
                   onSubmitStatus={handleStatusUpdate}
@@ -553,6 +552,7 @@ export default function TaskDetailsDrawer({
             setMeasurementOppId={setMeasurementOppId}
             measurementsFullscreen={measurementsFullscreen}
             showMeasurementsTab={showMeasurementsTab}
+            showActiveInstallationFicha={showActiveInstallationFicha}
             showMeasurementsUi={showMeasurementsUi}
             activeTab={activeTab}
             measurementsFormRef={measurementsFormRef}

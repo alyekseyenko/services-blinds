@@ -11,6 +11,9 @@ export type MeasurementSheetRow = {
   deleted_at?: Date | null;
   deleted_by_name?: string | null;
   client_name: string;
+  client_nif?: string | null;
+  client_phone?: string | null;
+  client_email?: string | null;
   nsi: string | null;
   address: string;
   service_label: string | null;

@@ -1,7 +1,8 @@
 "use client";
 
-import { Phone } from "lucide-react";
+import { MessageCircle, Phone } from "lucide-react";
 import { toTelHref } from "@/lib/crm/phones";
+import { toWhatsAppHref } from "@/lib/phoneWhatsApp";
 
 interface ContactPhoneListProps {
   phones?: string[] | null;
@@ -22,18 +23,36 @@ export default function ContactPhoneList({
     return <p className="text-foreground font-bold">{emptyLabel}</p>;
   }
 
+  const actionButtonClass =
+    "flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-border bg-card transition-colors shadow-sm hover:border-primary";
+
   if (compact) {
     return (
       <div className={`flex flex-wrap gap-2 ${className}`}>
         {normalizedPhones.map((phone, index) => (
-          <a
+          <div
             key={`${phone}-${index}`}
-            href={toTelHref(phone)}
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground shadow-sm transition-colors hover:border-primary"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground shadow-sm"
           >
             <Phone className="h-4 w-4 text-primary-ink" />
             <span className="ds-num">{phone}</span>
-          </a>
+            <a
+              href={toTelHref(phone)}
+              className={`${actionButtonClass} border-0 p-0 min-w-10 min-h-10`}
+              aria-label={`Ligar para ${phone}`}
+            >
+              <Phone className="h-4 w-4 text-info-solid" />
+            </a>
+            <a
+              href={toWhatsAppHref(phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${actionButtonClass} border-0 p-0 min-w-10 min-h-10`}
+              aria-label={`WhatsApp para ${phone}`}
+            >
+              <MessageCircle className="h-4 w-4 text-success-solid" />
+            </a>
+          </div>
         ))}
       </div>
     );
@@ -49,13 +68,24 @@ export default function ContactPhoneList({
             </p>
             <p className="text-foreground font-bold ds-num">{phone}</p>
           </div>
-          <a
-            href={toTelHref(phone)}
-            className="bg-card border border-border p-2 rounded-xl hover:bg-info-surface transition-colors shadow-sm"
-            aria-label={`Ligar para ${phone}`}
-          >
-            <Phone className="w-4 h-4 text-info-solid" />
-          </a>
+          <div className="flex shrink-0 gap-2">
+            <a
+              href={toTelHref(phone)}
+              className={`${actionButtonClass} hover:bg-info-surface`}
+              aria-label={`Ligar para ${phone}`}
+            >
+              <Phone className="w-4 h-4 text-info-solid" />
+            </a>
+            <a
+              href={toWhatsAppHref(phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${actionButtonClass} hover:bg-success-surface`}
+              aria-label={`WhatsApp para ${phone}`}
+            >
+              <MessageCircle className="w-4 h-4 text-success-solid" />
+            </a>
+          </div>
         </div>
       ))}
     </div>

@@ -66,6 +66,7 @@ export function MapPinPopups(props: {
   onClearSelectedMarker: () => void;
   onTaskSelect: (task: any) => void;
   onScheduleFromMap?: (task: any) => void;
+  onRescheduleFromMap?: (task: any) => void;
   routeSelectionMode?: boolean;
   isTaskInRoute?: (task: any) => boolean;
   onToggleRouteFromMap?: (task: any) => void;
@@ -88,6 +89,7 @@ export function MapPinPopups(props: {
     onClearSelectedMarker,
     onTaskSelect,
     onScheduleFromMap,
+    onRescheduleFromMap,
     routeSelectionMode,
     isTaskInRoute,
     onToggleRouteFromMap,
@@ -212,6 +214,14 @@ export function MapPinPopups(props: {
               onScheduleFromMap
                 ? () => {
                     onScheduleFromMap(selectedMarker);
+                    onClearSelectedMarker();
+                  }
+                : undefined
+            }
+            onReschedule={
+              onRescheduleFromMap
+                ? () => {
+                    onRescheduleFromMap(selectedMarker);
                     onClearSelectedMarker();
                   }
                 : undefined

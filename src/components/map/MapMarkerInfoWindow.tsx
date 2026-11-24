@@ -2,12 +2,15 @@
 
 import { Calendar, MapPin, PanelRightOpen } from "lucide-react";
 import { MapInfoWindowShell } from "@/components/map/MapInfoWindowShell";
+import ContactPhoneList from "@/components/ui/ContactPhoneList";
+import { CopyTextButton } from "@/components/ui/CopyTextButton";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import {
   isNeedsSchedulingStage,
   isTaskCompleted,
   isTaskInProgress,
 } from "@/lib/crm/contract";
+import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
 
 export interface MapMarkerOpportunity {
   id?: string;
@@ -37,6 +40,7 @@ interface MapMarkerInfoWindowProps {
   onClose: () => void;
   onOpenDetails: () => void;
   onSchedule?: () => void;
+  onReschedule?: () => void;
   routeSelectionMode?: boolean;
   isInRoute?: boolean;
   onToggleRoute?: () => void;
@@ -47,6 +51,7 @@ export function MapMarkerInfoWindow({
   onClose,
   onOpenDetails,
   onSchedule,
+  onReschedule,
   routeSelectionMode = false,
   isInRoute = false,
   onToggleRoute,
@@ -82,7 +87,18 @@ export function MapMarkerInfoWindow({
     marker.serviceNumber ? `N.º ${marker.serviceNumber}` : null,
     marker.nsi && marker.nsi !== "N/A" ? `NSI ${marker.nsi}` : null,
   ].filter((value): value is string => Boolean(value));
+  const contactPhones = [
+    ...(marker.pointOfContactPhones?.filter(Boolean) ?? []),
+    ...(marker.pointOfContactPhone ? [marker.pointOfContactPhone] : []),
+  ];
+  const nifLabel = formatClientNifDisplay(marker.clientNif);
+  const canReschedule =
+    Boolean(marker.hasScheduledTask) &&
+    !isTaskCompleted(marker.taskStatus) &&
+    !isTaskInProgress(marker.taskStatus) &&
+    Boolean(onReschedule);
   const showSchedule = canSchedule && Boolean(onSchedule) && !routeSelectionMode;
+  const showReschedule = canReschedule && !routeSelectionMode;
   const showRouteToggle = routeSelectionMode && Boolean(onToggleRoute);
 
   return (
@@ -125,11 +141,27 @@ export function MapMarkerInfoWindow({
       )}
 
       {marker.address && (
-        <p className="mt-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-left text-xs leading-snug text-muted-foreground">
+        <div className="mt-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-left text-xs leading-snug text-muted-foreground">
           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-          <span>{marker.address}</span>
-        </p>
+          <span className="min-w-0 flex-1">{marker.address}</span>
+          <CopyTextButton text={marker.address} label="Copiar morada" className="min-h-9 min-w-9" />
+        </div>
       )}
+
+      {contactPhones.length > 0 ? (
+        <div className="mt-2">
+          <ContactPhoneList phones={contactPhones} compact />
+        </div>
+      ) : null}
+
+      {nifLabel ? (
+        <p className="mt-2 flex items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
+          <span>
+            NIF <span className="ds-num text-foreground">{nifLabel}</span>
+          </span>
+          <CopyTextButton text={nifLabel} label="Copiar NIF" className="min-h-9 min-w-9" />
+        </p>
+      ) : null}
 
       {(scheduledLabel || technicianName) && (
         <p className="mt-2 text-xs text-muted-foreground">
@@ -139,7 +171,9 @@ export function MapMarkerInfoWindow({
 
       <div
         className={`mt-3 grid gap-2 ${
-          showRouteToggle && showSchedule ? "grid-cols-2" : "grid-cols-1"
+          [showRouteToggle, showSchedule, showReschedule].filter(Boolean).length > 1
+            ? "grid-cols-2"
+            : "grid-cols-1"
         }`}
       >
         {showRouteToggle && (
@@ -163,6 +197,16 @@ export function MapMarkerInfoWindow({
           >
             <Calendar className="h-4 w-4 shrink-0" aria-hidden />
             Agendar
+          </button>
+        )}
+        {showReschedule && (
+          <button
+            type="button"
+            onClick={onReschedule}
+            className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 text-xs font-bold uppercase text-foreground"
+          >
+            <Calendar className="h-4 w-4 shrink-0 text-primary-ink" aria-hidden />
+            Reagendar
           </button>
         )}
         <button

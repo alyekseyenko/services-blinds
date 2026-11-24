@@ -172,7 +172,12 @@ export async function enqueueMeasurementsSaveOp(
   const existing = await db.syncQueue
     .where("taskId")
     .equals(taskId)
-    .filter((i) => i.action === "SAVE_MEASUREMENTS" && i.status === "pending")
+    .filter(
+      (i) =>
+        i.action === "SAVE_MEASUREMENTS" &&
+        i.status === "pending" &&
+        String(i.payload?.opportunityId ?? "") === opportunityId
+    )
     .first();
 
   if (existing?.id) {

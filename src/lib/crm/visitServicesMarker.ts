@@ -2,6 +2,8 @@ import { stripVisitSiteTimesMarker } from "@/lib/visitSiteTimes";
 import { deriveWorkflowMarkerKey } from "./contract";
 import { formatServiceNumber } from "./serviceNumber";
 import type { ExtraServiceType, VisitService, VisitServiceMode } from "@/lib/schemas";
+import { opportunityEurosFromAmountMicros } from "./opportunityAmount";
+import { computeRepairPaymentWithVat } from "@/lib/visits/repairPaymentAmount";
 
 export const VISIT_SERVICES_REGEX = /<!--\s*\[VISIT_SERVICES\]([\s\S]*?)\s*-->/;
 const VISIT_SERVICES_REGEX_GLOBAL = /<!--\s*\[VISIT_SERVICES\][\s\S]*?\s*-->/g;
@@ -14,6 +16,8 @@ export interface VisitServiceMarkerRecord {
   createdAt: string;
   paymentMethod?: string;
   paymentDetail?: string;
+  /** Valor cobrado sem IVA (euros), para mostrar e reeditar no técnico. */
+  amountExVatEuros?: number;
 }
 
 export function parseVisitServicesMarker(markdown?: string | null): VisitServiceMarkerRecord[] {
@@ -56,6 +60,13 @@ export function upsertVisitServiceMarkerRecord(
   return writeVisitServicesMarker(markdown, [...without, record]);
 }
 
+function amountExVatFromOpportunityTotal(opp: { amount?: { amountMicros?: unknown } }): number | undefined {
+  const total = opportunityEurosFromAmountMicros(opp.amount?.amountMicros);
+  if (total == null || total <= 0) return undefined;
+  const exCents = Math.round((total * 100) / 1.23);
+  return exCents / 100;
+}
+
 export function buildVisitServicesFromTaskNode(node: {
   bodyV2?: { markdown?: string | null } | null;
   taskTargets?: { edges?: Array<{ node?: { targetOpportunity?: any } }> };
@@ -70,6 +81,7 @@ export function buildVisitServicesFromTaskNode(node: {
     nsi?: number | string;
     numeroDeServico?: number | string | null;
     stage?: string;
+    amount?: { amountMicros?: unknown };
   }> = [];
   for (const edge of edges) {
     const opp = edge.node?.targetOpportunity;
@@ -100,6 +112,10 @@ export function buildVisitServicesFromTaskNode(node: {
         clientRequestId: meta?.clientRequestId,
         paymentMethod: meta?.paymentMethod,
         paymentDetail: meta?.paymentDetail,
+        amountExVatEuros:
+          meta?.amountExVatEuros != null && meta.amountExVatEuros > 0
+            ? meta.amountExVatEuros
+            : amountExVatFromOpportunityTotal(opp),
       };
     })
     .sort((a, b) => {

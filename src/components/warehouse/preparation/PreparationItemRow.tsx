@@ -91,19 +91,19 @@ export function PreparationItemRow({
                 <span className="text-xs ml-1 text-muted-foreground font-bold uppercase">un</span>
               </p>
             </div>
-            <div className="hidden lg:block">
+            <div>
               <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-1">
                 Acionamento
               </p>
               <p className="text-sm font-bold text-muted-foreground">{group.details?.activation || "-"}</p>
             </div>
-            <div className="hidden lg:block">
+            <div>
               <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-1">
                 Fixação
               </p>
               <p className="text-sm font-bold text-muted-foreground">{m.fixation || "-"}</p>
             </div>
-            <div className="hidden lg:block">
+            <div>
               <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-1">
                 Comandos
               </p>

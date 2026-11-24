@@ -16,6 +16,7 @@ import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
 import { buildTechVisitDrawerHeader } from "@/lib/techVisitDisplay";
 import { Opportunity } from "@/types/admin";
 import { isNeedsSchedulingStage, isTaskCompleted, isTaskInProgress } from "@/lib/crm/contract";
+import { canOpenRescheduleModal } from "@/lib/admin/scheduleFormPrefill";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import AdminOpportunityMeasurements from "@/components/admin/AdminOpportunityMeasurements";
@@ -32,7 +33,7 @@ export interface OpportunityDrawerProps {
   handleCancelAppointment: (opp: Opportunity) => Promise<void> | void;
   handleUpdateGps: (opp: Opportunity) => Promise<void> | void;
   handleManualCoordsUpdate: (opp: Opportunity, lat: string, lng: string) => Promise<void> | void;
-  openScheduleModal: (opp: Opportunity) => void;
+  openScheduleModal: (opp: Opportunity, options?: { reschedule?: boolean }) => void;
   fairServiceTypeDurations?: FairServiceTypeDuration[];
   fairBenchmarksReady?: boolean;
 }
@@ -144,6 +145,8 @@ export default function OpportunityDrawer({
   const isCompleted =
     ["PREPARACAO", "CONCLUIDO"].includes((selectedOpportunity.stage || "").toUpperCase()) ||
     isTaskCompleted(selectedOpportunity.taskStatus);
+  const canReschedule =
+    canOpenRescheduleModal(selectedOpportunity) && !visitInProgress && !isCompleted;
 
   return (
     <>
@@ -240,6 +243,17 @@ export default function OpportunityDrawer({
                   aria-label="Agendar visita"
                   title="Agendar visita"
                   onClick={() => openScheduleModal(selectedOpportunity)}
+                >
+                  <CalendarIcon className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+                </IconButton>
+              ) : null}
+              {canReschedule ? (
+                <IconButton
+                  variant="primary"
+                  data-tour="admin-opp-reschedule-btn"
+                  aria-label="Reagendar ou trocar técnico"
+                  title="Reagendar / Trocar técnico"
+                  onClick={() => openScheduleModal(selectedOpportunity, { reschedule: true })}
                 >
                   <CalendarIcon className="h-5 w-5" strokeWidth={2.25} aria-hidden />
                 </IconButton>

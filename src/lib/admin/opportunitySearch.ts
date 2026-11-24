@@ -1,4 +1,16 @@
+import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
 import type { Opportunity } from "@/types/admin";
+
+function opportunityPhones(opp: Opportunity): string[] {
+  const fromList = opp.pointOfContactPhones?.filter(Boolean).map((p) => String(p)) ?? [];
+  if (fromList.length > 0) return fromList;
+  if (opp.pointOfContactPhone) return [opp.pointOfContactPhone];
+  return [];
+}
+
+function phoneDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
 
 function opportunityNsiText(opp: Opportunity): string {
   if (opp.nsi == null || opp.nsi === "") return "";
@@ -10,6 +22,7 @@ export function normalizeAdminSearchQuery(query: string): string {
 }
 
 function searchableFields(opp: Opportunity): string[] {
+  const nif = formatClientNifDisplay(opp.clientNif);
   const fields = [
     opp.client,
     opp.title,
@@ -21,6 +34,8 @@ function searchableFields(opp: Opportunity): string[] {
     opp.twentyId,
     opp.taskId,
     opp.pointOfContactEmail,
+    nif,
+    ...opportunityPhones(opp),
     typeof opp.serviceType === "string" ? opp.serviceType : opp.serviceType?.join(" "),
   ];
   return fields.filter(Boolean).map((v) => String(v).toLowerCase());
@@ -30,9 +45,11 @@ export function opportunityMatchesSearch(opp: Opportunity, query: string): boole
   const q = normalizeAdminSearchQuery(query);
   if (!q) return true;
   const compact = q.replace(/\s+/g, "");
+  const qDigits = phoneDigits(q);
   return searchableFields(opp).some((field) => {
     if (field.includes(q)) return true;
     if (compact.length >= 3 && field.replace(/\s+/g, "").includes(compact)) return true;
+    if (qDigits.length >= 6 && phoneDigits(field).includes(qDigits)) return true;
     return false;
   });
 }

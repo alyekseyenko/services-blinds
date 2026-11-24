@@ -23,7 +23,11 @@ import {
   type VisitPhaseId,
 } from "@/lib/agendaVisitLifecycle";
 import { stripLegacyAgendaProgressFromDescription } from "@/lib/agendaNotificationBellCopy";
-import { visitServiceTypeLabel } from "@/lib/agendaNotificationPayload";
+import {
+  buildAgendaNotificationHeadline,
+  buildAgendaNotificationSubtitle,
+  visitServiceTypeLabel,
+} from "@/lib/agendaNotificationPayload";
 import { resolveTimelineEntryDetail } from "@/lib/agendaTimelineCopy";
 import {
   isVisitDueBeforeToday,
@@ -106,14 +110,8 @@ export function AgendaVisitNotificationCard({
   const tone = visitPhaseToTone(phase);
 
   const visit = n.visit;
-  const clientLine = [
-    visit?.clientName,
-    visit?.serviceNumber ? `N.º ${visit.serviceNumber}` : null,
-    visit?.nsi ? `NSI ${visit.nsi}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const titleLine = visit?.visitTitle?.trim();
+  const headline = buildAgendaNotificationHeadline(visit);
+  const titleLine = buildAgendaNotificationSubtitle(visit);
   const scheduled = formatScheduled(visit?.dueAtIso ?? n.dueAtIso);
   const techName = visit?.technicianName?.trim();
   const legacyDesc = stripLegacyAgendaProgressFromDescription(n.description);
@@ -172,23 +170,14 @@ export function AgendaVisitNotificationCard({
         )}
       </div>
 
-      {clientLine ? (
+      {(headline || n.title) && (
         <p
           className={cn(
             "line-clamp-2 font-semibold leading-snug text-foreground",
             spacious ? "text-base" : "text-sm"
           )}
         >
-          {clientLine}
-        </p>
-      ) : (
-        <p
-          className={cn(
-            "line-clamp-2 font-semibold leading-snug text-foreground",
-            spacious ? "text-base" : "text-sm"
-          )}
-        >
-          {n.title}
+          {headline || n.title}
         </p>
       )}
 
@@ -198,7 +187,7 @@ export function AgendaVisitNotificationCard({
         </p>
       )}
 
-      {!titleLine && !visit?.clientName && legacyDesc && (
+      {!titleLine && !headline && legacyDesc && (
         <p className="line-clamp-2 text-xs font-semibold text-muted-foreground dark:text-muted-foreground">
           {legacyDesc}
         </p>

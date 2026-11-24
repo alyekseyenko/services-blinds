@@ -49,5 +49,10 @@ export function useBackToClose(open: boolean, onClose: () => void, overlayKey?: 
     };
   }, [open, key]);
 
-  return { dismissForNavigation };
+  /** Evita `history.back()` no cleanup sem chamar `onClose` (ex.: fechar overlay e navegar noutro sítio). */
+  const dismissWithoutHistoryBack = useCallback(() => {
+    skipHistoryBackRef.current = true;
+  }, []);
+
+  return { dismissForNavigation, dismissWithoutHistoryBack };
 }

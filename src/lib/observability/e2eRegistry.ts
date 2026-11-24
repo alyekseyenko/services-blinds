@@ -11,6 +11,7 @@ import { appBuildVersionCheck } from "./checks/appBuild";
 import { circuitBreakerCheck } from "./checks/circuitBreaker";
 import { crmGraphqlCheck } from "./checks/crmGraphql";
 import { adminAgendaFeedApiCheck } from "./checks/adminAgendaFeedApi";
+import { clientRatingFeedApiCheck } from "./checks/clientRatingFeedApi";
 import { adminMeasurementsExportApiCheck } from "./checks/adminMeasurementsExportApi";
 import { visitServiceFilesApiCheck } from "./checks/visitServiceFilesApi";
 import { measurementsDbCheck } from "./checks/measurementsDb";
@@ -74,6 +75,7 @@ export const E2E_CHECK_REGISTRY: E2ECheckDefinition[] = [
   locationStoreRoundtripCheck,
   fieldSyncHealthCheck,
   adminAgendaFeedApiCheck,
+  clientRatingFeedApiCheck,
   adminMeasurementsExportApiCheck,
   visitServiceFilesApiCheck,
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Font, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { MeasurementSheet } from "@/lib/schemas/measurementSheet";
 import { measurementExportByline } from "@/lib/measurementsExport/exportByline";
 import {
@@ -10,12 +10,25 @@ import {
   measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
 import { formatMeasurementPdfPageLabel } from "@/lib/measurementsExport/pdfPageFooter";
+import { measurementClientDetailRows } from "@/lib/measurements/clientContactDisplay";
+import type { MeasurementLineColumnKey } from "@/lib/measurements/sheetDisplay";
+
+/** Não parte palavras ao meio — o texto desce de linha dentro da célula. */
+Font.registerHyphenationCallback((word) => [word]);
+
+export type MeasurementPdfLayout = "landscape" | "portrait";
 
 const styles = StyleSheet.create({
   page: {
     padding: 32,
     paddingBottom: 52,
     fontSize: 9,
+    fontFamily: "Helvetica",
+  },
+  pagePortrait: {
+    padding: 16,
+    paddingBottom: 36,
+    fontSize: 8,
     fontFamily: "Helvetica",
   },
   pageFooter: {
@@ -32,10 +45,50 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 4,
   },
+  headerBand: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  headerStack: {
+    marginBottom: 6,
+  },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 4,
+  },
+  titlePortrait: {
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  clientGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    padding: 6,
+    backgroundColor: "#f7f7f7",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  clientCell: {
+    width: "50%",
+    flexDirection: "row",
+    marginBottom: 2,
+    paddingRight: 8,
+    fontSize: 7,
+  },
+  clientCellFull: {
+    width: "100%",
+  },
+  headerLeft: {
+    width: "34%",
+    paddingRight: 12,
+  },
   byline: {
     fontSize: 11,
     color: "#333",
-    marginBottom: 16,
+    marginTop: 4,
     fontWeight: "bold",
   },
   metaRow: {
@@ -101,6 +154,65 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontWeight: "bold",
   },
+  clientSection: {
+    flex: 1,
+    padding: 8,
+    backgroundColor: "#f7f7f7",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  clientSectionTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    marginBottom: 5,
+    color: "#444",
+    textTransform: "uppercase",
+  },
+  clientRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+    fontSize: 8,
+  },
+  clientRowLast: {
+    marginBottom: 0,
+  },
+  clientLabel: {
+    width: 54,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  clientValue: {
+    flex: 1,
+  },
+  serviceBand: {
+    marginBottom: 8,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+  },
+  serviceSectionTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    marginBottom: 4,
+    color: "#444",
+    textTransform: "uppercase",
+  },
+  serviceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 3,
+    fontSize: 8,
+  },
+  servicePair: {
+    flexDirection: "row",
+    marginRight: 18,
+    marginBottom: 2,
+  },
+  serviceLabel: {
+    fontWeight: "bold",
+    color: "#333",
+    marginRight: 4,
+  },
   footer: {
     marginTop: 16,
     fontWeight: "bold",
@@ -152,70 +264,155 @@ function GroupProductDetailsPdf({ entries }: { entries: ReturnType<typeof getMea
   );
 }
 
-export function MeasurementPdfDocument({ sheet }: { sheet: MeasurementSheet }) {
+function columnFlex(key: MeasurementLineColumnKey, portrait: boolean): number {
+  if (!portrait) return 1;
+  switch (key) {
+    case "index":
+    case "qty":
+      return 0.42;
+    case "primaryHeight":
+    case "primaryWidth":
+    case "openingHeight":
+    case "openingWidth":
+    case "exteriorHeight":
+    case "exteriorWidth":
+    case "depth":
+    case "price":
+      return 0.72;
+    case "division":
+    case "notes":
+    case "channel":
+    case "openingSummary":
+      return 1.35;
+    default:
+      return 0.85;
+  }
+}
+
+export function MeasurementPdfDocument({
+  sheet,
+  layout = "landscape",
+}: {
+  sheet: MeasurementSheet;
+  layout?: MeasurementPdfLayout;
+}) {
+  const portrait = layout === "portrait";
   const totalUnits = sheet.groups.reduce(
     (acc, g) => acc + g.rows.reduce((s, r) => s + r.qty, 0),
     0
   );
   const exportByline = measurementExportByline(sheet.technicianName);
+  const clientRows = measurementClientDetailRows(sheet);
 
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page} wrap>
-        <Text style={styles.title}>Ficha Técnica de Medição</Text>
-        {exportByline ? <Text style={styles.byline}>{exportByline}</Text> : null}
-
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Cliente</Text>
-          <Text style={styles.metaValue}>{sheet.clientName}</Text>
-          <Text style={styles.metaLabel}>N.º serviço</Text>
-          <Text style={styles.metaValue}>{sheet.serviceNumber || "—"}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>NSI</Text>
-          <Text style={styles.metaValue}>{sheet.nsi || "—"}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Morada</Text>
-          <Text style={styles.metaValue}>{sheet.address}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Serviço</Text>
-          <Text style={styles.metaValue}>{sheet.serviceLabel || "—"}</Text>
-          <Text style={styles.metaLabel}>Técnico</Text>
-          <Text style={styles.metaValue}>{sheet.technicianName || "—"}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Data</Text>
-          <Text style={styles.metaValue}>{formatVisitDate(sheet.visitDateIso)}</Text>
-        </View>
-        {sheet.remeasureLabel?.trim() ? (
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Medidas Retificadas</Text>
-            <Text style={styles.metaValue}>{sheet.remeasureLabel}</Text>
+      <Page
+        size="A4"
+        orientation={portrait ? "portrait" : "landscape"}
+        style={portrait ? styles.pagePortrait : styles.page}
+        wrap
+      >
+        {portrait ? (
+          <View style={styles.headerStack}>
+            <View style={styles.titleRow}>
+              <Text style={styles.titlePortrait}>Ficha Técnica de Medição</Text>
+              {exportByline ? <Text style={styles.byline}>{exportByline}</Text> : null}
+            </View>
+            <View style={styles.clientGrid}>
+              {clientRows.map((row) => (
+                <View
+                  key={row.label}
+                  style={row.label === "Morada" ? [styles.clientCell, styles.clientCellFull] : styles.clientCell}
+                >
+                  <Text style={styles.clientLabel}>{row.label}</Text>
+                  <Text style={styles.clientValue}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.headerBand}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.title}>Ficha Técnica de Medição</Text>
+              {exportByline ? <Text style={styles.byline}>{exportByline}</Text> : null}
+            </View>
+            <View style={styles.clientSection}>
+              <Text style={styles.clientSectionTitle}>Dados do cliente</Text>
+              {clientRows.map((row, idx) => (
+                <View
+                  key={row.label}
+                  style={idx === clientRows.length - 1 ? [styles.clientRow, styles.clientRowLast] : styles.clientRow}
+                >
+                  <Text style={styles.clientLabel}>{row.label}</Text>
+                  <Text style={styles.clientValue}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.serviceBand}>
+          <Text style={styles.serviceSectionTitle}>Serviço e ficha</Text>
+          <View style={styles.serviceRow}>
+            <View style={styles.servicePair}>
+              <Text style={styles.serviceLabel}>N.º serviço:</Text>
+              <Text>{sheet.serviceNumber || "—"}</Text>
+            </View>
+            <View style={styles.servicePair}>
+              <Text style={styles.serviceLabel}>NSI:</Text>
+              <Text>{sheet.nsi || "—"}</Text>
+            </View>
+            <View style={styles.servicePair}>
+              <Text style={styles.serviceLabel}>Serviço:</Text>
+              <Text>{sheet.serviceLabel || "—"}</Text>
+            </View>
+            <View style={styles.servicePair}>
+              <Text style={styles.serviceLabel}>Técnico:</Text>
+              <Text>{sheet.technicianName || "—"}</Text>
+            </View>
+            <View style={styles.servicePair}>
+              <Text style={styles.serviceLabel}>Data:</Text>
+              <Text>{formatVisitDate(sheet.visitDateIso)}</Text>
+            </View>
+            {sheet.remeasureLabel?.trim() ? (
+              <View style={styles.servicePair}>
+                <Text style={styles.serviceLabel}>Medidas retificadas:</Text>
+                <Text>{sheet.remeasureLabel}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
 
         {sheet.groups.map((group, gi) => {
           const plan = measurementLineColumnPlan(group, { includePrice: true });
-          const cellStyle = { flexGrow: 1, flexBasis: 0, fontSize: 7 };
+          const fontSize = portrait ? 6.5 : 7;
           return (
             <View key={`g-${gi}`}>
-              <Text style={styles.groupTitle}>{group.productLabel}</Text>
+              <Text style={portrait ? [styles.groupTitle, { marginTop: 8, fontSize: 9, padding: 4 }] : styles.groupTitle}>
+                {group.productLabel}
+              </Text>
               <GroupProductDetailsPdf entries={getMeasurementGroupDetailEntries(group)} />
-              <View style={styles.tableHeader}>
+              <View style={styles.tableHeader} wrap={false}>
                 {plan.columns.map((col) => (
-                  <Text key={col.key} style={[styles.cell, cellStyle]}>
-                    {col.header}
-                  </Text>
+                  <View
+                    key={col.key}
+                    style={[styles.cell, { flexGrow: columnFlex(col.key, portrait), flexBasis: 0, flexShrink: 1 }]}
+                  >
+                    <Text style={{ fontSize }}>{col.header}</Text>
+                  </View>
                 ))}
               </View>
               {group.rows.map((row) => (
-                <View key={`r-${gi}-${row.index}`} style={styles.tableRow}>
+                <View key={`r-${gi}-${row.index}`} style={styles.tableRow} wrap={false}>
                   {plan.columns.map((col) => (
-                    <Text key={col.key} style={[styles.cell, cellStyle]}>
-                      {measurementLineColumnValue(row, col.key, plan.openingIsPrimary)}
-                    </Text>
+                    <View
+                      key={col.key}
+                      style={[styles.cell, { flexGrow: columnFlex(col.key, portrait), flexBasis: 0, flexShrink: 1 }]}
+                    >
+                      <Text style={{ fontSize }}>
+                        {measurementLineColumnValue(row, col.key, plan.openingIsPrimary) || " "}
+                      </Text>
+                    </View>
                   ))}
                 </View>
               ))}

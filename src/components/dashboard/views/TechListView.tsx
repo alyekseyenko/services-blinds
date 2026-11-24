@@ -76,31 +76,42 @@ export function TechListView({
                 </p>
               </div>
 
-              <div className="flex w-full touch-manipulation items-center justify-between gap-2 rounded-xl border-2 border-border-strong bg-card p-1.5 sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => shiftCalendarDay(-1)}
-                  className="min-h-12 rounded-xl px-4 text-xs font-bold text-muted-foreground transition-all hover:bg-muted hover:text-primary-ink active:bg-muted"
-                >
-                  Voltar
-                </button>
-                <div
-                  className="min-w-[120px] px-4 text-center text-xs font-black uppercase tracking-widest text-foreground"
-                  suppressHydrationWarning
-                >
-                  {formatPtDate(clientHydrated, calendarDate, {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}
+              <div className="flex w-full flex-col gap-2 sm:w-auto">
+                {!listShowsToday ? (
+                  <button
+                    type="button"
+                    onClick={onJumpToToday}
+                    className="min-h-12 w-full rounded-xl border-2 border-primary bg-primary/10 px-4 text-xs font-black uppercase tracking-widest text-primary-ink sm:w-auto"
+                  >
+                    Hoje
+                  </button>
+                ) : null}
+                <div className="flex w-full touch-manipulation items-center justify-between gap-2 rounded-xl border-2 border-border-strong bg-card p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(-1)}
+                    className="min-h-12 rounded-xl px-4 text-xs font-bold text-muted-foreground transition-all hover:bg-muted hover:text-primary-ink active:bg-muted"
+                  >
+                    Voltar
+                  </button>
+                  <div
+                    className="min-w-[120px] px-4 text-center text-xs font-black uppercase tracking-widest text-foreground"
+                    suppressHydrationWarning
+                  >
+                    {formatPtDate(clientHydrated, calendarDate, {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarDay(1)}
+                    className="min-h-12 rounded-xl px-4 text-xs font-bold text-muted-foreground transition-all hover:bg-muted hover:text-primary-ink active:bg-muted"
+                  >
+                    Avançar
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => shiftCalendarDay(1)}
-                  className="min-h-12 rounded-xl px-4 text-xs font-bold text-muted-foreground transition-all hover:bg-muted hover:text-primary-ink active:bg-muted"
-                >
-                  Avançar
-                </button>
               </div>
             </div>
 
@@ -114,15 +125,19 @@ export function TechListView({
                   <CalendarIcon className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <h3 className="text-sm font-black uppercase tracking-tight text-muted-foreground">
-                  Sem visitas agendadas para hoje
+                  {listShowsToday
+                    ? "Sem visitas agendadas para hoje"
+                    : "Sem visitas neste dia"}
                 </h3>
-                <button
-                  type="button"
-                  onClick={onJumpToToday}
-                  className="mt-4 text-xs font-black uppercase tracking-widest text-primary-ink transition-colors hover:text-foreground"
-                >
-                  Voltar para o dia de hoje
-                </button>
+                {!listShowsToday ? (
+                  <button
+                    type="button"
+                    onClick={onJumpToToday}
+                    className="mt-4 min-h-12 rounded-xl border-2 border-primary bg-primary/10 px-6 text-xs font-black uppercase tracking-widest text-primary-ink"
+                  >
+                    Ir para hoje
+                  </button>
+                ) : null}
                 <div className="mt-8">
                   <Marquee segments={["Agenda", "Campo", "Sync"]} />
                 </div>

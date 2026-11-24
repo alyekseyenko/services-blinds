@@ -26,6 +26,7 @@ export const CEO_OPP_NODE_FIELDS = `
     }
   }
   createdAt
+  updatedAt
   amount {
     amountMicros
     currencyCode

@@ -7,6 +7,7 @@ import {
   measurementLineColumnPlan,
   measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
+import { measurementClientDetailRows } from "@/lib/measurements/clientContactDisplay";
 
 function formatVisitDate(iso?: string): string {
   if (!iso) return "—";
@@ -21,12 +22,18 @@ function formatVisitDate(iso?: string): string {
 
 export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Buffer> {
   const exportByline = measurementExportByline(sheet.technicianName);
+  const clientRows = measurementClientDetailRows(sheet);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = exportByline || COMPANY_LABEL;
   workbook.created = new Date();
 
+  const clientColStart = 6;
+  const clientDetailStartRow = 2;
+  const serviceStartRow =
+    Math.max(exportByline ? 3 : 2, clientDetailStartRow + clientRows.length - 1) + 2;
+
   const ws = workbook.addWorksheet("Medições", {
-    views: [{ state: "frozen", ySplit: 8 }],
+    views: [{ state: "frozen", ySplit: serviceStartRow + 2 }],
     pageSetup: {
       orientation: "landscape",
       fitToPage: true,
@@ -48,26 +55,55 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
     { width: 10 },
   ];
 
-  const titleRow = ws.addRow(["Ficha Técnica de Medição", "", "", "", "", "", "", "", ""]);
-  titleRow.font = { bold: true, size: 16 };
-  ws.mergeCells(titleRow.number, 1, titleRow.number, 9);
+  const titleRow = ws.addRow(["Ficha Técnica de Medição", "", "", "", "", "Dados do cliente"]);
+  titleRow.getCell(1).font = { bold: true, size: 16 };
+  ws.mergeCells(titleRow.number, 1, titleRow.number, 5);
+  titleRow.getCell(clientColStart).font = { bold: true, size: 10 };
+  ws.mergeCells(titleRow.number, clientColStart, titleRow.number, 9);
 
   if (exportByline) {
-    ws.addRow([exportByline]);
+    const bylineRow = ws.addRow([exportByline]);
+    ws.mergeCells(bylineRow.number, 1, bylineRow.number, 5);
+    bylineRow.getCell(1).font = { bold: true, size: 11 };
   }
-  ws.addRow([]);
-  ws.addRow(["Cliente", sheet.clientName, "", "N.º serviço", sheet.serviceNumber || "—"]);
-  ws.addRow(["NSI", sheet.nsi || "—"]);
-  ws.addRow(["Morada", sheet.address, "", "Serviço", sheet.serviceLabel || "—"]);
-  ws.addRow([
-    "Técnico",
-    sheet.technicianName || "—",
-    "",
-    "Data da visita",
-    formatVisitDate(sheet.visitDateIso),
-  ]);
+
+  clientRows.forEach((row, index) => {
+    const rowNumber = clientDetailStartRow + index;
+    ws.getCell(rowNumber, clientColStart).value = row.label;
+    ws.getCell(rowNumber, clientColStart).font = { bold: true };
+    ws.getCell(rowNumber, clientColStart + 1).value = row.value;
+    ws.mergeCells(rowNumber, clientColStart + 1, rowNumber, 9);
+  });
+
+  ws.getCell(serviceStartRow, 1).value = "Serviço e ficha";
+  ws.getCell(serviceStartRow, 1).font = { bold: true, size: 10 };
+  ws.mergeCells(serviceStartRow, 1, serviceStartRow, 9);
+
+  const serviceRow1 = ws.getRow(serviceStartRow + 1);
+  serviceRow1.getCell(1).value = "N.º serviço";
+  serviceRow1.getCell(2).value = sheet.serviceNumber || "—";
+  serviceRow1.getCell(4).value = "NSI";
+  serviceRow1.getCell(5).value = sheet.nsi || "—";
+  serviceRow1.getCell(7).value = "Serviço";
+  serviceRow1.getCell(8).value = sheet.serviceLabel || "—";
+  serviceRow1.getCell(1).font = { bold: true };
+  serviceRow1.getCell(4).font = { bold: true };
+  serviceRow1.getCell(7).font = { bold: true };
+
+  const serviceRow2 = ws.getRow(serviceStartRow + 2);
+  serviceRow2.getCell(1).value = "Técnico";
+  serviceRow2.getCell(2).value = sheet.technicianName || "—";
+  serviceRow2.getCell(4).value = "Data da visita";
+  serviceRow2.getCell(5).value = formatVisitDate(sheet.visitDateIso);
+  serviceRow2.getCell(1).font = { bold: true };
+  serviceRow2.getCell(4).font = { bold: true };
+
   if (sheet.remeasureLabel?.trim()) {
-    ws.addRow(["Medidas Retificadas", sheet.remeasureLabel.trim()]);
+    const remeasureRow = ws.getRow(serviceStartRow + 3);
+    remeasureRow.getCell(1).value = "Medidas Retificadas";
+    remeasureRow.getCell(2).value = sheet.remeasureLabel.trim();
+    remeasureRow.getCell(1).font = { bold: true };
+    ws.mergeCells(serviceStartRow + 3, 2, serviceStartRow + 3, 9);
   }
   ws.addRow([]);
 

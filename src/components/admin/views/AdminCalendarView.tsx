@@ -24,6 +24,7 @@ export interface AdminCalendarViewProps {
   setCalendarView: (view: View) => void;
   onSelectOpportunity: (opp: Opportunity) => void;
   onCancelAppointment: (opp: Opportunity) => Promise<void> | void;
+  onReschedule?: (opp: Opportunity) => void;
 }
 
 export default function AdminCalendarView({
@@ -37,6 +38,7 @@ export default function AdminCalendarView({
   setCalendarView,
   onSelectOpportunity,
   onCancelAppointment,
+  onReschedule,
 }: AdminCalendarViewProps) {
   const [showAgendaSheet, setShowAgendaSheet] = useState(false);
 
@@ -100,7 +102,7 @@ export default function AdminCalendarView({
               today.setHours(0, 0, 0, 0);
               if (date < today) {
                 return {
-                  className: "bg-muted opacity-60 pointer-events-none grayscale",
+                  className: "bg-muted/80 text-muted-foreground",
                 };
               }
               return {};
@@ -129,6 +131,7 @@ export default function AdminCalendarView({
           calendarOpportunities={calendarOpportunities}
           setSelectedOpportunity={onSelectOpportunity}
           handleCancelAppointment={onCancelAppointment}
+          onReschedule={onReschedule}
         />
       </div>
 
@@ -146,6 +149,7 @@ export default function AdminCalendarView({
             setShowAgendaSheet(false);
           }}
           handleCancelAppointment={onCancelAppointment}
+          onReschedule={onReschedule}
         />
       </Sheet>
     </div>

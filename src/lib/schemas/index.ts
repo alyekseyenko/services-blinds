@@ -110,6 +110,7 @@ export const VisitServiceSchema = z.object({
   pendingSync: z.boolean().optional(),
   paymentMethod: z.string().optional(),
   paymentDetail: z.string().max(500).optional(),
+  amountExVatEuros: z.number().positive().optional(),
 });
 
 const ExtraServicePaymentMethodEnum = z.enum([
@@ -159,6 +160,8 @@ export const CreateVisitServicePayloadSchema = z
     measurements: MeasurementsPayloadSchema.optional(),
     paymentMethod: ExtraServicePaymentMethodEnum.optional(),
     paymentDetail: z.string().max(500).optional(),
+    amountExVatEuros: z.number().positive().optional(),
+    amountRevisedFromExVatEuros: z.number().positive().optional(),
   })
   .superRefine(extraRepairPaymentRefine);
 
@@ -172,6 +175,8 @@ export const UpdateVisitServicePayloadSchema = z
     measurements: MeasurementsPayloadSchema.optional(),
     paymentMethod: ExtraServicePaymentMethodEnum.optional(),
     paymentDetail: z.string().max(500).optional(),
+    amountExVatEuros: z.number().positive().optional(),
+    amountRevisedFromExVatEuros: z.number().positive().optional(),
   })
   .superRefine(extraRepairPaymentRefine);
 

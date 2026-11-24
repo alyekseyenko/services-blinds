@@ -143,6 +143,10 @@ export default function AdminCommandPalette({
   }, [technicians, trimmed]);
 
   const showNav = !showServiceResults;
+  const showTechnicians =
+    trimmed.length >= 2 && filteredTechs.length > 0
+      ? true
+      : showNav && filteredTechs.length > 0;
 
   if (!open || !mounted) return null;
 
@@ -321,7 +325,7 @@ export default function AdminCommandPalette({
                   </ul>
                 </section>
 
-                {filteredTechs.length > 0 && (
+                {showTechnicians && (
                   <section>
                     <p className="ds-kicker px-1 py-2">Técnicos</p>
                     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
@@ -342,6 +346,27 @@ export default function AdminCommandPalette({
                   </section>
                 )}
               </div>
+            )}
+
+            {!showNav && showTechnicians && (
+              <section className="mt-3">
+                <p className="ds-kicker px-1 py-2">Técnicos</p>
+                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredTechs.slice(0, 12).map((tech) => (
+                    <li key={tech}>
+                      <PaletteRow
+                        icon={User}
+                        iconTone="muted"
+                        label={tech}
+                        onClick={() => {
+                          onSelectTechnician(tech);
+                          onClose();
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
 
             {trimmed.length > 0 && trimmed.length < 2 && (

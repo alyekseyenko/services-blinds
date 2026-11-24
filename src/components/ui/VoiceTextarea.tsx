@@ -67,27 +67,32 @@ export function VoiceTextarea({
     setPreviewActive(false);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/voice/status", { credentials: "include" });
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          success?: boolean;
-          data?: { available?: boolean };
-        };
-        if (!cancelled && json.success && json.data?.available) {
-          setVoiceAvailable(true);
-        }
-      } catch {
-        /* offline / sem sessão */
+  const refreshVoiceStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/voice/status", { credentials: "include" });
+      if (!res.ok) {
+        setVoiceAvailable(false);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const json = (await res.json()) as {
+        success?: boolean;
+        data?: { available?: boolean };
+      };
+      setVoiceAvailable(Boolean(json.success && json.data?.available));
+    } catch {
+      setVoiceAvailable(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshVoiceStatus();
+  }, [refreshVoiceStatus]);
+
+  useEffect(() => {
+    const onOnline = () => void refreshVoiceStatus();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [refreshVoiceStatus]);
 
   const cleanupStream = useCallback(() => {
     if (stopTimerRef.current) {
@@ -127,6 +132,14 @@ export function VoiceTextarea({
         try {
           json = (await res.json()) as typeof json;
         } catch {
+          if (lastPreview.trim()) {
+            onChange(appendTranscription(valueRef.current, lastPreview));
+            toast.info(
+              "Ditada parcial",
+              "Resposta inválida — ficou a pré-visualização do telemóvel."
+            );
+            return;
+          }
           toast.error(
             "Ditada",
             mapVoiceTranscribeUserMessage(
@@ -136,6 +149,14 @@ export function VoiceTextarea({
           return;
         }
         if (!res.ok || !json.success || !json.data?.text) {
+          if (lastPreview.trim()) {
+            onChange(appendTranscription(valueRef.current, lastPreview));
+            toast.info(
+              "Ditada parcial",
+              "Servidor indisponível — ficou a pré-visualização do telemóvel."
+            );
+            return;
+          }
           toast.error(
             "Ditada",
             mapVoiceTranscribeUserMessage(json.error || "Não foi possível transcrever.")
@@ -144,6 +165,14 @@ export function VoiceTextarea({
         }
         onChange(appendTranscription(valueRef.current, json.data.text));
       } catch (error: unknown) {
+        if (lastPreview.trim()) {
+          onChange(appendTranscription(valueRef.current, lastPreview));
+          toast.info(
+            "Ditada parcial",
+            "Sem ligação — ficou a pré-visualização do telemóvel."
+          );
+          return;
+        }
         const msg =
           error instanceof Error ? error.message : "Sem ligação ao servidor.";
         toast.error("Ditada", mapVoiceTranscribeUserMessage(msg));

@@ -6,6 +6,7 @@ import type { Session } from "next-auth";
 import { isStrictAdminRole, resolveWorkspaceMemberId, type AppSessionUser } from "@/lib/auth/session";
 import { useObservabilityAdminAlerts } from "@/hooks/useObservabilityAdminAlerts";
 import { useAgendaNotifications } from "@/hooks/useAgendaNotifications";
+import { useClientRatingNotifications } from "@/hooks/useClientRatingNotifications";
 import { buildAgendaSnapshotItem, toSafeIso } from "@/lib/agendaDiff";
 import {
   getNotificationScope,
@@ -118,6 +119,11 @@ export function useAdminAgendaSearchAndNotifications({
     toast,
     pipelineItems: pipelineSnapshotItems,
     enableLateDetection: true,
+  });
+  useClientRatingNotifications({
+    scope: adminNotificationScope,
+    ready: agendaNotificationsReady,
+    toast,
   });
 
   const handleAdminPickOpportunity = useCallback(

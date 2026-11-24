@@ -4,7 +4,11 @@ import { useMemo, useState, useCallback } from "react";
 import { deleteVisitServiceAction } from "@/actions/visit-services-actions";
 import {
   closedVisitCanOpenMeasurementSheet,
+  isAssistanceService,
+  isInstallationService,
   isMeasurementService,
+  isTaskActive,
+  normalizeString,
 } from "@/lib/crm/contract";
 import {
   missingRepairPayments,
@@ -186,7 +190,21 @@ export function useTaskDrawerVisitModel(params: {
     name: primaryVisitService?.name,
     serviceType: primaryVisitService?.serviceType || selectedTask?.serviceType,
   });
-  const showMeasurementsUi = showMeasurementsTab || showClosedMeasurementFicha;
+
+  const showActiveInstallationFicha = useMemo(() => {
+    if (!selectedTask?.status || !isTaskActive(selectedTask.status)) return false;
+    if (!filesOpportunityId) return false;
+    const stage = primaryVisitService?.stage || selectedTask.stage;
+    const title = selectedTask.title;
+    const name = primaryVisitService?.name;
+    if (isInstallationService(stage, title) || isInstallationService(stage, name)) return true;
+    if (isAssistanceService(stage, title) || isAssistanceService(stage, name)) return true;
+    const type = normalizeString(primaryVisitService?.serviceType || selectedTask.serviceType);
+    return type === "INSTALACAO";
+  }, [filesOpportunityId, primaryVisitService, selectedTask]);
+
+  const showMeasurementsUi =
+    showMeasurementsTab || showClosedMeasurementFicha || showActiveInstallationFicha;
 
   return {
     deletingOppId,
@@ -203,6 +221,7 @@ export function useTaskDrawerVisitModel(params: {
     primaryServiceColors,
     measurementServices,
     showMeasurementsTab,
+    showActiveInstallationFicha,
     showMeasurementsUi,
   };
 }

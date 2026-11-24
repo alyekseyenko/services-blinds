@@ -1,6 +1,6 @@
 import "server-only";
 import { crmFetch } from "../client";
-import { CRM_ADDRESS_GRAPHQL_FIELDS, deriveWorkflowMarkerKey } from "../contract";
+import { CRM_ADDRESS_GRAPHQL_FIELDS, deriveWorkflowMarkerKey, parseCrmClientRating } from "../contract";
 import type { AppTask } from "../schemas";
 import { isTaskOverdue } from "@/lib/taskUtils";
 import { formatServiceNumber } from "../serviceNumber";
@@ -54,6 +54,10 @@ export const TASK_NODE_FIELDS = `
           nsi
           numeroDeServico
           stage
+          amount {
+            amountMicros
+            currencyCode
+          }
           notasImportantes { markdown }
           pointOfContact {
             id
@@ -66,6 +70,8 @@ export const TASK_NODE_FIELDS = `
               ${PHONES_FIELDS}
             }
           }
+          avaliacaoDoCliente
+          feedbackDoCliente
           moradaDeServico {
             ${CRM_ADDRESS_GRAPHQL_FIELDS}
           }
@@ -167,6 +173,11 @@ export function mapTaskNode(node: any): AppTask {
     technicianName: node.technicianName ?? null,
     clientPhone,
     clientPhones,
+    clientRating: parseCrmClientRating(oppTarget?.avaliacaoDoCliente) ?? undefined,
+    clientFeedback:
+      typeof oppTarget?.feedbackDoCliente === "string" && oppTarget.feedbackDoCliente.trim()
+        ? oppTarget.feedbackDoCliente.trim()
+        : undefined,
     isOverdue: isTaskOverdue(node.status, node.dueAt),
     services,
     personId: personTarget?.id,

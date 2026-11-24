@@ -11,6 +11,7 @@ import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { toUserMessage } from "@/lib/userMessages";
 import { useToast } from "@/components/ui/ToastContext";
 import { cn } from "@/lib/cn";
+import { ClientRatingSummary } from "@/components/visits/ClientRatingSummary";
 import { TECH_DRAWER_BODY, TECH_DRAWER_KICKER } from "./drawerStyles";
 
 export function TaskDrawerClientSection(props: {
@@ -22,6 +23,8 @@ export function TaskDrawerClientSection(props: {
     coordinates?: [number, number] | null;
     dueDate: Date;
     isOverdue?: boolean;
+    clientRating?: number;
+    clientFeedback?: string;
   };
   clientPhones: string[];
   clientNifDisplay: string | null;
@@ -91,6 +94,10 @@ export function TaskDrawerClientSection(props: {
                 Visita atrasada — conclua ou contacte o admin
               </p>
             )}
+            <ClientRatingSummary
+              rating={selectedTask.clientRating}
+              feedback={selectedTask.clientFeedback}
+            />
           </div>
           {clientPhones.length > 0 || clientNifDisplay ? (
             <div className="border-t border-border pt-4">

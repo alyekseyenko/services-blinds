@@ -23,12 +23,26 @@ import {
   type VisitServiceMarkerRecord,
 } from "./visitServicesMarker";
 import { buildOnSiteExtraOpportunityName } from "@/lib/extraServiceTypeLabels";
+import { applyRepairOpportunityAmountExVat } from "./repairPayments";
 import {
   extraRepairPaymentNoteBody,
   extraServiceNeedsPaymentNow,
   isRepairPaymentMethod,
   type RepairPaymentMethodId,
 } from "@/lib/visits/repairPayment";
+
+function extraRepairPaymentAmountArgs(payload: {
+  amountExVatEuros?: number;
+  amountRevisedFromExVatEuros?: number;
+}) {
+  if (payload.amountExVatEuros == null || payload.amountExVatEuros <= 0) return undefined;
+  return {
+    amountExVatEuros: payload.amountExVatEuros,
+    ...(payload.amountRevisedFromExVatEuros != null && payload.amountRevisedFromExVatEuros > 0
+      ? { amountRevisedFromExVatEuros: payload.amountRevisedFromExVatEuros }
+      : {}),
+  };
+}
 
 function defaultModeForServiceType(serviceType: ExtraServiceType): VisitServiceMode {
   if (serviceType === "TIRAR_MEDIDAS" || serviceType === "REMEDICAO") return "now";
@@ -109,15 +123,41 @@ export async function createVisitService(
           task.taskTargets?.edges?.find((e: { node?: { targetPerson?: { id?: string } } }) =>
             e.node?.targetPerson
           )?.node?.targetPerson?.id || null;
+        const payNoteBody = extraRepairPaymentNoteBody(
+          payload.paymentMethod as RepairPaymentMethodId,
+          payload.paymentDetail,
+          extraRepairPaymentAmountArgs(payload)
+        );
         await createOpportunityNote(
           duplicate.opportunityId,
           personForPay,
           "Pagamento (serviço extra)",
-          extraRepairPaymentNoteBody(
-            payload.paymentMethod as RepairPaymentMethodId,
-            payload.paymentDetail
-          ),
+          payNoteBody,
           `${payload.clientRequestId}-pay-${duplicate.opportunityId}`
+        );
+        await applyRepairOpportunityAmountExVat(duplicate.opportunityId, payload.amountExVatEuros);
+        const payMethod = payload.paymentMethod;
+        const payDetail = payMethod === "outros" ? payload.paymentDetail?.trim() : undefined;
+        const updatedRecords = existing.map((row) =>
+          row.clientRequestId === payload.clientRequestId
+            ? {
+                ...row,
+                paymentMethod: payMethod,
+                ...(payDetail ? { paymentDetail: payDetail } : {}),
+                ...(payload.amountExVatEuros != null && payload.amountExVatEuros > 0
+                  ? { amountExVatEuros: payload.amountExVatEuros }
+                  : {}),
+              }
+            : row
+        );
+        await crmFetch(
+          `mutation patchTaskVisitMarker($id: UUID!, $data: TaskUpdateInput!) {
+            updateTask(id: $id, data: $data) { id }
+          }`,
+          {
+            id: payload.taskId,
+            data: { bodyV2: { markdown: writeVisitServicesMarker(markdown, updatedRecords) } },
+          }
         );
       }
       if (payload.measurements?.groups?.length) {
@@ -213,6 +253,9 @@ export async function createVisitService(
             ...(paymentDetail ? { paymentDetail } : {}),
           }
         : {}),
+      ...(payload.amountExVatEuros != null && payload.amountExVatEuros > 0
+        ? { amountExVatEuros: payload.amountExVatEuros }
+        : {}),
     };
     const markdownWithMarker = upsertVisitServiceMarkerRecord(markdown, markerRecord);
     await crmFetch(
@@ -231,13 +274,19 @@ export async function createVisitService(
     );
 
     if (paymentMethod) {
+      const payNoteBody = extraRepairPaymentNoteBody(
+        paymentMethod as RepairPaymentMethodId,
+        paymentDetail,
+        extraRepairPaymentAmountArgs(payload)
+      );
       await createOpportunityNote(
         opportunityId,
         personId || null,
         "Pagamento (serviço extra)",
-        extraRepairPaymentNoteBody(paymentMethod as RepairPaymentMethodId, paymentDetail),
+        payNoteBody,
         `${payload.clientRequestId}-pay-${opportunityId}`
       );
+      await applyRepairOpportunityAmountExVat(opportunityId, payload.amountExVatEuros);
     }
 
     if (payload.measurements?.groups?.length) {
@@ -419,6 +468,9 @@ export async function updateVisitService(
             ...(paymentDetail ? { paymentDetail } : {}),
           }
         : { paymentMethod: undefined, paymentDetail: undefined }),
+      ...(payload.amountExVatEuros != null && payload.amountExVatEuros > 0
+        ? { amountExVatEuros: payload.amountExVatEuros }
+        : { amountExVatEuros: undefined }),
     };
     const updatedMarkdown = writeVisitServicesMarker(markdown, records);
     await crmFetch(
@@ -442,13 +494,19 @@ export async function updateVisitService(
     );
 
     if (paymentMethod) {
+      const payNoteBody = extraRepairPaymentNoteBody(
+        paymentMethod as RepairPaymentMethodId,
+        paymentDetail,
+        extraRepairPaymentAmountArgs(payload)
+      );
       await createOpportunityNote(
         payload.opportunityId,
         personId || null,
         "Pagamento (serviço extra)",
-        extraRepairPaymentNoteBody(paymentMethod as RepairPaymentMethodId, paymentDetail),
+        payNoteBody,
         `${payload.opportunityId}-pay-update`
       );
+      await applyRepairOpportunityAmountExVat(payload.opportunityId, payload.amountExVatEuros);
     }
 
     if (payload.measurements?.groups?.length) {

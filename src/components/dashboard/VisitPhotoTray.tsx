@@ -36,7 +36,8 @@ export function VisitPhotoTray({
   onRequestSync,
 }: VisitPhotoTrayProps) {
   const toast = useToast();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [photos, setPhotos] = useState<TrayPhoto[]>([]);
   const [localCount, setLocalCount] = useState(0);
@@ -69,6 +70,13 @@ export function VisitPhotoTray({
   useEffect(() => {
     void refreshLocal();
   }, [refreshLocal]);
+
+  useEffect(() => {
+    if (!onQueueChanged) return;
+    const tick = () => void refreshLocal();
+    window.addEventListener("fieldops:visit-photo-queue-drained", tick);
+    return () => window.removeEventListener("fieldops:visit-photo-queue-drained", tick);
+  }, [onQueueChanged, refreshLocal]);
 
   const sentForTaskHint = useMemo(() => {
     const pending = photos.filter((p) => p.status === "pending" || p.status === "sending").length;
@@ -116,7 +124,8 @@ export function VisitPhotoTray({
       await refreshLocal();
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
   };
 
@@ -145,13 +154,13 @@ export function VisitPhotoTray({
           <button
             type="button"
             disabled={!canAdd || busy}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => cameraInputRef.current?.click()}
             className={cn(
               "flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-muted transition-colors",
               canAdd && !busy && "hover:border-primary hover:bg-primary/10",
               (!canAdd || busy) && "opacity-50"
             )}
-            aria-label="Tirar ou escolher foto"
+            aria-label="Tirar foto"
           >
             {busy ? (
               <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
@@ -162,7 +171,7 @@ export function VisitPhotoTray({
           <button
             type="button"
             disabled={!canAdd || busy}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => galleryInputRef.current?.click()}
             className={cn(
               "flex min-h-12 min-w-12 items-center justify-center rounded-xl border-2 border-border-strong bg-muted transition-colors",
               canAdd && !busy && "hover:border-primary hover:bg-primary/10",
@@ -213,12 +222,29 @@ export function VisitPhotoTray({
       ) : null}
 
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="sr-only"
         onChange={(event) => void handlePick(event.target.files?.[0])}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only"
+        onChange={(event) => {
+          const files = event.target.files;
+          if (!files?.length) return;
+          void (async () => {
+            for (const file of Array.from(files)) {
+              if (localCount >= VISIT_PHOTO_MAX_COUNT) break;
+              await handlePick(file);
+            }
+          })();
+        }}
       />
     </section>
   );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Loader2, RotateCcw, Ruler, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, MapPin, RotateCcw, Ruler, Search, Trash2 } from "lucide-react";
+import { buildAgendaNotificationDeepLink } from "@/lib/agenda/desktopNotifications";
 import {
   listMeasurementSheetsAction,
   listDeletedMeasurementSheetsAction,
@@ -39,6 +40,7 @@ export default function AdminMeasurementsList() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mode, setMode] = useState<"ativas" | "apagadas">("ativas");
   const [manualOpen, setManualOpen] = useState(false);
+  const [priceFilter, setPriceFilter] = useState<"todas" | "sem-preco" | "com-preco">("todas");
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -66,6 +68,16 @@ export default function AdminMeasurementsList() {
   useEffect(() => {
     void load(query);
   }, [load, query]);
+
+  const visibleItems = useMemo(() => {
+    if (priceFilter === "sem-preco") {
+      return items.filter((item) => item.totalPriceEur == null);
+    }
+    if (priceFilter === "com-preco") {
+      return items.filter((item) => item.totalPriceEur != null);
+    }
+    return items;
+  }, [items, priceFilter]);
 
   return (
     <div className={adminFullBleedShell.page}>
@@ -117,12 +129,50 @@ export default function AdminMeasurementsList() {
             onClose={() => setManualOpen(false)}
             onSaved={() => void load(query)}
           />
+          {mode === "ativas" ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceFilter("todas")}
+                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
+                  priceFilter === "todas"
+                    ? "border-primary-ink bg-primary-surface text-primary-ink"
+                    : "border-border bg-card text-foreground"
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceFilter("sem-preco")}
+                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
+                  priceFilter === "sem-preco"
+                    ? "border-primary-ink bg-primary-surface text-primary-ink"
+                    : "border-border bg-card text-foreground"
+                }`}
+              >
+                Por orçamentar (sem preço)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceFilter("com-preco")}
+                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
+                  priceFilter === "com-preco"
+                    ? "border-primary-ink bg-primary-surface text-primary-ink"
+                    : "border-border bg-card text-foreground"
+                }`}
+              >
+                Com preço
+              </button>
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => {
                 setMode("ativas");
                 setSelected([]);
+                setPriceFilter("todas");
               }}
               className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
                 mode === "ativas"
@@ -165,29 +215,35 @@ export default function AdminMeasurementsList() {
           </Panel>
         ) : null}
 
-        {!loading && !error && items.length === 0 ? (
+        {!loading && !error && visibleItems.length === 0 ? (
           <Panel className="p-6 text-center">
             <p className="text-sm font-bold text-foreground">
-              {mode === "apagadas" ? "Nada para recuperar." : "Sem medições na base de dados."}
+              {mode === "apagadas"
+                ? "Nada para recuperar."
+                : priceFilter !== "todas"
+                  ? "Nenhuma obra corresponde a este filtro."
+                  : "Sem medições na base de dados."}
             </p>
             <p className="mt-2 text-xs font-medium text-muted-foreground">
               {mode === "apagadas"
                 ? "As fichas apagadas ficam aqui 90 dias. Depois saem de vez."
-                : "Quando um técnico guardar medições (online ou após sincronizar), aparecem aqui."}
+                : priceFilter !== "todas"
+                  ? "Experimente outro filtro ou limpe a pesquisa."
+                  : "Quando um técnico guardar medições (online ou após sincronizar), aparecem aqui."}
             </p>
           </Panel>
         ) : null}
 
-        {!loading && !error && items.length > 0 ? (
+        {!loading && !error && visibleItems.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="flex min-h-12 items-center gap-3 text-sm font-bold text-foreground">
                 <input
                   type="checkbox"
                   className="h-5 w-5 accent-primary"
-                  checked={items.every((item) => selected.includes(item.opportunityId))}
+                  checked={visibleItems.every((item) => selected.includes(item.opportunityId))}
                   onChange={(event) => {
-                    const visible = items.map((item) => item.opportunityId);
+                    const visible = visibleItems.map((item) => item.opportunityId);
                     setSelected((current) =>
                       event.target.checked
                         ? [...new Set([...current, ...visible])]
@@ -271,7 +327,7 @@ export default function AdminMeasurementsList() {
               </button>
             </div>
           <ul className="flex flex-col gap-3">
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const checked = selected.includes(item.opportunityId);
               return (
               <li
@@ -369,6 +425,18 @@ export default function AdminMeasurementsList() {
                     </div>
                   </dl>
                 </Link>
+                {mode === "ativas" ? (
+                  <Link
+                    href={buildAgendaNotificationDeepLink("admin", {
+                      opportunityId: item.opportunityId,
+                    })}
+                    className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl border-2 border-border bg-card text-primary-ink transition-colors hover:border-primary"
+                    aria-label={`Abrir obra de ${item.clientName} no painel`}
+                    title="Abrir obra no painel"
+                  >
+                    <MapPin className="h-5 w-5" aria-hidden />
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   disabled={deletingId === item.opportunityId || bulkDeleting}

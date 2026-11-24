@@ -157,27 +157,42 @@ export function useMeasurements(
     // reportForParse is only a fallback on first load of this visit — not after Guardar.
   }, [taskId, oppKey, opportunityId, DRAFT_KEY, seedPayload]);
 
+  const persistDraftNow = useCallback(() => {
+    if (!userEditedRef.current || productGroups.length === 0) return;
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          groups: productGroups,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+      setLastLocalSave(
+        new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      );
+    } catch {
+      /* quota / private mode */
+    }
+  }, [DRAFT_KEY, productGroups]);
+
   useEffect(() => {
     if (!userEditedRef.current || productGroups.length === 0) return;
-    const saveToLocal = () => {
-      try {
-        localStorage.setItem(
-          DRAFT_KEY,
-          JSON.stringify({
-            groups: productGroups,
-            updatedAt: new Date().toISOString(),
-          })
-        );
-        setLastLocalSave(
-          new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-        );
-      } catch {
-        /* quota / private mode */
-      }
-    };
-    const timeout = setTimeout(saveToLocal, 2000);
+    const timeout = setTimeout(persistDraftNow, 2000);
     return () => clearTimeout(timeout);
-  }, [productGroups, DRAFT_KEY]);
+  }, [productGroups, persistDraftNow]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") persistDraftNow();
+    };
+    const onPageHide = () => persistDraftNow();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [persistDraftNow]);
 
   const markAsDirty = () => {
     userEditedRef.current = true;

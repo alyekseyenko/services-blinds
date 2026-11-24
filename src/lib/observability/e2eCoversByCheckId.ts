@@ -50,6 +50,7 @@ export const E2E_COVERS_BY_CHECK_ID: Record<string, string[]> = {
   "location-store-roundtrip": ["system:location-store"],
   "field-sync-health": ["system:field-sync", "api:/api/sync-telemetry"],
   "admin-agenda-feed-api": ["api:/api/agenda/feed", "system:twenty-graphql"],
+  "client-rating-feed-api": ["api:/api/agenda/ratings", "system:twenty-graphql"],
   "admin-measurements-export-api": [
     "api:/api/opportunities/[id]/measurements/export",
     "system:measurements-db",

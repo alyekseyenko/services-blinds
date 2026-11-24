@@ -156,5 +156,8 @@ export async function drainVisitPhotoQueue(): Promise<boolean> {
       await handleVisitPhotoQueueFailure(item as VisitPhotoQueueItem, message, errorCode);
     }
   }
+  if (syncedAny && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("fieldops:visit-photo-queue-drained"));
+  }
   return syncedAny;
 }

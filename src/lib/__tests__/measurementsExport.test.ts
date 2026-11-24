@@ -14,9 +14,12 @@ describe("formatMeasurementPdfPageLabel", () => {
 describe("buildMeasurementsPdf", () => {
   it("gera buffer PDF não vazio", async () => {
     const sheet = createOnboardingDemoMeasurementSheet();
-    const buffer = await buildMeasurementsPdf(sheet);
-    expect(buffer.length).toBeGreaterThan(500);
-    expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
+    const landscape = await buildMeasurementsPdf(sheet);
+    const portrait = await buildMeasurementsPdf(sheet, "portrait");
+    expect(landscape.length).toBeGreaterThan(500);
+    expect(portrait.length).toBeGreaterThan(500);
+    expect(landscape.subarray(0, 4).toString()).toBe("%PDF");
+    expect(portrait.subarray(0, 4).toString()).toBe("%PDF");
   });
 
 });
@@ -31,6 +34,10 @@ describe("buildMeasurementsXlsx", () => {
     const ws = workbook.getWorksheet("Medições");
     expect(ws).toBeTruthy();
     expect(ws?.getCell("A1").value).toBe("Ficha Técnica de Medição");
+
+    expect(ws?.getCell("F1").value).toBe("Dados do cliente");
+    expect(ws?.getCell("F2").value).toBe("Cliente");
+    expect(ws?.getCell("F3").value).toBe("Morada");
 
     const values: string[] = [];
     ws?.eachRow((row) => {

@@ -38,21 +38,50 @@ export function parseMeasurementsFromReport(report?: string | null): Measurement
   return null;
 }
 
+type MeasurementRowLike = {
+  width?: string | number;
+  height?: string | number;
+  openingWidth?: string | number;
+  openingHeight?: string | number;
+  skylightExteriorWidth?: string | number;
+  skylightExteriorHeight?: string | number;
+};
+
+function positiveDimension(value: string | number | undefined): boolean {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0;
+}
+
+/** Uma linha com medidas válidas (estore, vão ou clarabóia). */
+export function measurementRowHasSavedDimensions(row: MeasurementRowLike): boolean {
+  const store = positiveDimension(row.width) && positiveDimension(row.height);
+  const opening = positiveDimension(row.openingWidth) && positiveDimension(row.openingHeight);
+  const exterior =
+    positiveDimension(row.skylightExteriorWidth) && positiveDimension(row.skylightExteriorHeight);
+  return store || opening || exterior;
+}
+
+function payloadGroupsHaveDimensions(groups: unknown): boolean {
+  if (!Array.isArray(groups)) return false;
+  return groups.some((g) => {
+    const measurements = (g as { measurements?: MeasurementRowLike[] }).measurements;
+    return Array.isArray(measurements) && measurements.some(measurementRowHasSavedDimensions);
+  });
+}
+
 export function hasValidMeasurements(
   report?: string | null,
   draftJson?: string | null
 ): boolean {
   const fromReport = parseMeasurementsFromReport(report);
-  if (fromReport?.groups?.some((g) => g.measurements?.some((m) => m.width && m.height))) {
+  if (fromReport?.groups && payloadGroupsHaveDimensions(fromReport.groups)) {
     return true;
   }
 
   if (draftJson) {
     try {
-      const draft = JSON.parse(draftJson);
-      if (draft?.groups?.some((g: { measurements?: Array<{ width?: string; height?: string }> }) =>
-        g.measurements?.some((m) => m.width && m.height)
-      )) {
+      const draft = JSON.parse(draftJson) as { groups?: unknown };
+      if (payloadGroupsHaveDimensions(draft?.groups)) {
         return true;
       }
     } catch {

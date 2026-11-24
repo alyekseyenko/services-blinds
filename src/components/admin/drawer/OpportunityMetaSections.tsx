@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar as CalendarIcon, Map as MapIcon, MapPin, Mail, Clock } from "lucide-react";
+import { CopyTextButton } from "@/components/ui/CopyTextButton";
 import { Button } from "@/components/ui/button";
 import ContactPhoneList from "@/components/ui/ContactPhoneList";
 import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
@@ -35,7 +36,10 @@ export function OpportunityMetaSections(props: {
       <AdminOppSection title="Local e agenda">
         <p className="flex items-start gap-3 text-sm font-semibold text-muted-foreground">
           <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" aria-hidden />
-          <span className="text-foreground">{selectedOpportunity.address}</span>
+          <span className="min-w-0 flex-1 text-foreground">{selectedOpportunity.address}</span>
+          {selectedOpportunity.address ? (
+            <CopyTextButton text={selectedOpportunity.address} label="Copiar morada" />
+          ) : null}
         </p>
         {selectedOpportunity.scheduledAt ? (
           <p className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
@@ -121,11 +125,18 @@ export function OpportunityMetaSections(props: {
             )}
           </div>
           {formatClientNifDisplay(selectedOpportunity.clientNif) ? (
-            <p className="shrink-0 text-xs font-semibold text-muted-foreground">
-              NIF{" "}
-              <span className="ds-num font-bold text-foreground">
-                {formatClientNifDisplay(selectedOpportunity.clientNif)}
+            <p className="flex shrink-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <span>
+                NIF{" "}
+                <span className="ds-num font-bold text-foreground">
+                  {formatClientNifDisplay(selectedOpportunity.clientNif)}
+                </span>
               </span>
+              <CopyTextButton
+                text={formatClientNifDisplay(selectedOpportunity.clientNif) ?? ""}
+                label="Copiar NIF"
+                className="min-h-10 min-w-10"
+              />
             </p>
           ) : null}
         </div>

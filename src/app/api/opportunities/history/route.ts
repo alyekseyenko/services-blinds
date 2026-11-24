@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     const to = parseHistoryYmd(toRaw);
     const withCoordinates = request.nextUrl.searchParams.get("withCoordinates") === "1";
     const fresh = request.nextUrl.searchParams.get("fresh") === "1";
+    const q = request.nextUrl.searchParams.get("q")?.trim() || null;
+    const technician = request.nextUrl.searchParams.get("technician")?.trim() || null;
     if (fresh) {
       await invalidateAdminCrmCache();
     }
@@ -59,6 +61,8 @@ export async function GET(request: NextRequest) {
       fresh,
       from,
       to,
+      q,
+      technician,
     });
     return NextResponse.json(result);
   } catch (error) {

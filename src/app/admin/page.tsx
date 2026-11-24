@@ -65,6 +65,10 @@ import { useAdminScheduleAndGeoActions } from "@/hooks/admin/useAdminScheduleAnd
 import { useAdminRoutePlanner } from "@/hooks/admin/useAdminRoutePlanner";
 import { useAdminAgendaSearchAndNotifications } from "@/hooks/admin/useAdminAgendaSearchAndNotifications";
 import { useAdminMapFilters } from "@/hooks/admin/useAdminMapFilters";
+import { useAgendaNotificationDeepLink } from "@/hooks/useAgendaNotificationDeepLink";
+import { useAgendaNotificationClickMessage } from "@/hooks/useAgendaNotificationClickMessage";
+import type { InAppNotificationOpenTaskDetail } from "@/lib/inAppNotifications";
+import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 
 const HQ_LOCATION = getHqLocation();
 
@@ -95,6 +99,7 @@ export default function Admin() {
   }, []);
   useCalendarMidnightRollover(resetAdminCalendarToToday);
   const [calendarView, setCalendarView] = useState<View>("month");
+  const [historySeedOutcomes, setHistorySeedOutcomes] = useState<MapHistoryOutcome[] | null>(null);
 
   useEffect(() => {
     writeMainViewToUrl(view, true);
@@ -180,6 +185,9 @@ export default function Admin() {
     pendingClosureCount,
     openPendingClosureOnMap,
     openMapWithHomeFilter,
+    openMapWithZone,
+    mapDisplayMode,
+    setMapDisplayMode,
     calendarOpportunities,
     mapHistoryItems,
     refreshHistory,
@@ -223,6 +231,11 @@ export default function Admin() {
     toast,
     confirm,
   });
+
+  const openHistoryIncomplete = useCallback(() => {
+    setHistorySeedOutcomes(["incomplete"]);
+    changeAdminView("history");
+  }, [changeAdminView]);
 
   const isSyncing =
     syncingOpps || scheduleActions.isAddressSyncing || scheduleActions.crmRefreshing;
@@ -268,6 +281,35 @@ export default function Admin() {
     () => computeAdminHomeDashboardStats(opportunities),
     [opportunities]
   );
+
+  const openAgendaFromDesktopNotify = useCallback(
+    (detail: InAppNotificationOpenTaskDetail) => {
+      agendaNav.openAgendaNotificationInvestigate({
+        id: "",
+        title: "",
+        description: "",
+        createdAt: Date.now(),
+        read: true,
+        taskId: detail.taskId,
+        opportunityId: detail.opportunityId,
+        dueAtIso: detail.dueAtIso,
+      });
+    },
+    [agendaNav.openAgendaNotificationInvestigate]
+  );
+
+  const agendaDeepLinkReady =
+    Boolean(memberId) && !loading && (opportunities.length > 0 || !oppsLoadError);
+
+  useAgendaNotificationDeepLink({
+    ready: agendaDeepLinkReady,
+    onOpen: openAgendaFromDesktopNotify,
+  });
+
+  useAgendaNotificationClickMessage({
+    scope: adminNotificationScope,
+    onOpenTask: openAgendaFromDesktopNotify,
+  });
 
   useEffect(() => {
     if (!selectedOpportunity) {
@@ -366,6 +408,8 @@ export default function Admin() {
                 onNavigate={(v: AdminViewId) => changeAdminView(v)}
                 onOpenPendingClosure={openPendingClosureOnMap}
                 onOpenMapFilter={openMapWithHomeFilter}
+                onOpenMapZone={openMapWithZone}
+                onOpenHistoryIncomplete={openHistoryIncomplete}
                 onOpenSearch={() => setCommandPaletteOpen(true)}
                 onOpenMedicoes={() => router.push("/admin/medicoes")}
                 onOpenCreateClient={() => setShowCreateClientSheet(true)}
@@ -403,6 +447,11 @@ export default function Admin() {
                 selectedForRoute={routePlanner.selectedForRoute}
                 onTaskSelect={routePlanner.handleMapTaskSelect}
                 onScheduleFromMap={scheduleActions.openScheduleModal}
+                onRescheduleFromMap={(opp) =>
+                  scheduleActions.openScheduleModal(opp, { reschedule: true })
+                }
+                mapDisplayMode={mapDisplayMode}
+                setMapDisplayMode={setMapDisplayMode}
                 optimizedRoute={routePlanner.optimizedRoute}
                 fuelPrice={routePlanner.fuelPrice}
                 setFuelPrice={routePlanner.setFuelPrice}
@@ -469,6 +518,7 @@ export default function Admin() {
                 setCalendarView={setCalendarView}
                 onSelectOpportunity={setSelectedOpportunity}
                 onCancelAppointment={scheduleActions.handleCancelAppointment}
+                onReschedule={(opp) => scheduleActions.openScheduleModal(opp, { reschedule: true })}
               />
             </div>
             <div
@@ -478,7 +528,12 @@ export default function Admin() {
               )}
               aria-hidden={view !== "history"}
             >
-              <AdminHistoryView onSelectOpportunity={setSelectedOpportunity} />
+              <AdminHistoryView
+                onSelectOpportunity={setSelectedOpportunity}
+                technicians={technicians}
+                initialOutcomes={historySeedOutcomes ?? undefined}
+                onConsumeInitialOutcomes={() => setHistorySeedOutcomes(null)}
+              />
             </div>
           </div>
         )}
@@ -506,6 +561,7 @@ export default function Admin() {
         isScheduling={scheduleActions.isScheduling}
         handleScheduleVisit={scheduleActions.handleScheduleVisit}
         isOnboardingDemoSchedule={isOnboardingDemoEntity(selectedOpportunity)}
+        isRescheduleMode={scheduleActions.scheduleModalMode === "reschedule"}
         fairServiceTypeDurations={routePlanner.fairServiceTypeDurations}
         fairBenchmarksReady={routePlanner.fairBenchmarksReady}
       />

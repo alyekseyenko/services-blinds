@@ -24,6 +24,7 @@ import {
   ADMIN_TOOLBAR_ICON_CLASS,
   ADMIN_TOOLBAR_ICON_SIZE,
 } from "@/components/admin/header/adminHeaderToolbar";
+import { DesktopNotificationPrompt } from "@/components/ui/DesktopNotificationPrompt";
 
 export interface AdminHeaderProps {
   opportunitiesCount: number;
@@ -266,6 +267,12 @@ export default function AdminHeader({
           </div>
         </div>
       </header>
+      {notificationScope ? (
+        <DesktopNotificationPrompt
+          scope={notificationScope}
+          className="mx-auto w-full max-w-[100rem] border-x-0 border-t-0 px-3 sm:px-4"
+        />
+      ) : null}
       <AdminNavMenuSheet
         open={navMenuOpen}
         mounted={mounted}

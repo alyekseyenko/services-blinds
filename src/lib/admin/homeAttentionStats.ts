@@ -1,3 +1,4 @@
+import { isNeedsSchedulingStage } from "@/lib/crm/contract";
 import { isTaskOverdue } from "@/lib/taskUtils";
 import type { Opportunity } from "@/types/admin";
 
@@ -45,6 +46,9 @@ export function countHomeAttentionSignals(
 
   for (const opp of opportunities) {
     if (isOverdueScheduledToday(opp, now)) overdueToday += 1;
+    const unscheduledIdle =
+      isNeedsSchedulingStage(opp.stage) && !opp.hasScheduledTask;
+    if (!unscheduledIdle) continue;
     const alert = opportunityDelayAlert(opp, now);
     if (alert === "orange" || alert === "red") idle14Plus += 1;
     if (alert === "red") idle30Plus += 1;

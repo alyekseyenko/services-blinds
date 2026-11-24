@@ -7,14 +7,17 @@ import { canAccessCeoPanel } from "@/lib/auth/session";
 import { getAppSession } from "@/lib/auth/session.server";
 import { toUserMessage } from "@/lib/userMessages";
 
-export async function getCeoMetricsAction(year?: number | null): Promise<ActionResponse<CeoMetrics>> {
+export async function getCeoMetricsAction(
+  year?: number | null,
+  options?: { fresh?: boolean }
+): Promise<ActionResponse<CeoMetrics>> {
   try {
     const auth = await getAppSession();
     if (!auth || !canAccessCeoPanel(auth.user.role!)) {
       return { success: false, error: "Acesso não autorizado ao painel executivo." };
     }
 
-    const data = await fetchCeoMetricsFromCRM(year);
+    const data = await fetchCeoMetricsFromCRM(year, { fresh: options?.fresh });
     return {
       success: true,
       data,

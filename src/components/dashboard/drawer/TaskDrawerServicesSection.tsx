@@ -11,6 +11,7 @@ import {
 import { getExtraServiceTypeLabel } from "@/lib/extraServiceTypeLabels";
 import { formatVisitServiceSupplementaryName } from "@/lib/techVisitDisplay";
 import type { VisitService } from "@/lib/schemas";
+import { visitServiceRepairTotalLabel } from "@/lib/visits/repairPaymentAmount";
 import { TECH_DRAWER_KICKER, TECH_DRAWER_SECTION_TITLE } from "./drawerStyles";
 
 export function TaskDrawerServicesSection(props: {
@@ -138,7 +139,18 @@ export function TaskDrawerServicesSection(props: {
                 </span>
               </div>
               {svc.serviceNumber ? (
-                <span className="text-muted-foreground">N.º serviço: {svc.serviceNumber}</span>
+                <span className="text-muted-foreground">
+                  N.º serviço: {svc.serviceNumber}
+                  {svc.amountExVatEuros != null && svc.amountExVatEuros > 0 ? (
+                    <>
+                      {" · "}
+                      <span className="font-bold text-foreground">
+                        {visitServiceRepairTotalLabel(svc.amountExVatEuros)}
+                      </span>
+                      <span className="font-normal"> (total c/ IVA)</span>
+                    </>
+                  ) : null}
+                </span>
               ) : null}
               {svc.nsi && svc.nsi !== "N/A" && (
                 <span className="text-muted-foreground">NSI: {svc.nsi}</span>

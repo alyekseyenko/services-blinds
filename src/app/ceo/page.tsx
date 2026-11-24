@@ -36,7 +36,7 @@ export default function CeoDashboard() {
   const loadMetrics = useCallback(async (year: number | null, showToast = false) => {
     try {
       if (showToast) setRefreshing(true);
-      const res = await getCeoMetricsAction(year);
+      const res = await getCeoMetricsAction(year, { fresh: showToast });
       if (res.success && res.data) {
         setLoadFailed(false);
         setMetrics(res.data);
@@ -158,7 +158,10 @@ export default function CeoDashboard() {
                 metrics={metrics}
                 selectedYear={selectedYear}
                 selectedMonth={selectedMonth}
-                onSelectedMonthChange={setSelectedMonth}
+                onSelectedMonthChange={(month) => {
+                  setSelectedMonth(month);
+                  if (month !== null) setActiveTab("commercial");
+                }}
                 maxMonthTotal={maxMonthTotal}
               />
             )}

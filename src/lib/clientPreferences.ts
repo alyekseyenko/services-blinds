@@ -11,7 +11,11 @@ export const CLIENT_PREF_KEYS = {
   FEEDBACK_SOUND: "feedback_sound_enabled",
   /** Vibração tátil. Valores: "on" | "off". */
   FEEDBACK_VIBRATION: "feedback_vibration_enabled",
+  /** App de navegação preferida no campo. Valores: "google" | "waze". */
+  NAV_PROVIDER: "nav_provider",
 } as const;
+
+export type NavProviderPreference = "google" | "waze";
 
 const PRESERVED_ON_LOGOUT: string[] = [
   CLIENT_PREF_KEYS.PUSH_OPT_IN,
@@ -22,6 +26,7 @@ const PRESERVED_ON_LOGOUT: string[] = [
   CLIENT_PREF_KEYS.FIELD_CONTRAST,
   CLIENT_PREF_KEYS.FEEDBACK_SOUND,
   CLIENT_PREF_KEYS.FEEDBACK_VIBRATION,
+  CLIENT_PREF_KEYS.NAV_PROVIDER,
 ];
 
 /** How long "Not now" suppresses the PWA install banner before it may reappear. */
@@ -89,6 +94,17 @@ export function getPushOptInChoice(): "granted" | "denied" | null {
 
 export function setPushOptInChoice(value: "granted" | "denied"): void {
   localStorage.setItem(CLIENT_PREF_KEYS.PUSH_OPT_IN, value);
+}
+
+export function getNavProviderPreference(): NavProviderPreference | null {
+  if (typeof window === "undefined") return null;
+  const stored = localStorage.getItem(CLIENT_PREF_KEYS.NAV_PROVIDER);
+  if (stored === "google" || stored === "waze") return stored;
+  return null;
+}
+
+export function setNavProviderPreference(value: NavProviderPreference): void {
+  localStorage.setItem(CLIENT_PREF_KEYS.NAV_PROVIDER, value);
 }
 
 /**

@@ -45,8 +45,8 @@ describe("homeAttentionStats", () => {
     expect(opportunityDelayAlert(opp({ twentyId: "2", dueDate: mid }), now)).toBe("orange");
     const counts = countHomeAttentionSignals(
       [
-        opp({ twentyId: "1", dueDate: old }),
-        opp({ twentyId: "2", dueDate: mid }),
+        opp({ twentyId: "1", dueDate: old, stage: "TIRAR_MEDIDAS", hasScheduledTask: false }),
+        opp({ twentyId: "2", dueDate: mid, stage: "TIRAR_MEDIDAS", hasScheduledTask: false }),
       ],
       now
     );

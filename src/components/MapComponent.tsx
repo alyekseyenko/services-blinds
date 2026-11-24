@@ -56,6 +56,7 @@ interface MapComponentProps {
   onTechnicianSelect?: (tech: any) => void;
   markerInteraction?: "popup" | "direct";
   onScheduleFromMap?: (task: any) => void;
+  onRescheduleFromMap?: (task: any) => void;
   autoFitKey?: string;
   autoFitScope?: "all" | "overdue";
   routeSelectionMode?: boolean;
@@ -84,6 +85,7 @@ export default function MapComponent({
   onTechnicianSelect,
   markerInteraction = "direct",
   onScheduleFromMap,
+  onRescheduleFromMap,
   autoFitKey = "default",
   autoFitScope = "all",
   routeSelectionMode = false,
@@ -468,6 +470,7 @@ export default function MapComponent({
           onClearSelectedMarker={() => setSelectedMarker(null)}
           onTaskSelect={onTaskSelect}
           onScheduleFromMap={onScheduleFromMap}
+          onRescheduleFromMap={onRescheduleFromMap}
           routeSelectionMode={routeSelectionMode}
           isTaskInRoute={isTaskInRoute}
           onToggleRouteFromMap={onToggleRouteFromMap}

@@ -177,3 +177,38 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+self.addEventListener('notificationclick', (event) => {
+  const notification = event.notification;
+  notification.close();
+  const data = notification.data || {};
+  const targetUrl = typeof data.url === 'string' && data.url ? data.url : '/';
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      for (const client of allClients) {
+        if ('focus' in client) {
+          await client.focus();
+          client.postMessage({
+            type: 'AGENDA_NOTIFICATION_CLICK',
+            detail: {
+              taskId: data.taskId,
+              opportunityId: data.opportunityId,
+              dueAtIso: data.dueAtIso,
+              notificationId: data.notificationId,
+              scope: data.scope,
+            },
+          });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })()
+  );
+});

@@ -69,6 +69,9 @@ export function sheetHeaderFromRow(row: MeasurementSheetRow) {
   return {
     opportunityId: row.opportunity_id,
     clientName: row.client_name,
+    clientNif: row.client_nif?.trim() || undefined,
+    clientPhone: row.client_phone?.trim() || undefined,
+    clientEmail: row.client_email?.trim() || undefined,
     nsi: row.nsi ?? undefined,
     address: row.address,
     serviceLabel: row.service_label ?? undefined,

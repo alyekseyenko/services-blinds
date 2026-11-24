@@ -13,11 +13,15 @@ export interface WarehouseMeasurement {
 export interface WarehouseGroup {
   id: string;
   type: string;
+  sheetId?: string;
   details?: {
     material?: string;
     model?: string;
     ral?: string;
     activation?: string;
+    fabric?: string;
+    reference?: string;
+    observations?: string;
   };
   measurements: WarehouseMeasurement[];
 }

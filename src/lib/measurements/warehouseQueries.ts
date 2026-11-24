@@ -16,6 +16,7 @@ type CrmPrepOpportunity = {
 
 type DbLineRow = {
   opportunity_id: string;
+  sheet_id: string;
   line_id: string;
   product_type: string;
   material: string | null;
@@ -55,6 +56,7 @@ export async function fetchLatestMeasurementLinesForOpportunities(
      )
      SELECT
        ms.opportunity_id,
+       ms.id AS sheet_id,
        ml.id AS line_id,
        mg.product_type,
        mg.material,
@@ -96,11 +98,15 @@ export async function fetchLatestMeasurementLinesForOpportunities(
       group = {
         id: `db-${type}-${row.group_sort}`,
         type,
+        sheetId: row.sheet_id,
         details: {
           material: material || undefined,
           model: row.model || undefined,
           ral: row.ral || undefined,
           activation: row.activation || undefined,
+          fabric: row.fabric || undefined,
+          reference: row.reference || undefined,
+          observations: row.observations || undefined,
         },
         measurements: [],
       };

@@ -53,6 +53,9 @@ export const MeasurementSheetGroupSchema = z.object({
 export const MeasurementSheetSchema = z.object({
   opportunityId: z.string(),
   clientName: z.string(),
+  clientNif: z.string().optional(),
+  clientPhone: z.string().optional(),
+  clientEmail: z.string().optional(),
   nsi: z.string().optional(),
   serviceNumber: z.string().optional(),
   address: z.string(),

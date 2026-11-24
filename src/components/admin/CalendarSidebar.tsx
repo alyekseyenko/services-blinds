@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar as CalendarIcon, Clock, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, CalendarClock, Trash2 } from "lucide-react";
 import { Opportunity } from "@/types/admin";
 import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/IconButton";
@@ -8,6 +8,7 @@ interface CalendarSidebarProps {
   calendarOpportunities: Opportunity[];
   setSelectedOpportunity: (opp: Opportunity) => void;
   handleCancelAppointment: (opp: Opportunity) => Promise<void> | void;
+  onReschedule?: (opp: Opportunity) => void;
   embedded?: boolean;
 }
 
@@ -15,6 +16,7 @@ export default function CalendarSidebar({
   calendarOpportunities,
   setSelectedOpportunity,
   handleCancelAppointment,
+  onReschedule,
   embedded = false,
 }: CalendarSidebarProps) {
   const sorted = [...calendarOpportunities].sort((a, b) => {
@@ -60,6 +62,14 @@ export default function CalendarSidebar({
             >
               <div className="mb-2 flex items-start justify-between">
                 <div className="flex flex-wrap gap-2">
+                  {opp.start ? (
+                    <Badge variant="muted">
+                      {opp.start.toLocaleDateString("pt-PT", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </Badge>
+                  ) : null}
                   <Badge variant="info">
                     {opp.start
                       ? opp.start.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
@@ -90,16 +100,33 @@ export default function CalendarSidebar({
                 {opp.title}
               </h4>
               <p className="mb-2 truncate text-xs font-semibold text-muted-foreground">{opp.client}</p>
-              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-border" />
                   <span className="text-xs font-bold uppercase text-muted-foreground">
                     {opp.technician || "Sem técnico"}
                   </span>
                 </div>
-                {opp.scheduledBy && opp.scheduledBy !== "N/A" && (
-                  <span className="text-xs font-medium italic text-muted-foreground">Por: {opp.scheduledBy}</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {onReschedule ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReschedule(opp);
+                      }}
+                      className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-border bg-card px-2 text-xs font-bold uppercase text-foreground"
+                    >
+                      <CalendarClock className="h-3.5 w-3.5 text-primary-ink" aria-hidden />
+                      Reagendar
+                    </button>
+                  ) : null}
+                  {opp.scheduledBy && opp.scheduledBy !== "N/A" ? (
+                    <span className="text-xs font-medium italic text-muted-foreground">
+                      Por: {opp.scheduledBy}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
           ))

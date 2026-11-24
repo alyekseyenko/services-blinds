@@ -15,6 +15,7 @@ import type { AdminHomeMapFilterAction } from "@/lib/admin/adminHomeMapFilter";
 import { countOpportunitiesPendingTechnicianClosure } from "@/lib/visitPendingClosure";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
+import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
 
 export function useAdminMapFilters(params: {
   opportunities: Opportunity[];
@@ -30,6 +31,9 @@ export function useAdminMapFilters(params: {
   const [historyOutcomes, setHistoryOutcomes] = useState<MapHistoryOutcome[]>([]);
   const [stallFilter, setStallFilter] = useState<MapStallFilter>("all");
   const [pendingClosureOnly, setPendingClosureOnly] = useState(false);
+  const [overdueTodayOnly, setOverdueTodayOnly] = useState(false);
+  const [withoutGpsOnly, setWithoutGpsOnly] = useState(false);
+  const [mapDisplayMode, setMapDisplayMode] = useState<AdminMapDisplayMode>("map");
   const [mapTextSearch, setMapTextSearch] = useState<string | null>(null);
   const [mapFocusOpportunityId, setMapFocusOpportunityId] = useState<string | null>(null);
   const [selectedTechnician, setSelectedTechnician] = useState("all");
@@ -80,6 +84,8 @@ export function useAdminMapFilters(params: {
       historyOutcomes,
       historyItems: mapHistoryItems,
       pendingClosureOnly,
+      overdueTodayOnly,
+      withoutGpsOnly,
     });
   }, [
     opportunities,
@@ -92,6 +98,8 @@ export function useAdminMapFilters(params: {
     mapHistoryItems,
     mapTextSearch,
     pendingClosureOnly,
+    overdueTodayOnly,
+    withoutGpsOnly,
   ]);
 
   const pendingClosureCount = useMemo(
@@ -99,25 +107,37 @@ export function useAdminMapFilters(params: {
     [opportunities]
   );
 
+  const clearHomeDrillFilters = useCallback(() => {
+    setOverdueTodayOnly(false);
+    setWithoutGpsOnly(false);
+  }, []);
+
   const openPendingClosureOnMap = useCallback(() => {
     changeAdminView("map");
     setMapTab("scheduled");
     setPendingClosureOnly(true);
+    clearHomeDrillFilters();
     setStallFilter("all");
-  }, [changeAdminView]);
+  }, [changeAdminView, clearHomeDrillFilters]);
 
   const openMapWithHomeFilter = useCallback(
     (action: AdminHomeMapFilterAction) => {
       changeAdminView("map");
       setPendingClosureOnly(false);
+      setOverdueTodayOnly(false);
+      setWithoutGpsOnly(false);
+      setMapDisplayMode("map");
       switch (action) {
         case "overdueToday":
           setMapTab("scheduled");
           setStallFilter("all");
+          setOverdueTodayOnly(true);
           break;
         case "withoutGps":
           setMapTab("unscheduled");
           setStallFilter("all");
+          setWithoutGpsOnly(true);
+          setMapDisplayMode("list");
           break;
         case "idle14":
           setMapTab("unscheduled");
@@ -132,6 +152,19 @@ export function useAdminMapFilters(params: {
       }
     },
     [changeAdminView]
+  );
+
+  const openMapWithZone = useCallback(
+    (cityKey: string) => {
+      changeAdminView("map");
+      setPendingClosureOnly(false);
+      clearHomeDrillFilters();
+      setMapTab("unscheduled");
+      setStallFilter("all");
+      setCityFilter(cityKey);
+      setMapDisplayMode("map");
+    },
+    [changeAdminView, clearHomeDrillFilters]
   );
 
   const calendarOpportunities = useMemo(
@@ -154,6 +187,12 @@ export function useAdminMapFilters(params: {
     setStallFilter,
     pendingClosureOnly,
     setPendingClosureOnly,
+    overdueTodayOnly,
+    setOverdueTodayOnly,
+    withoutGpsOnly,
+    setWithoutGpsOnly,
+    mapDisplayMode,
+    setMapDisplayMode,
     mapTextSearch,
     setMapTextSearch,
     mapFocusOpportunityId,
@@ -168,6 +207,7 @@ export function useAdminMapFilters(params: {
     pendingClosureCount,
     openPendingClosureOnMap,
     openMapWithHomeFilter,
+    openMapWithZone,
     calendarOpportunities,
     mapHistoryItems,
     refreshHistory: refreshMapHistory,

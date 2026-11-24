@@ -18,6 +18,7 @@ import SyncQueueSheet from "@/components/dashboard/SyncQueueSheet";
 import { APP_LOGO_PATH, APP_SHORT_NAME } from "@/lib/branding";
 import { clearSessionStoragePreservingPreferences } from "@/lib/clientPreferences";
 import { AppearanceMenu } from "@/components/ui/AppearanceMenu";
+import { FieldContrastToggle } from "@/components/ui/FieldContrastToggle";
 import { FeedbackCuePreferences } from "@/components/ui/FeedbackCuePreferences";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import type { InAppNotification } from "@/lib/inAppNotifications";
 import { formatSyncAgeLabel } from "@/lib/formatSyncAge";
 import { useBackToClose } from "@/hooks/useBackToClose";
 import { cn } from "@/lib/cn";
+import { DesktopNotificationPrompt } from "@/components/ui/DesktopNotificationPrompt";
 
 interface HeaderProps {
   userName: string;
@@ -115,7 +117,7 @@ function Header({
   };
 
   const showSyncChip =
-    isSyncing || pendingCount > 0 || failedCount > 0 || agendaDataStale;
+    !isOnline || isSyncing || pendingCount > 0 || failedCount > 0 || agendaDataStale;
 
   const syncChip = (() => {
     if (!isOnline) {
@@ -313,6 +315,7 @@ function Header({
             ) : null}
 
             <div className="flex items-center gap-1 md:hidden">
+              <FieldContrastToggle className="min-h-12 min-w-12" />
               <InAppNotificationBell
                 scope={notificationScope}
                 dataTour="tech-header-notifications"
@@ -332,6 +335,13 @@ function Header({
           </div>
         </div>
       </header>
+
+      {notificationScope ? (
+        <DesktopNotificationPrompt
+          scope={notificationScope}
+          className="border-x-0 border-b border-t-0 px-3 md:px-5"
+        />
+      ) : null}
 
       {mobileMenuOpen && (
         <div

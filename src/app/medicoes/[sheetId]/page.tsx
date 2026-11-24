@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useConfirmDiscardUnsavedPrices } from "@/hooks/useMeasurementSheetPriceDirtyGuard";
 import { ArrowLeft, Loader2, Ruler } from "lucide-react";
 import MeasurementSheetDetailView from "@/components/features/measurements/MeasurementSheetDetailView";
 import {
@@ -25,18 +25,29 @@ import type { AppRole } from "@/lib/schemas/auth";
 
 function SheetPageBackControl({
   context,
+  onNavigate,
 }: {
   context: ReturnType<typeof parseMeasurementSheetBackContext>;
+  onNavigate?: () => Promise<boolean>;
 }) {
   const router = useRouter();
   const label = measurementSheetBackLabel(context);
   const href = measurementSheetBackHref(context);
 
+  const tryLeave = async () => {
+    if (onNavigate && !(await onNavigate())) return;
+    if (href) {
+      router.push(href);
+    } else {
+      router.back();
+    }
+  };
+
   if (!href) {
     return (
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => void tryLeave()}
         className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -46,13 +57,14 @@ function SheetPageBackControl({
   }
 
   return (
-    <Link
-      href={href}
+    <button
+      type="button"
+      onClick={() => void tryLeave()}
       className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground"
     >
       <ArrowLeft className="h-4 w-4" aria-hidden />
       {label}
-    </Link>
+    </button>
   );
 }
 
@@ -79,6 +91,8 @@ export default function MedicoesSheetPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [priceDirty, setPriceDirty] = useState(false);
+  const confirmDiscard = useConfirmDiscardUnsavedPrices(priceDirty);
   const { data: session } = useSession();
   const role = session?.user?.role as AppRole | undefined;
   const canEditPrices = Boolean(role && canAccessAdminPanel(role));
@@ -135,7 +149,7 @@ export default function MedicoesSheetPage() {
   const pageHeader = (
     <header className={adminFullBleedShell.header}>
       <div className={adminFullBleedShell.headerInner}>
-        <SheetPageBackControl context={backContext} />
+        <SheetPageBackControl context={backContext} onNavigate={confirmDiscard} />
         <div className="flex items-start gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-border bg-muted">
             <Ruler className="h-6 w-6 text-primary-ink" aria-hidden />
@@ -200,6 +214,7 @@ export default function MedicoesSheetPage() {
             onSelectVersion={handleSelectVersion}
             canEditPrices={canEditPrices}
             onPricesSaved={() => void load()}
+            onPriceDirtyChange={setPriceDirty}
             embedded
           />
         </div>

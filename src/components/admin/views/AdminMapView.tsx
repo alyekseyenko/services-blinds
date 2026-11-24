@@ -56,6 +56,7 @@ export interface AdminMapViewProps {
   selectedForRoute: RouteStop[];
   onTaskSelect: (opp: Opportunity) => void;
   onScheduleFromMap: (opp: Opportunity) => void;
+  onRescheduleFromMap?: (opp: Opportunity) => void;
   optimizedRoute: OptimizedRouteStop[] | null;
   fuelPrice: number;
   setFuelPrice: (price: number) => void;
@@ -96,6 +97,8 @@ export interface AdminMapViewProps {
   mapTextSearch?: string | null;
   onClearMapTextSearch?: () => void;
   mapFocusOpportunityId?: string | null;
+  mapDisplayMode?: AdminMapDisplayMode;
+  setMapDisplayMode?: (mode: AdminMapDisplayMode) => void;
 }
 
 export default function AdminMapView({
@@ -165,8 +168,13 @@ export default function AdminMapView({
   mapTextSearch = null,
   onClearMapTextSearch,
   mapFocusOpportunityId = null,
+  mapDisplayMode: mapDisplayModeProp,
+  setMapDisplayMode: setMapDisplayModeProp,
+  onRescheduleFromMap,
 }: AdminMapViewProps) {
-  const [mapDisplayMode, setMapDisplayMode] = useState<AdminMapDisplayMode>("map");
+  const [localMapDisplayMode, setLocalMapDisplayMode] = useState<AdminMapDisplayMode>("map");
+  const mapDisplayMode = mapDisplayModeProp ?? localMapDisplayMode;
+  const setMapDisplayMode = setMapDisplayModeProp ?? setLocalMapDisplayMode;
   const streetViewOpen = useMapStreetViewOpen();
 
   useEffect(() => {
@@ -317,6 +325,7 @@ export default function AdminMapView({
               onTaskSelect={onTaskSelect}
               markerInteraction="popup"
               onScheduleFromMap={onScheduleFromMap}
+              onRescheduleFromMap={onRescheduleFromMap}
               autoFitKey={autoFitKey}
               routeSelectionMode={routeSelectionMode}
               isTaskInRoute={(task) => selectedForRoute.some((s) => s.id === task.id)}

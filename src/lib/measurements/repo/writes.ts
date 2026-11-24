@@ -18,6 +18,9 @@ export type SaveSubmittedSheetInput = {
   technicianUserId?: string;
   editedByName?: string;
   clientName: string;
+  clientNif?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   nsi?: string;
   address: string;
   serviceLabel?: string;
@@ -368,17 +371,23 @@ export async function saveSubmittedSheet(
              technician_name = $2,
              technician_user_id = $3,
              client_name = $4,
-             nsi = $5,
-             address = $6,
-             service_label = $7,
-             visit_at = $8,
-             client_request_id = $9
+             client_nif = $5,
+             client_phone = $6,
+             client_email = $7,
+             nsi = $8,
+             address = $9,
+             service_label = $10,
+             visit_at = $11,
+             client_request_id = $12
            WHERE id = $1`,
           [
             sheetId,
             input.technicianName ?? null,
             input.technicianUserId ?? null,
             input.clientName,
+            input.clientNif?.trim() || null,
+            input.clientPhone?.trim() || null,
+            input.clientEmail?.trim() || null,
             input.nsi ?? null,
             input.address,
             input.serviceLabel ?? null,
@@ -405,9 +414,9 @@ export async function saveSubmittedSheet(
       await client.query(
         `INSERT INTO measurement_sheet (
           id, opportunity_id, task_id, version, status, client_request_id,
-          technician_name, technician_user_id, client_name, nsi, address,
-          service_label, visit_at, edited_by_name
-        ) VALUES ($1,$2,$3,$4,'submitted',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          technician_name, technician_user_id, client_name, client_nif, client_phone, client_email,
+          nsi, address, service_label, visit_at, edited_by_name
+        ) VALUES ($1,$2,$3,$4,'submitted',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [
           sheetId,
           input.opportunityId,
@@ -417,6 +426,9 @@ export async function saveSubmittedSheet(
           input.technicianName ?? null,
           input.technicianUserId ?? null,
           input.clientName,
+          input.clientNif?.trim() || null,
+          input.clientPhone?.trim() || null,
+          input.clientEmail?.trim() || null,
           input.nsi ?? null,
           input.address,
           input.serviceLabel ?? null,

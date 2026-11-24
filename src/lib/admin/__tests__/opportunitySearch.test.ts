@@ -29,6 +29,15 @@ function opp(partial: Partial<Opportunity>): Opportunity {
 }
 
 describe("opportunityMatchesSearch", () => {
+  it("matches telefone e NIF", () => {
+    const o = opp({
+      pointOfContactPhone: "+351 912 345 678",
+      clientNif: "123456789",
+    });
+    expect(opportunityMatchesSearch(o, "912345")).toBe(true);
+    expect(opportunityMatchesSearch(o, "123456789")).toBe(true);
+  });
+
   it("matches NSI, cliente e morada", () => {
     const o = opp({});
     expect(opportunityMatchesSearch(o, "NSI-2024")).toBe(true);

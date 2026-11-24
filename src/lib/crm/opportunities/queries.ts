@@ -11,6 +11,8 @@ import { fetchAllGraphqlPages } from "../graphqlPagination";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import { matchesHistoryOutcomeFilter } from "@/lib/admin/mapHistoryStatus";
 import { matchesHistoryVisitDate, type HistoryDateRange } from "@/lib/visits/historyFilters";
+import { opportunityMatchesSearch } from "@/lib/admin/opportunitySearch";
+import type { Opportunity } from "@/types/admin";
 import { formatOnSiteDurationPt } from "@/lib/visitSiteTimes";
 import {
   CRM_CACHE_KEYS,
@@ -173,16 +175,19 @@ export async function fetchAdminHistoryPage(
     fresh?: boolean;
     from?: string | null;
     to?: string | null;
+    q?: string | null;
+    technician?: string | null;
   }
 ): Promise<AdminHistoryPageResult> {
   const safePage = Math.max(1, Math.floor(page));
   const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const outcomeKey = scope?.outcomes?.length ? [...scope.outcomes].sort().join(",") : "";
   const dateKey = `${scope?.from ?? ""}|${scope?.to ?? ""}`;
+  const searchKey = `${scope?.q ?? ""}|${scope?.technician ?? ""}`;
   const cacheKey = adminHistoryPageCacheKey(
     safePage,
     safePageSize,
-    `${outcomeKey}${scope?.withCoordinates ? ":gps" : ""}${dateKey !== "|" ? `:d:${dateKey}` : ""}`
+    `${outcomeKey}${scope?.withCoordinates ? ":gps" : ""}${dateKey !== "|" ? `:d:${dateKey}` : ""}${searchKey !== "|" ? `:s:${searchKey}` : ""}`
   );
   const fresh = scope?.fresh ? { fresh: true as const } : undefined;
   return cacheGetOrCompute(cacheKey, ADMIN_TTL_SEC, async () => {
@@ -223,8 +228,13 @@ export async function fetchAdminHistoryPage(
       ? formatOnSiteDurationPt(Math.round(onSiteDurationTotalMs / onSiteDurationSampleCount))
       : null;
 
+  const textQuery = scope?.q?.trim() ?? "";
+  const technicianFilter = scope?.technician?.trim() ?? "";
+
   const scopedItems = dateFiltered.filter((opp) => {
     if (outcomes.length > 0 && !matchesHistoryOutcomeFilter(opp, outcomes)) return false;
+    if (technicianFilter && opp.technician !== technicianFilter) return false;
+    if (textQuery && !opportunityMatchesSearch(opp as Opportunity, textQuery)) return false;
     if (scope?.withCoordinates) {
       return Array.isArray(opp.coordinates) && opp.coordinates.length === 2;
     }

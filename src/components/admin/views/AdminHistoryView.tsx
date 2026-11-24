@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Loader2,
   CheckCircle,
@@ -18,9 +18,11 @@ import { useHistoryListFilters } from "@/hooks/useHistoryListFilters";
 import { HistoryListFilters } from "@/components/visits/HistoryListFilters";
 import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
 import { isTaskCompleted } from "@/lib/crm/contract";
+import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { Opportunity } from "@/types/admin";
 import { NOT_AVAILABLE_LABEL } from "@/lib/ui/ptPtDisplay";
 import { historyFilterQuery } from "@/lib/visits/historyFilters";
+import { ClientRatingSummary } from "@/components/visits/ClientRatingSummary";
 
 interface HistoryPageData {
   items: Opportunity[];
@@ -40,15 +42,43 @@ interface HistoryPageData {
 
 export interface AdminHistoryViewProps {
   onSelectOpportunity: (opp: Opportunity) => void;
+  technicians?: string[];
+  initialOutcomes?: MapHistoryOutcome[];
+  onConsumeInitialOutcomes?: () => void;
 }
 
-export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryViewProps) {
+export default function AdminHistoryView({
+  onSelectOpportunity,
+  technicians = [],
+  initialOutcomes,
+  onConsumeInitialOutcomes,
+}: AdminHistoryViewProps) {
   const [historyPage, setHistoryPage] = useState(1);
+  const [textQuery, setTextQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [technicianFilter, setTechnicianFilter] = useState("all");
   const filters = useHistoryListFilters();
 
   useEffect(() => {
+    if (!initialOutcomes?.length) return;
+    for (const outcome of initialOutcomes) {
+      if (!filters.outcomes.includes(outcome)) {
+        filters.toggleOutcome(outcome);
+      }
+    }
+    onConsumeInitialOutcomes?.();
+  }, [initialOutcomes, filters.outcomes, filters.toggleOutcome, onConsumeInitialOutcomes]);
+
+  useEffect(() => {
     setHistoryPage(1);
-  }, [filters.datePreset, filters.from, filters.to, filters.outcomes.join(",")]);
+  }, [
+    filters.datePreset,
+    filters.from,
+    filters.to,
+    filters.outcomes.join(","),
+    submittedQuery,
+    technicianFilter,
+  ]);
 
   const historyUrl = useMemo(
     () =>
@@ -57,8 +87,10 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
         from: filters.range.from,
         to: filters.range.to,
         outcomes: filters.outcomes,
+        q: submittedQuery || null,
+        technician: technicianFilter !== "all" ? technicianFilter : null,
       })}`,
-    [historyPage, filters.range.from, filters.range.to, filters.outcomes]
+  [historyPage, filters.range.from, filters.range.to, filters.outcomes, submittedQuery, technicianFilter]
   );
 
   const { data: historyData, isLoading: loadingHistory } = useSync<HistoryPageData>(historyUrl);
@@ -111,6 +143,47 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
           ) : null}
         </div>
       </div>
+
+      <form
+        className="shrink-0 border-b border-border bg-card px-3 py-3 md:px-4 lg:px-5"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          setSubmittedQuery(textQuery.trim());
+        }}
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <label className="min-w-0 flex-1">
+            <span className="ds-kicker">Pesquisar</span>
+            <input
+              value={textQuery}
+              onChange={(e) => setTextQuery(e.target.value)}
+              placeholder="Cliente, morada, NSI ou telefone…"
+              className="mt-1 min-h-12 w-full rounded-xl border border-border bg-muted px-3 text-sm font-semibold text-foreground"
+            />
+          </label>
+          <label className="md:w-56">
+            <span className="ds-kicker">Técnico</span>
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className="mt-1 min-h-12 w-full rounded-xl border border-border bg-muted px-3 text-sm font-semibold text-foreground"
+            >
+              <option value="all">Todos</option>
+              {technicians.map((tech) => (
+                <option key={tech} value={tech}>
+                  {tech}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="min-h-12 rounded-xl border-2 border-border-strong bg-card px-4 text-xs font-bold uppercase tracking-wider text-foreground"
+          >
+            Aplicar
+          </button>
+        </div>
+      </form>
 
       <div className="shrink-0 border-b border-border bg-card px-3 pb-3 md:px-4 lg:px-5">
         <HistoryListFilters
@@ -194,6 +267,11 @@ export default function AdminHistoryView({ onSelectOpportunity }: AdminHistoryVi
                       </span>
                     ) : null}
                   </div>
+                  <ClientRatingSummary
+                    rating={opp.clientRating}
+                    feedback={opp.clientFeedback}
+                    compact
+                  />
                 </div>
               </div>
 

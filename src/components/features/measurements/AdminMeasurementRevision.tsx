@@ -84,6 +84,7 @@ export function AdminMeasurementRevision({
         opportunityId={opportunityId}
         seedPayload={payload}
         saveBarMode="inline"
+        isAdmin
         onSave={async (data) => {
           const result = await saveAdminMeasurementRevisionAction(opportunityId, data);
           if (!result.success || !result.data) {

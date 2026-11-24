@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import type { Opportunity } from "@/types/admin";
 import { AdminOppSection } from "@/components/admin/drawer/AdminOppSection";
+import { formatRepairPaymentEuros } from "@/lib/visits/repairPaymentAmount";
 
 export function OpportunityTailSections(props: {
   selectedOpportunity: Opportunity;
@@ -19,8 +20,8 @@ export function OpportunityTailSections(props: {
           <div className="rounded-xl border-2 border-border bg-muted p-3">
             <p className="ds-kicker">Valor</p>
             <p className="mt-1 text-lg font-black text-foreground">
-              {selectedOpportunity.amount ? (
-                <span className="ds-num">{selectedOpportunity.amount}€</span>
+              {selectedOpportunity.amount != null && selectedOpportunity.amount > 0 ? (
+                <span className="ds-num">{formatRepairPaymentEuros(selectedOpportunity.amount)}</span>
               ) : (
                 "Sob orçamento"
               )}

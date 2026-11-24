@@ -16,6 +16,11 @@ import {
 } from "@/lib/admin/schedulingHours";
 import { resolveHoraDeFimIsoFromStopTimes } from "@/lib/admin/routeScheduleSlots";
 import type { ScheduleForm } from "@/lib/admin/scheduleForm";
+import {
+  buildScheduleFormPrefill,
+  localAgendaKindsForSchedule,
+  type ScheduleModalMode,
+} from "@/lib/admin/scheduleFormPrefill";
 import { toUserMessage } from "@/lib/userMessages";
 import type { Opportunity, WorkspaceMember } from "@/types/admin";
 import { useToast } from "@/components/ui/ToastContext";
@@ -54,6 +59,7 @@ export function useAdminScheduleAndGeoActions({
   confirm,
 }: UseAdminScheduleAndGeoActionsParams) {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleModalMode, setScheduleModalMode] = useState<ScheduleModalMode>("new");
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isAddressSyncing, setIsAddressSyncing] = useState(false);
@@ -328,28 +334,14 @@ export function useAdminScheduleAndGeoActions({
   };
 
   const openScheduleModal = useCallback(
-    (opp: Opportunity) => {
+    (opp: Opportunity, options?: { reschedule?: boolean }) => {
+      const reschedule = Boolean(options?.reschedule);
       setSelectedOpportunity(opp);
-      setScheduleForm({
-        title: `Visita Técnica - ${opp.title}`,
-        date: "",
-        time: "09:00",
-        endTime: "",
-        technicianId: "",
-        urgent: false,
-        notes: opp.report || "",
-        addressStreet1: opp.rawAddress?.addressStreet1 || "",
-        addressStreet2: opp.rawAddress?.addressStreet2 || "",
-        addressCity: opp.rawAddress?.addressCity || "",
-        addressState: opp.rawAddress?.addressState || "",
-        addressPostcode: opp.rawAddress?.addressPostcode || "",
-        addressCountry: opp.rawAddress?.addressCountry || "Portugal",
-        addressLat: opp.coordinates ? opp.coordinates[0] : null,
-        addressLng: opp.coordinates ? opp.coordinates[1] : null,
-      });
+      setScheduleModalMode(reschedule ? "reschedule" : "new");
+      setScheduleForm(buildScheduleFormPrefill(opp, workspaceMembers, reschedule ? "reschedule" : "new"));
       setShowScheduleModal(true);
     },
-    [setSelectedOpportunity]
+    [setSelectedOpportunity, workspaceMembers]
   );
 
   const handleScheduleVisit = async () => {
@@ -405,6 +397,7 @@ export function useAdminScheduleAndGeoActions({
         scheduleForm.endTime
       );
 
+      const reschedule = scheduleModalMode === "reschedule";
       const result = await scheduleTechnicalVisitAction({
         title: scheduleForm.title,
         dueAtIso: dueAt.toISOString(),
@@ -428,6 +421,7 @@ export function useAdminScheduleAndGeoActions({
         taskId: selectedOpportunity.taskId,
         currentStage: selectedOpportunity.stage,
         urgent: scheduleForm.urgent,
+        rescheduleExistingTask: reschedule,
       });
 
       if (!result.success) {
@@ -440,10 +434,19 @@ export function useAdminScheduleAndGeoActions({
 
       const conflictNote = result.data?.conflictWarning ? ` ${result.data.conflictWarning}` : "";
       toast.success(
-        "Visita agendada",
-        `Visita confirmada no CRM para o técnico. Saiu de Por agendar.${conflictNote}`
+        reschedule ? "Visita reagendada" : "Visita agendada",
+        reschedule
+          ? `Horário e técnico actualizados no CRM.${conflictNote}`
+          : `Visita confirmada no CRM para o técnico. Saiu de Por agendar.${conflictNote}`
       );
-      const scheduleKinds = ["nova", "reagendada", "reatribuida"] as const;
+      const scheduleKinds = reschedule
+        ? localAgendaKindsForSchedule(
+            selectedOpportunity,
+            dueAt,
+            scheduleForm.technicianId,
+            true
+          )
+        : (["nova"] as const);
       if (selectedOpportunity.taskId) {
         markLocalAgendaChange(adminNotificationScope, selectedOpportunity.taskId, [...scheduleKinds]);
       }
@@ -481,6 +484,7 @@ export function useAdminScheduleAndGeoActions({
   return {
     showScheduleModal,
     setShowScheduleModal,
+    scheduleModalMode,
     scheduleForm,
     setScheduleForm,
     isScheduling,

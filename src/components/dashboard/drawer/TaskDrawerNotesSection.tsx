@@ -17,11 +17,13 @@ type CrmNote = {
   title?: string | null;
   body: string;
   createdAt: string;
+  pendingSync?: boolean;
 };
 
 export function TaskDrawerNotesSection(props: {
   notes: CrmNote[];
   loadingNotes: boolean;
+  notesFromCache?: boolean;
   isOnline: boolean;
   newNoteText: string;
   setNewNoteText: (v: string) => void;
@@ -31,6 +33,7 @@ export function TaskDrawerNotesSection(props: {
   const {
     notes,
     loadingNotes,
+    notesFromCache = false,
     isOnline,
     newNoteText,
     setNewNoteText,
@@ -54,15 +57,20 @@ export function TaskDrawerNotesSection(props: {
         <div className="flex items-center gap-2 py-4 text-muted-foreground text-xs font-bold uppercase justify-center">
           <Loader2 className="w-4 h-4 animate-spin text-primary-ink" /> A carregar do Twenty...
         </div>
-      ) : !isOnline ? (
-        <p className="rounded-xl border border-border-strong bg-card p-4 text-center text-sm font-medium leading-snug text-muted-foreground">
-          Notas indisponíveis offline. Ligação necessária para ver o histórico do CRM.
-        </p>
-      ) : notes.length === 0 ? (
-        <p className="rounded-xl border border-border-strong bg-muted/40 p-4 text-center text-sm font-medium text-muted-foreground">
-          Sem notas no CRM.
-        </p>
       ) : (
+        <>
+          {notesFromCache && !isOnline && notes.length > 0 ? (
+            <p className="mb-3 rounded-xl border border-warning-border bg-warning-surface/50 px-3 py-2 text-center text-xs font-semibold text-warning-fg">
+              Histórico offline — pode estar desactualizado.
+            </p>
+          ) : null}
+          {notes.length === 0 ? (
+            <p className="rounded-xl border border-border-strong bg-card p-4 text-center text-sm font-medium leading-snug text-muted-foreground">
+              {isOnline
+                ? "Sem notas no CRM."
+                : "Sem notas guardadas neste telemóvel. Abra a visita com rede para carregar o histórico do CRM."}
+            </p>
+          ) : (
         <div className="space-y-3.5 max-h-60 overflow-y-auto pr-1.5 custom-scrollbar">
           {notes.map((note) => {
             const urgentNote = isUrgentSchedulingNote(note);
@@ -81,6 +89,11 @@ export function TaskDrawerNotesSection(props: {
                       className={`h-3.5 w-3.5 shrink-0 ${urgentNote ? "text-danger-solid" : "text-primary-ink"}`}
                     />
                     {note.title?.trim() ? formatNoteTitleForDisplay(note.title) : "Técnico"}
+                    {note.pendingSync ? (
+                      <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-xs font-bold text-warning-fg">
+                        Por sincronizar
+                      </span>
+                    ) : null}
                     {urgentNote && (
                       <span className="rounded-md border border-danger-border bg-danger-surface px-1.5 py-0.5 text-xs font-bold text-danger-fg">
                         Urgente
@@ -107,6 +120,8 @@ export function TaskDrawerNotesSection(props: {
             );
           })}
         </div>
+          )}
+        </>
       )}
 
       <div className="mt-3 flex items-end gap-2">

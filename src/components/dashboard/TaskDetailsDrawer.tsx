@@ -493,8 +493,11 @@ export default function TaskDetailsDrawer({
                 showPrimaryServiceInList={showPrimaryServiceInList}
                 needsArrivalCheckIn={needsArrivalCheckIn}
                 deletingOppId={deletingOppId}
+                extrasReadOnly={isAssistantOnVisit}
+                masterName={selectedTask.technicianName}
                 onPromptArrivalCheckIn={promptArrivalCheckIn}
                 onAddExtra={() => {
+                  if (isAssistantOnVisit) return;
                   setEditingService(null);
                   setShowAddService(true);
                 }}
@@ -591,7 +594,7 @@ export default function TaskDetailsDrawer({
           onSubmit={handleStatusUpdate}
         />
       </div>
-      {showAddService && (
+      {showAddService && !isAssistantOnVisit && (
         <AddVisitServiceSheet
           task={addServiceTask}
           isOnline={isOnline}

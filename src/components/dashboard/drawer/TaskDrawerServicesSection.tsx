@@ -20,6 +20,9 @@ export function TaskDrawerServicesSection(props: {
   showPrimaryServiceInList: boolean;
   needsArrivalCheckIn: boolean;
   deletingOppId: string | null;
+  /** Auxiliar em equipa: só leitura nos extras; copy explícita em pt-PT. */
+  extrasReadOnly?: boolean;
+  masterName?: string | null;
   onPromptArrivalCheckIn: (detail?: string) => void;
   onAddExtra: () => void;
   onEditExtra: (svc: VisitService) => void;
@@ -31,17 +34,21 @@ export function TaskDrawerServicesSection(props: {
     showPrimaryServiceInList,
     needsArrivalCheckIn,
     deletingOppId,
+    extrasReadOnly = false,
+    masterName,
     onPromptArrivalCheckIn,
     onAddExtra,
     onEditExtra,
     onDeleteExtra,
   } = props;
 
+  const masterLabel = masterName?.trim() || "Master";
+
   return (
     <div className="space-y-3" data-tour="tech-drawer-services">
       <div className="flex items-center justify-between">
         <h3 className={TECH_DRAWER_SECTION_TITLE}>Serviços nesta visita</h3>
-        {isTaskActive(selectedTask.status) && (
+        {isTaskActive(selectedTask.status) && !extrasReadOnly && (
           <button
             type="button"
             data-tour="tech-drawer-extra-add"
@@ -62,6 +69,16 @@ export function TaskDrawerServicesSection(props: {
           </button>
         )}
       </div>
+      {extrasReadOnly ? (
+        <p
+          className="rounded-xl border border-border bg-muted px-4 py-3 text-xs font-semibold leading-relaxed text-muted-foreground"
+          role="status"
+        >
+          Não é permitido criar ou alterar serviços extra em modo de apoio. Apenas o Master (
+          <span className="font-bold text-foreground">{masterLabel}</span>) pode registar serviços
+          extra no local.
+        </p>
+      ) : null}
       <div className="space-y-2">
         {showPrimaryServiceInList
           ? visitServices
@@ -155,7 +172,7 @@ export function TaskDrawerServicesSection(props: {
               {svc.nsi && svc.nsi !== "N/A" && (
                 <span className="text-muted-foreground">NSI: {svc.nsi}</span>
               )}
-              {isTaskActive(selectedTask.status) && (
+              {isTaskActive(selectedTask.status) && !extrasReadOnly && (
                 <div className="flex gap-2">
                   <button
                     type="button"

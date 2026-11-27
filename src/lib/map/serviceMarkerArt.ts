@@ -32,7 +32,13 @@ export function getTeardropPinPath(): string {
   return getPushpinBodyPath();
 }
 
-export type MarkerStatusBadge = "late" | "done" | "unscheduled" | null;
+export type MarkerStatusBadge =
+  | "late"
+  | "done"
+  | "unscheduled"
+  | "cancelled"
+  | "incomplete"
+  | null;
 
 function escapeSvgText(value: string): string {
   return value.replace(/[<>&"]/g, "");
@@ -67,6 +73,14 @@ function getStatusBadgeSvg(status: MarkerStatusBadge): string {
   if (status === "unscheduled") {
     return `<circle cx="${x}" cy="${y}" r="6" fill="#64748b" stroke="#ffffff" stroke-width="2"/>
       <path d="M${x} ${y - 2}v2.2l1.6 1" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>`;
+  }
+  if (status === "cancelled") {
+    return `<circle cx="${x}" cy="${y}" r="6" fill="#dc2626" stroke="#ffffff" stroke-width="2"/>
+      <path d="M${x - 2.2} ${y - 2.2}l4.4 4.4M${x + 2.2} ${y - 2.2}l-4.4 4.4" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>`;
+  }
+  if (status === "incomplete") {
+    return `<circle cx="${x}" cy="${y}" r="6" fill="#d97706" stroke="#ffffff" stroke-width="2"/>
+      <text x="${x}" y="${y + 0.5}" text-anchor="middle" dominant-baseline="central" fill="#ffffff" font-family="${MAP_SVG_FONT_FAMILY}" font-size="9" font-weight="900">i</text>`;
   }
   return "";
 }
@@ -137,18 +151,24 @@ export function buildRouteStopTeardropSvg(options: {
   isLate: boolean;
   isNext?: boolean;
   width: number;
+  /** Número ou símbolo no disco (legenda). No mapa o Google Maps desenha o label. */
+  symbolText?: string | null;
 }): string {
-  const { pinColor, isLate, isNext = false, width } = options;
+  const { pinColor, isLate, isNext = false, width, symbolText = null } = options;
   const height = Math.round(width * MAP_PIN_ASPECT);
   const body = getPushpinBodyPath();
-  const ring = isLate ? "#dc2626" : isNext ? "#2563eb" : "#ffffff";
+  const ring = isLate ? "#dc2626" : isNext ? pinColor : "#ffffff";
   const ringW = isLate || isNext ? 3.5 : 2.5;
   const badge = isLate ? getStatusBadgeSvg("late") : "";
+  const glyph = symbolText
+    ? `<text x="${MAP_PIN_HEAD_CX}" y="${MAP_PIN_HEAD_CY + 0.8}" text-anchor="middle" dominant-baseline="central" fill="${pinColor}" font-family="${MAP_SVG_FONT_FAMILY}" font-size="${symbolText.length > 1 ? 11 : 13}" font-weight="900">${escapeSvgText(symbolText)}</text>`
+    : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${MAP_PIN_VIEW_WIDTH} ${MAP_PIN_VIEW_HEIGHT}">
     <ellipse cx="${MAP_PIN_TIP_X}" cy="${MAP_PIN_TIP_Y + 0.5}" rx="7.5" ry="2" fill="rgba(15,23,42,0.22)"/>
     <path d="${body}" fill="${pinColor}" stroke="${ring}" stroke-width="${ringW}" stroke-linejoin="round"/>
     <circle cx="${MAP_PIN_HEAD_CX}" cy="${MAP_PIN_HEAD_CY}" r="${MAP_PIN_DISC_R}" fill="#ffffff" stroke="${pinColor}" stroke-width="2.4"/>
+    ${glyph}
     ${badge}
   </svg>`;
 }

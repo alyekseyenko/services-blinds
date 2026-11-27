@@ -94,6 +94,7 @@ export function useAdminAgendaSearchAndNotifications({
         opportunityId: t.opportunityId,
         technicianName: t.technicianName,
         assigneeId: t.assigneeId,
+        assistantTechnicianIds: t.assistantTechnicianIds,
         onSiteOpportunityIds: t.onSiteOpportunityIds,
         onSiteServices: t.onSiteServices,
         statusNote: t.statusNote,

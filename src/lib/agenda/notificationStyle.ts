@@ -33,6 +33,7 @@ export function inferAgendaKindFromNotificationTitle(title: string): AgendaDiffK
   if (t.includes("nova visita")) return "nova";
   if (t.includes("saiu da agenda") || t.includes("removida")) return "removida";
   if (t.includes("reatribu")) return "reatribuida";
+  if (t.includes("equipa atualizada")) return "equipa_atualizada";
   if (t.includes("atrasad")) return "atrasada";
   if (t.includes("serviço extra") || t.includes("servico extra")) return "servico_extra";
   if (t.includes("armazém") || t.includes("armazem")) return "armazem_pronto";

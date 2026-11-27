@@ -130,3 +130,23 @@ export const OPERATIONS_MAP_STYLES = [
     stylers: [{ visibility: "off" }],
   },
 ];
+
+/** Controlo nativo do Google Maps (sem POI chrome extra). */
+export function getOperationsMapOptions(hideNativeMapChrome: boolean) {
+  return {
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    zoomControl: !hideNativeMapChrome,
+    zoomControlOptions: hideNativeMapChrome
+      ? undefined
+      : { position: 4 as google.maps.ControlPosition },
+    rotateControl: false,
+    scaleControl: false,
+    keyboardShortcuts: false,
+    gestureHandling: "greedy" as const,
+    clickableIcons: false,
+    backgroundColor: OPERATIONS_MAP_CANVAS,
+    styles: OPERATIONS_MAP_STYLES,
+  };
+}

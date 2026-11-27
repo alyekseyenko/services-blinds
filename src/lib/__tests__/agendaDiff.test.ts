@@ -30,6 +30,32 @@ describe("diffAgendaSnapshots", () => {
     expect(events[0].kind).toBe("nova");
   });
 
+  it("deteta equipa atualizada sem mudar o master", () => {
+    const events = diffAgendaSnapshots(
+      [
+        {
+          id: "1",
+          dueAt: "2026-01-01T10:00:00Z",
+          status: "AGENDADO",
+          label: "Cliente A",
+          assigneeId: "m1",
+          assistantTechnicianIds: [],
+        },
+      ],
+      [
+        {
+          id: "1",
+          dueAt: "2026-01-01T10:00:00Z",
+          status: "AGENDADO",
+          label: "Cliente A",
+          assigneeId: "m1",
+          assistantTechnicianIds: ["a1"],
+        },
+      ]
+    );
+    expect(events.map((e) => e.kind)).toContain("equipa_atualizada");
+  });
+
   it("avisa visita urgente quando a marcação passa a urgente", () => {
     const events = diffAgendaSnapshots(
       [{ id: "1", dueAt: "2026-01-01T10:00:00Z", status: "AGENDADO", label: "Cliente A" }],

@@ -53,7 +53,7 @@ async function revertOpportunitiesAfterCancel(
     if (!oppId || seen.has(oppId)) return;
     seen.add(oppId);
     const workflow = classifyOpportunityWorkflow(opp?.stage, opp?.name || taskData?.title);
-    const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow);
+    const fallbackStage = getFallbackStageOnIncompleteWorkflow(workflow, opp?.stage);
     const stageResult = await applyOpportunityStageTransition(
       oppId,
       fallbackStage,

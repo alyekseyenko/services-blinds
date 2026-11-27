@@ -12,6 +12,7 @@ import type { AppTask } from "../schemas";
 import { fetchAllGraphqlPages } from "../graphqlPagination";
 import { technicianTaskDueDateWindow, TECHNICIAN_TASK_PAGE_SIZE } from "../technicianTaskWindow";
 import { TASK_NODE_FIELDS, mapTaskNode } from "./queries";
+import { assistantPatternForMember, parseAssistantIds } from "@/lib/visits/team";
 
 type TechnicianTasksOrderBy = "AscNullsLast" | "Asc" | null;
 
@@ -105,6 +106,70 @@ async function fetchTasksByAssigneeId(assigneeId: string) {
 
   throw lastError;
 }
+
+async function fetchTasksAsAssistantPaged(memberId: string) {
+  const { dueFrom, dueTo } = technicianTaskDueDateWindow();
+  const assistantPattern = assistantPatternForMember(memberId);
+
+  return fetchAllGraphqlPages({
+    pageSize: TECHNICIAN_TASK_PAGE_SIZE,
+    maxPages: 30,
+    fetchPage: async (after) => {
+      const query = `
+        query getTasksAsAssistant(
+          $pattern: String!
+          $dueFrom: DateTime!
+          $dueTo: DateTime!
+          $first: Int!
+          $after: String
+        ) {
+          tasks(
+            filter: {
+              and: [
+                { equipaAuxiliarIds: { ilike: $pattern } }
+                { dueAt: { gte: $dueFrom } }
+                { dueAt: { lte: $dueTo } }
+              ]
+            }
+            orderBy: { dueAt: AscNullsLast }
+            first: $first
+            after: $after
+          ) {
+            pageInfo { hasNextPage endCursor }
+            edges {
+              node {
+                ${TASK_NODE_FIELDS}
+              }
+            }
+          }
+        }
+      `;
+
+      const data = await crmFetch<{
+        tasks: {
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
+          edges: Array<{ node: any }>;
+        };
+      }>(
+        query,
+        {
+          pattern: assistantPattern,
+          dueFrom,
+          dueTo,
+          first: TECHNICIAN_TASK_PAGE_SIZE,
+          after,
+        },
+        { timeoutMs: 20000, maxRetries: 1 }
+      );
+
+      return {
+        nodes: data.tasks.edges.map((edge) => edge.node),
+        pageInfo: data.tasks.pageInfo,
+      };
+    },
+  });
+}
+
 async function fetchRecentTerminalTasksForAssignee(assigneeId: string): Promise<any[]> {
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 45);
@@ -160,6 +225,45 @@ export async function getTaskStatusForPublicPortal(taskId: string): Promise<stri
   return data.tasks.edges[0]?.node?.status ?? null;
 }
 
+export type TaskTeamAccess = {
+  masterId: string;
+  assistantIds: string[];
+};
+
+export async function getTaskTeamAccess(taskId: string): Promise<TaskTeamAccess | null> {
+  const data = await crmFetch<{
+    tasks: {
+      edges: Array<{
+        node: {
+          assigneeId?: string | null;
+          equipaAuxiliarIds?: string | null;
+        };
+      }>;
+    };
+  }>(
+    `query GetTaskTeam($id: UUID!) {
+      tasks(filter: { id: { eq: $id } }, first: 1) {
+        edges {
+          node {
+            assigneeId
+            equipaAuxiliarIds
+          }
+        }
+      }
+    }`,
+    { id: taskId },
+    { timeoutMs: 10000, maxRetries: 0 }
+  );
+
+  const node = data.tasks.edges[0]?.node;
+  const masterId = node?.assigneeId?.trim();
+  if (!masterId) return null;
+  return {
+    masterId,
+    assistantIds: parseAssistantIds(node?.equipaAuxiliarIds),
+  };
+}
+
 export async function getTaskAssigneeId(taskId: string): Promise<string | null> {
   const data = await crmFetch<{
     tasks: { edges: Array<{ node: { assigneeId?: string | null } }> };
@@ -178,12 +282,14 @@ export async function getTaskAssigneeId(taskId: string): Promise<string | null> 
 export async function fetchTechnicianTasks(technicianId: string): Promise<AppTask[]> {
   if (!technicianId) return [];
 
-  const [assignedTasks, terminalSupplement] = await Promise.all([
+  const [assignedTasks, assistantTasks, terminalSupplement] = await Promise.all([
     fetchTasksByAssigneeId(technicianId),
+    fetchTasksAsAssistantPaged(technicianId),
     fetchRecentTerminalTasksForAssignee(technicianId),
   ]);
   const nodeById = new Map<string, any>();
   for (const node of assignedTasks) nodeById.set(node.id, node);
+  for (const node of assistantTasks) nodeById.set(node.id, node);
   for (const node of terminalSupplement) {
     if (!nodeById.has(node.id)) nodeById.set(node.id, node);
   }
@@ -249,7 +355,7 @@ export async function technicianHasLinkedOpportunity(
             taskTargets?: {
               edges?: Array<{
                 node?: {
-                  task?: { assigneeId?: string | null } | null;
+                  task?: { assigneeId?: string | null; equipaAuxiliarIds?: string | null } | null;
                 };
               }>;
             };
@@ -266,6 +372,7 @@ export async function technicianHasLinkedOpportunity(
                   node {
                     task {
                       assigneeId
+                      equipaAuxiliarIds
                     }
                   }
                 }
@@ -281,7 +388,11 @@ export async function technicianHasLinkedOpportunity(
     for (const edge of data.opportunities?.edges ?? []) {
       const targets = edge.node?.taskTargets?.edges ?? [];
       for (const target of targets) {
-        if (target.node?.task?.assigneeId === assigneeId) return true;
+        const task = target.node?.task;
+        if (!task) continue;
+        if (task.assigneeId === assigneeId) return true;
+        const assistants = parseAssistantIds(task.equipaAuxiliarIds);
+        if (assistants.includes(assigneeId)) return true;
       }
     }
     return false;

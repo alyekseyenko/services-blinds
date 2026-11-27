@@ -3,6 +3,10 @@ import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { isMeasurementsDbConfigured, measurementsQuery } from "../db/client";
 import { sumMeasurementLinePrices } from "@/lib/measurements/measurementPriceTotal";
+import {
+  canonicalTechnicianName,
+  mergeCountsByCanonicalTechnicianName,
+} from "@/lib/technicianIdentity";
 import type { MeasurementSheetListEntry } from "../types";
 export const MEASUREMENT_TRASH_DAYS = 90;
 
@@ -55,6 +59,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     group_count: string;
     unit_count: string;
     line_prices: (string | null)[] | null;
+    printed_at: Date | null;
+    printed_by_name: string | null;
   }>(
     `WITH latest AS (
        SELECT DISTINCT ON (opportunity_id) *
@@ -74,6 +80,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
        l.created_at,
        l.deleted_at,
        l.deleted_by_name,
+       l.printed_at,
+       l.printed_by_name,
        (SELECT COUNT(*)::text FROM measurement_group g WHERE g.sheet_id = l.id) AS group_count,
        (SELECT COALESCE(SUM(ml.qty), 0)::text
         FROM measurement_line ml
@@ -106,7 +114,9 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     clientName: r.client_name,
     nsi: r.nsi,
     address: r.address,
-    technicianName: r.technician_name,
+    technicianName: r.technician_name
+      ? canonicalTechnicianName(r.technician_name)
+      : r.technician_name,
     visitAt: r.visit_at ? new Date(r.visit_at).toISOString() : null,
     createdAt: new Date(r.created_at).toISOString(),
     groupCount: Number(r.group_count) || 0,
@@ -114,6 +124,8 @@ export async function listLatestMeasurementSheetsForAdmin(options?: {
     totalPriceEur: sumMeasurementLinePrices(r.line_prices ?? []),
     deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
     deletedByName: r.deleted_by_name,
+    printedAt: r.printed_at ? new Date(r.printed_at).toISOString() : null,
+    printedByName: r.printed_by_name,
   }));
 }
 export type AdminMeasurementsDashboardStats = {
@@ -205,9 +217,11 @@ export async function fetchAdminMeasurementsDashboardStats(): Promise<AdminMeasu
         count: Number(r.count) || 0,
       };
     }),
-    porTecnico: techRows.map((r) => ({
-      name: r.name,
-      count: Number(r.count) || 0,
-    })),
+    porTecnico: mergeCountsByCanonicalTechnicianName(
+      techRows.map((r) => ({
+        name: r.name,
+        count: Number(r.count) || 0,
+      }))
+    ),
   };
 }

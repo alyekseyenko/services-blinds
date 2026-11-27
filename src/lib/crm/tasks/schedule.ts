@@ -3,6 +3,7 @@ import { crmFetch, crmRestCreate } from "../client";
 import { CRM_TASK_STATUS, clientAvailabilityForStatus, toTwentyTaskStatus } from "../contract";
 import { invalidateAdminCrmCache } from "@/lib/crmCache";
 import { isScheduleEndAfterStart } from "@/lib/visits/calendarVisitSpan";
+import { encodeAssistantIds, formatAssistantNames } from "@/lib/visits/team";
 
 export interface CreateTechnicalVisitInput {
   title: string;
@@ -29,6 +30,21 @@ export interface CreateTechnicalVisitInput {
   status?: string;
   /** When `null`, clears an existing CRM end time. When omitted, leaves unchanged. */
   horaDeFim?: Date | string | null;
+  assistantTechnicianIds?: string[];
+  assistantTechnicianNames?: string[];
+}
+
+function teamFieldsForCrm(
+  assistantTechnicianIds?: string[],
+  assistantTechnicianNames?: string[]
+): { equipaAuxiliarIds: string | null; equipaAuxiliarNomes: string | null } | undefined {
+  if (assistantTechnicianIds === undefined && assistantTechnicianNames === undefined) {
+    return undefined;
+  }
+  return {
+    equipaAuxiliarIds: encodeAssistantIds(assistantTechnicianIds ?? []),
+    equipaAuxiliarNomes: formatAssistantNames(assistantTechnicianNames ?? []),
+  };
 }
 
 function resolveHoraDeFimForCrm(
@@ -74,11 +90,14 @@ async function updateTechnicalVisitProposal(
     scheduledByName = "Admin",
     status = CRM_TASK_STATUS.POR_AGENDAR,
     horaDeFim,
+    assistantTechnicianIds,
+    assistantTechnicianNames,
   } = taskData;
 
   const dueAtIso = dueAt instanceof Date ? dueAt.toISOString() : new Date(dueAt).toISOString();
   const horaDeFimIso = resolveHoraDeFimForCrm(dueAt, horaDeFim);
   const moradaDaReparacao = buildMoradaPayload(morada);
+  const teamFields = teamFieldsForCrm(assistantTechnicianIds, assistantTechnicianNames);
   const mutation = `
     mutation updateProposedVisit($id: UUID!, $data: TaskUpdateInput!) {
       updateTask(id: $id, data: $data) {
@@ -101,6 +120,7 @@ async function updateTechnicalVisitProposal(
       moradaDaReparacao,
       ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
       ...(horaDeFimIso !== undefined ? { horaDeFim: horaDeFimIso } : {}),
+      ...(teamFields ?? {}),
     },
   });
 
@@ -117,6 +137,8 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
     technicianName = "",
     status = CRM_TASK_STATUS.POR_AGENDAR,
     horaDeFim,
+    assistantTechnicianIds,
+    assistantTechnicianNames,
   } = taskData;
 
   if (!assigneeId) {
@@ -126,6 +148,7 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
   const dueAtIso = dueAt instanceof Date ? dueAt.toISOString() : new Date(dueAt).toISOString();
   const horaDeFimIso = resolveHoraDeFimForCrm(dueAt, horaDeFim);
   const moradaDaReparacao = buildMoradaPayload(morada);
+  const teamFields = teamFieldsForCrm(assistantTechnicianIds, assistantTechnicianNames);
   const taskStatus = toTwentyTaskStatus(status);
   const isExistingTask = Boolean(taskId);
 
@@ -146,6 +169,7 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
       ...(horaDeFimIso != null ? { horaDeFim: horaDeFimIso } : {}),
       ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
       ...(moradaDaReparacao ? { moradaDaReparacao } : {}),
+      ...(teamFields ?? {}),
       createdBy: {
         source: 'MANUAL',
         name: scheduledByName,
@@ -177,6 +201,7 @@ export async function createTechnicalVisit(taskData: CreateTechnicalVisitInput) 
         moradaDaReparacao,
         ...(clientAvailability ? { disponibilidadeDoCliente: clientAvailability } : {}),
         ...(horaDeFimIso != null ? { horaDeFim: horaDeFimIso } : {}),
+        ...(teamFields ?? {}),
       },
     });
     task = result.createTask;

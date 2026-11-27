@@ -20,6 +20,8 @@ import { isMissingGps } from "@/lib/geocodeQueue";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 import { resolveCalendarEventEnd } from "@/lib/visits/calendarVisitSpan";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
+import { isUnassignedTechnicianName } from "@/lib/map/legendTechnicians";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 
 export interface MapFilterOptions {
   mapTab: string;
@@ -178,17 +180,56 @@ export function filterCalendarOpportunities(
     });
 
   if (selectedTechnician !== "all") {
-    filtered = filtered.filter((opp) => opp.technician === selectedTechnician);
+    const wanted = canonicalTechnicianName(selectedTechnician);
+    filtered = filtered.filter((opp) => canonicalTechnicianName(opp.technician) === wanted);
   }
 
   return filtered;
 }
 
-export function extractTechnicianNames(opportunities: Opportunity[]): string[] {
-  return opportunities.reduce<string[]>((acc, opp) => {
-    if (opp.technician && !acc.includes(opp.technician)) acc.push(opp.technician);
-    return acc;
-  }, []);
+function compareTechnicianLabels(a: string, b: string): number {
+  const aUnassigned = isUnassignedTechnicianName(a);
+  const bUnassigned = isUnassignedTechnicianName(b);
+  if (aUnassigned !== bUnassigned) return aUnassigned ? 1 : -1;
+  return a.localeCompare(b, "pt-PT");
+}
+
+export function extractTechnicianNames(
+  opportunities: Opportunity[],
+  extraNames: readonly (string | null | undefined)[] = []
+): string[] {
+  const names = new Set<string>();
+  for (const raw of extraNames) {
+    const name = canonicalTechnicianName(raw);
+    if (name) names.add(name);
+  }
+  for (const opp of opportunities) {
+    const name = canonicalTechnicianName(opp.technician);
+    if (name) names.add(name);
+  }
+  return [...names].sort(compareTechnicianLabels);
+}
+
+/** Named technicians for Calendar, Command Palette and History filters (excludes "Não Atribuído"). */
+export function buildAdminTechnicianRoster(input: {
+  workspaceMembers?: ReadonlyArray<{ name?: string | null }>;
+  opportunities?: readonly Opportunity[];
+  techniciansLocations?: readonly TechnicianLocation[];
+}): string[] {
+  const names = new Set<string>();
+  for (const member of input.workspaceMembers ?? []) {
+    const name = canonicalTechnicianName(member.name);
+    if (name && !isUnassignedTechnicianName(name)) names.add(name);
+  }
+  for (const tech of input.techniciansLocations ?? []) {
+    const name = canonicalTechnicianName(tech.technicianName);
+    if (name && !isUnassignedTechnicianName(name)) names.add(name);
+  }
+  for (const opp of input.opportunities ?? []) {
+    const name = canonicalTechnicianName(opp.technician);
+    if (name && !isUnassignedTechnicianName(name)) names.add(name);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, "pt-PT"));
 }
 
 export interface MapTechnicianOption {
@@ -198,16 +239,29 @@ export interface MapTechnicianOption {
 
 export function buildMapTechnicianOptions(
   opportunities: Opportunity[],
-  techniciansLocations: TechnicianLocation[]
+  techniciansLocations: TechnicianLocation[],
+  extraNames: readonly (string | null | undefined)[] = []
 ): MapTechnicianOption[] {
-  const live = new Set(techniciansLocations.map((t) => t.technicianName));
+  const live = new Set(
+    techniciansLocations
+      .map((t) => canonicalTechnicianName(t.technicianName))
+      .filter(Boolean)
+  );
   const names = new Set<string>();
-  techniciansLocations.forEach((t) => names.add(t.technicianName));
+  for (const raw of extraNames) {
+    const name = canonicalTechnicianName(raw);
+    if (name) names.add(name);
+  }
+  techniciansLocations.forEach((t) => {
+    const name = canonicalTechnicianName(t.technicianName);
+    if (name) names.add(name);
+  });
   opportunities.forEach((opp) => {
-    if (opp.technician) names.add(opp.technician);
+    const name = canonicalTechnicianName(opp.technician);
+    if (name) names.add(name);
   });
   return [...names]
-    .sort((a, b) => a.localeCompare(b, "pt-PT"))
+    .sort(compareTechnicianLabels)
     .map((name) => ({ name, isLive: live.has(name) }));
 }
 

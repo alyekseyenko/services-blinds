@@ -10,6 +10,7 @@ export const AGENDA_KIND_LABEL_PT: Record<AgendaDiffKind, string> = {
   em_curso: "Em curso",
   removida: "Saiu da agenda",
   reatribuida: "Reatribuída",
+  equipa_atualizada: "Equipa",
   atrasada: "Atrasada",
   servico_extra: "Serviço extra",
   armazem_pronto: "Armazém pronto",

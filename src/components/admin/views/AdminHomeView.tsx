@@ -11,10 +11,8 @@ import {
   ChevronRight,
   Loader2,
   ClipboardPlus,
-  Clock,
   UserPlus,
 } from "lucide-react";
-import { useSync } from "@/hooks/useSync";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
 import type { AdminHomeDashboardStats } from "@/lib/admin/homeDashboardStats";
@@ -29,6 +27,8 @@ import {
 } from "@/actions/measurements-actions";
 import { appendMeasurementSheetDeParam } from "@/lib/measurements/sheetPageBack";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
+import { AdminHomeServiceDurations } from "@/components/admin/dashboard/AdminHomeServiceDurations";
+import type { ServiceTypeDurationAverage } from "@/lib/visits/onSiteDurationStats";
 
 const AdminDashboardCharts = dynamic(
   () => import("@/components/admin/dashboard/AdminDashboardCharts"),
@@ -54,6 +54,7 @@ type Props = {
   onOpenMedicoes: () => void;
   onOpenCreateService?: () => void;
   onOpenCreateClient?: () => void;
+  serviceTypeDurationAverages?: ServiceTypeDurationAverage[];
 };
 
 export default function AdminHomeView({
@@ -68,6 +69,7 @@ export default function AdminHomeView({
   onOpenMedicoes,
   onOpenCreateService,
   onOpenCreateClient,
+  serviceTypeDurationAverages = [],
 }: Props) {
   const topZones = zoneInsights.slice(0, 4);
   const [measStats, setMeasStats] = useState<AdminMeasurementsDashboardStats | null>(null);
@@ -93,13 +95,6 @@ export default function AdminHomeView({
   }, []);
 
   const m = measStats;
-
-  const { data: historyMeta } = useSync<{
-    summary?: {
-      onSiteDurationSampleCount?: number;
-      onSiteDurationFormattedAvg?: string | null;
-    };
-  }>("/api/opportunities/history?page=1&pageSize=1");
 
   const attentionItems = [
     {
@@ -247,39 +242,10 @@ export default function AdminHomeView({
           </Panel>
         </section>
 
-        {(historyMeta?.summary?.onSiteDurationSampleCount ?? 0) > 0 ? (
-          <section aria-label="Tempo médio no local">
-            <SectionHeading
-              title="Tempo no local"
-              detail="Média geral (chegada → encerramento na app)"
-            />
-            <Panel
-              variant="outline"
-              className="flex flex-col gap-2 rounded-2xl border-2 border-border-strong p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-info-surface text-info-solid">
-                  <Clock className="h-5 w-5" aria-hidden />
-                </span>
-                <div>
-                  <p className="text-2xl font-black text-foreground">
-                    {historyMeta?.summary?.onSiteDurationFormattedAvg}
-                  </p>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Baseado em {historyMeta?.summary?.onSiteDurationSampleCount} visitas com registo
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate("history")}
-                className="min-h-12 self-start rounded-xl border-2 border-border px-4 text-xs font-bold text-foreground sm:self-center"
-              >
-                Ver no histórico
-              </button>
-            </Panel>
-          </section>
-        ) : null}
+        <AdminHomeServiceDurations
+          rows={serviceTypeDurationAverages}
+          onNavigate={onNavigate}
+        />
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-6">
           <div className="space-y-6 xl:col-span-8">

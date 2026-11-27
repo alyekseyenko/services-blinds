@@ -26,6 +26,18 @@ describe("buildMapMarkerHoverTitle", () => {
     expect(label).not.toContain("09:26");
   });
 
+  it("visitas fechadas no histórico", () => {
+    expect(buildMapMarkerHoverTitle({ title: "Toldo", status: "CONCLUIDO" })).toMatch(
+      /^Concluída · /
+    );
+    expect(buildMapMarkerHoverTitle({ title: "Toldo", status: "CANCELADO" })).toMatch(
+      /^Cancelada · /
+    );
+    expect(buildMapMarkerHoverTitle({ title: "Toldo", status: "INCOMPLETO" })).toMatch(
+      /^Incompleta · /
+    );
+  });
+
   it("atrasada com hora de visita", () => {
     const label = buildMapMarkerHoverTitle({
       title: "Medição",

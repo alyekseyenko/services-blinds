@@ -8,6 +8,7 @@ import {
   measurementLineColumnValue,
 } from "@/lib/measurementSheetDisplay";
 import { measurementClientDetailRows } from "@/lib/measurements/clientContactDisplay";
+import { sheetHeaderDisplay } from "@/lib/measurements/sheetCrmHeader";
 
 function formatVisitDate(iso?: string): string {
   if (!iso) return "—";
@@ -81,9 +82,9 @@ export async function buildMeasurementsXlsx(sheet: MeasurementSheet): Promise<Bu
 
   const serviceRow1 = ws.getRow(serviceStartRow + 1);
   serviceRow1.getCell(1).value = "N.º serviço";
-  serviceRow1.getCell(2).value = sheet.serviceNumber || "—";
+  serviceRow1.getCell(2).value = sheetHeaderDisplay(sheet.serviceNumber);
   serviceRow1.getCell(4).value = "NSI";
-  serviceRow1.getCell(5).value = sheet.nsi || "—";
+  serviceRow1.getCell(5).value = sheetHeaderDisplay(sheet.nsi);
   serviceRow1.getCell(7).value = "Serviço";
   serviceRow1.getCell(8).value = sheet.serviceLabel || "—";
   serviceRow1.getCell(1).font = { bold: true };

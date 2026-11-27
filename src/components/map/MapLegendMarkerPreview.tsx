@@ -10,8 +10,10 @@ interface MapLegendMarkerPreviewProps {
   typeKey: string;
   label: string;
   status?: MarkerStatusBadge;
-  /** Bolinha do técnico no canto (cor da paleta 1 — ex. azul). */
+  /** Bolinha do técnico no canto. */
   technicianDot?: boolean;
+  /** Cor da bolinha (a mesma função dos pins do mapa). */
+  technicianColor?: string | null;
   /** Pin render size in px (default 48). */
   size?: number;
 }
@@ -21,13 +23,16 @@ export function MapLegendMarkerPreview({
   label,
   status = null,
   technicianDot = false,
+  technicianColor: technicianColorProp = null,
   size = 48,
 }: MapLegendMarkerPreviewProps) {
   const src = useMemo(() => {
-    const technicianColor = technicianDot ? readDesignToken("--technician-palette-1") : null;
+    const technicianColor = technicianDot
+      ? technicianColorProp || readDesignToken("--technician-palette-1")
+      : null;
     const svg = buildServiceTypeMarkerSvg(typeKey, { size, status, technicianColor });
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  }, [typeKey, status, technicianDot, size]);
+  }, [typeKey, status, technicianDot, technicianColorProp, size]);
 
   const height = Math.round(size * MAP_PIN_ASPECT);
   const widthClass = size <= 36 ? "w-9" : "w-12";

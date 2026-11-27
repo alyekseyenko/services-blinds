@@ -2,7 +2,6 @@
 
 import { Calendar, MapPin, PanelRightOpen } from "lucide-react";
 import { MapInfoWindowShell } from "@/components/map/MapInfoWindowShell";
-import ContactPhoneList from "@/components/ui/ContactPhoneList";
 import { CopyTextButton } from "@/components/ui/CopyTextButton";
 import { getServiceTypeColor, resolveServiceType } from "@/lib/techniciansConfig";
 import {
@@ -10,8 +9,6 @@ import {
   isTaskCompleted,
   isTaskInProgress,
 } from "@/lib/crm/contract";
-import { formatClientNifDisplay } from "@/lib/ui/ptPtDisplay";
-import { uniquePhoneList } from "@/lib/crm/phones";
 
 export interface MapMarkerOpportunity {
   id?: string;
@@ -88,11 +85,6 @@ export function MapMarkerInfoWindow({
     marker.serviceNumber ? `N.º ${marker.serviceNumber}` : null,
     marker.nsi && marker.nsi !== "N/A" ? `NSI ${marker.nsi}` : null,
   ].filter((value): value is string => Boolean(value));
-  const contactPhones = uniquePhoneList([
-    ...(marker.pointOfContactPhones ?? []),
-    marker.pointOfContactPhone,
-  ]);
-  const nifLabel = formatClientNifDisplay(marker.clientNif);
   const canReschedule =
     Boolean(marker.hasScheduledTask) &&
     !isTaskCompleted(marker.taskStatus) &&
@@ -148,21 +140,6 @@ export function MapMarkerInfoWindow({
           <CopyTextButton text={marker.address} label="Copiar morada" className="min-h-9 min-w-9" />
         </div>
       )}
-
-      {contactPhones.length > 0 ? (
-        <div className="mt-2">
-          <ContactPhoneList phones={contactPhones} compact />
-        </div>
-      ) : null}
-
-      {nifLabel ? (
-        <p className="mt-2 flex items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
-          <span>
-            NIF <span className="ds-num text-foreground">{nifLabel}</span>
-          </span>
-          <CopyTextButton text={nifLabel} label="Copiar NIF" className="min-h-9 min-w-9" />
-        </p>
-      ) : null}
 
       {(scheduledLabel || technicianName) && (
         <p className="mt-2 text-xs text-muted-foreground">

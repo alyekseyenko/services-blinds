@@ -6,6 +6,8 @@ import { fetchAdminOpportunities } from "@/lib/crm/opportunities";
 import { parseVisitServicesMarker } from "@/lib/crm/visitServicesMarker";
 import { extractTaskStatusNote } from "@/lib/agenda/taskStatusNote";
 import { isUrgentVisitMarkdown } from "@/lib/crm/urgentSchedulingUi";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
+import { resolveAppTeamFields } from "@/lib/visits/team";
 import { formatServiceNumber } from "@/lib/crm/serviceNumber";
 import {
   AdminAgendaFeedSchema,
@@ -28,6 +30,8 @@ const AGENDA_TASK_NODE_FIELDS = `
   updatedAt
   assigneeId
   technicianName
+  equipaAuxiliarIds
+  equipaAuxiliarNomes
   scheduledBy
   bodyV2 { markdown }
   taskTargets {
@@ -83,6 +87,8 @@ type RawTaskNode = {
   dueAt?: string | null;
   assigneeId?: string | null;
   technicianName?: string | null;
+  equipaAuxiliarIds?: string | null;
+  equipaAuxiliarNomes?: string | null;
   scheduledBy?: string | null;
   bodyV2?: { markdown?: string | null } | null;
   taskTargets?: {
@@ -145,13 +151,22 @@ export function mapAgendaFeedTaskNode(node: RawTaskNode): AdminAgendaFeedFromSch
     mode: r.mode,
   }));
   const statusNote = extractTaskStatusNote(node.bodyV2?.markdown);
+  const teamFields = resolveAppTeamFields({
+    assigneeId: node.assigneeId,
+    technicianName: node.technicianName,
+    equipaAuxiliarIds: node.equipaAuxiliarIds,
+    equipaAuxiliarNomes: node.equipaAuxiliarNomes,
+  });
 
   return {
     id: node.id,
     status: node.status || "",
     dueAt: node.dueAt ?? null,
     assigneeId: node.assigneeId ?? null,
-    technicianName: node.technicianName ?? null,
+    technicianName: node.technicianName ? canonicalTechnicianName(node.technicianName) : null,
+    assistantTechnicianIds: teamFields.assistantTechnicianIds,
+    assistantTechnicianNames: teamFields.assistantTechnicianNames,
+    teamSize: teamFields.teamSize,
     scheduledBy: node.scheduledBy ?? undefined,
     client: client || undefined,
     nsi: nsi || undefined,

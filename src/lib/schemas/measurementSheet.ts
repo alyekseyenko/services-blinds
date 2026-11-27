@@ -71,6 +71,8 @@ export const MeasurementSheetSchema = z.object({
   version: z.number().int().positive().optional(),
   /** Resposta à pergunta inicial «Medidas Retificadas». */
   remeasureLabel: z.string().optional(),
+  printedAtIso: z.string().optional(),
+  printedByName: z.string().optional(),
 });
 
 export type MeasurementSheetRow = z.infer<typeof MeasurementSheetRowSchema>;

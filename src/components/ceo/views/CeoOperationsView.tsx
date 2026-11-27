@@ -129,6 +129,20 @@ export default function CeoOperationsView({ metrics, selectedYear }: CeoOperatio
                   </h2>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                     Da marcação «Cheguei ao local» até ao encerramento na app
+                    {metrics.onSiteDuration.formattedManHours ? (
+                      <span className="mt-1 block normal-case">
+                        Homens-hora (período):{" "}
+                        <span className="ds-num font-black text-info-fg">
+                          {metrics.onSiteDuration.formattedManHours}
+                        </span>
+                        {metrics.onSiteDuration.teamVisitFormattedAvg ? (
+                          <span>
+                            {" "}
+                            · média em equipa: {metrics.onSiteDuration.teamVisitFormattedAvg}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </p>
                   {metrics.fairServiceTypeDurations.length > 0 ? (
                     <ul className="space-y-1.5 text-xs font-medium text-muted-foreground">
@@ -259,6 +273,11 @@ export default function CeoOperationsView({ metrics, selectedYear }: CeoOperatio
                                 </div>
                                 <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                   {tech.totalTasks} tarefas totais
+                                  {(tech.teamSupportVisits ?? 0) > 0 ? (
+                                    <span className="ml-1 text-info-fg">
+                                      · +{tech.teamSupportVisits} apoio
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             </div>

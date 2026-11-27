@@ -5,10 +5,19 @@ import { ChevronDown, X } from "lucide-react";
 import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import { getServiceTypeLegendHint } from "@/lib/map/serviceMarkerArt";
 import { MapLegendMarkerPreview } from "@/components/map/MapLegendMarkerPreview";
+import { MapLegendRouteStops } from "@/components/map/MapLegendRouteStops";
+import { getTechnicianColor, UNASSIGNED_TECHNICIAN_COLOR } from "@/lib/map/taskMarkerDescriptor";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { MAP_BRUTAL_PANEL } from "@/lib/map/mapBrutalChrome";
+import { technicianVanDataUrl } from "@/lib/map/technicianVanMarker";
+import { APP_LOGO_PATH } from "@/lib/branding";
 import {
   MAP_LEGEND_STATUS_ITEMS,
+  MAP_LEGEND_TECH_DOT_DETAIL,
+  MAP_LEGEND_TECH_DOT_EMPTY,
+  MAP_LEGEND_TECH_DOT_TITLE,
+  MAP_LEGEND_UNASSIGNED_TECH_DETAIL,
+  MAP_LEGEND_UNASSIGNED_TECH_LABEL,
   mapLegendHowToRead,
   type MapLegendVariant,
 } from "@/lib/map/mapLegendCopy";
@@ -20,6 +29,7 @@ interface MapLegendProps {
   open: boolean;
   onClose: () => void;
   variant: MapLegendVariant;
+  technicianNames?: string[];
 }
 
 export function useMapLegendOpen(variant: MapLegendVariant) {
@@ -53,13 +63,18 @@ export function useMapLegendOpen(variant: MapLegendVariant) {
   return { legendOpen: open, setLegendOpen };
 }
 
-export function MapLegend({ open, onClose, variant }: MapLegendProps) {
+export function MapLegend({
+  open,
+  onClose,
+  variant,
+  technicianNames = [],
+}: MapLegendProps) {
   const isDesktop = useMediaMinWidth(768);
   const isWide = useMediaMinWidth(1024);
   const previewSize = isDesktop ? 48 : 40;
   const [helpOpen, setHelpOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(true);
-  const [extrasOpen, setExtrasOpen] = useState(variant === "technician");
+  const [extrasOpen, setExtrasOpen] = useState(true);
 
   useEffect(() => {
     try {
@@ -139,6 +154,49 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
         </ul>
 
         <div className="mt-4 border-t border-border pt-3">
+          <p className="mb-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+            {MAP_LEGEND_TECH_DOT_TITLE}
+          </p>
+          <p className="mb-2 text-xs font-semibold leading-snug text-muted-foreground">
+            {MAP_LEGEND_TECH_DOT_DETAIL}
+          </p>
+          <ul className="space-y-1.5">
+            <li className="flex min-h-10 items-start gap-2">
+              <MapLegendMarkerPreview
+                typeKey="GERAL"
+                label={MAP_LEGEND_UNASSIGNED_TECH_LABEL}
+                technicianDot
+                technicianColor={UNASSIGNED_TECHNICIAN_COLOR}
+                size={32}
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-foreground">{MAP_LEGEND_UNASSIGNED_TECH_LABEL}</p>
+                <p className="text-xs font-semibold leading-snug text-muted-foreground">
+                  {MAP_LEGEND_UNASSIGNED_TECH_DETAIL}
+                </p>
+              </div>
+            </li>
+            {technicianNames.map((name) => (
+              <li key={name} className="flex min-h-10 items-center gap-2">
+                <MapLegendMarkerPreview
+                  typeKey="GERAL"
+                  label={name}
+                  technicianDot
+                  technicianColor={getTechnicianColor(name)}
+                  size={32}
+                />
+                <span className="min-w-0 truncate text-xs font-bold text-foreground">{name}</span>
+              </li>
+            ))}
+          </ul>
+          {technicianNames.length === 0 ? (
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">{MAP_LEGEND_TECH_DOT_EMPTY}</p>
+          ) : null}
+        </div>
+
+        <MapLegendRouteStops previewSize={previewSize} />
+
+        <div className="mt-4 border-t border-border pt-3">
           <button
             type="button"
             onClick={() => setStatusOpen((v) => !v)}
@@ -160,6 +218,9 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
                     label={item.label}
                     status={item.status}
                     technicianDot={item.technicianDot}
+                    technicianColor={
+                      item.technicianColor === "unassigned" ? UNASSIGNED_TECHNICIAN_COLOR : null
+                    }
                     size={previewSize}
                   />
                   <div className="min-w-0 flex-1 pt-0.5">
@@ -188,22 +249,26 @@ export function MapLegend({ open, onClose, variant }: MapLegendProps) {
           {extrasOpen ? (
             <ul className="mt-2 space-y-2 text-xs font-semibold text-foreground">
               <li className="flex items-center gap-2">
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-ink text-xs font-black text-neon"
+                <img
+                  src={technicianVanDataUrl(36)}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 shrink-0 drop-shadow-md"
                   aria-hidden
-                >
-                  Carr.
-                </span>
-                Técnico em campo (última posição GPS)
+                />
+                <span>Técnico em campo (última posição GPS)</span>
               </li>
               <li className="flex items-center gap-2">
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-xs font-black text-foreground"
+                <img
+                  src={APP_LOGO_PATH}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 shrink-0 object-contain drop-shadow-md"
                   aria-hidden
-                >
-                  Sede
-                </span>
-                Sede / armazém
+                />
+                <span>Sede / armazém</span>
               </li>
               {variant === "technician" ? (
                 <li className="flex items-center gap-2 pl-10 text-muted-foreground">

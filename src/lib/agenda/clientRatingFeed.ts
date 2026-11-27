@@ -3,6 +3,8 @@ import "server-only";
 import { crmFetch } from "@/lib/crm/client";
 import { parseCrmClientRating } from "@/lib/crm/contract";
 import { formatServiceNumber } from "@/lib/crm/serviceNumber";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
+import { parseAssistantIds } from "@/lib/visits/team";
 import type { ClientRatingNotice } from "@/lib/agenda/clientRatingDiff";
 
 const WINDOW_DAYS = 21;
@@ -24,6 +26,7 @@ type RawOpp = {
           id?: string;
           assigneeId?: string | null;
           technicianName?: string | null;
+          equipaAuxiliarIds?: string | null;
           dueAt?: string | null;
           status?: string | null;
         } | null;
@@ -36,6 +39,7 @@ function pickTask(node: RawOpp): {
   id?: string;
   assigneeId?: string | null;
   technicianName?: string | null;
+  equipaAuxiliarIds?: string | null;
   dueAt?: string | null;
 } | undefined {
   return (
@@ -66,8 +70,16 @@ export function mapClientRatingNotice(node: RawOpp): ClientRatingNotice | null {
     rating,
     feedback,
     assigneeId: task?.assigneeId ?? undefined,
-    technicianName: task?.technicianName?.trim() || undefined,
+    technicianName: canonicalTechnicianName(task?.technicianName) || undefined,
   };
+}
+
+function expandRatingRecipients(notice: ClientRatingNotice, assistantIds: string[]): ClientRatingNotice[] {
+  const base = [notice];
+  const extras = assistantIds
+    .filter((id) => id && id !== notice.assigneeId)
+  .map((assigneeId) => ({ ...notice, assigneeId }));
+  return [...base, ...extras];
 }
 
 export async function fetchRecentClientRatings(): Promise<ClientRatingNotice[]> {
@@ -92,7 +104,7 @@ export async function fetchRecentClientRatings(): Promise<ClientRatingNotice[]> 
             taskTargets {
               edges {
                 node {
-                  task { id assigneeId technicianName dueAt status }
+                  task { id assigneeId technicianName equipaAuxiliarIds dueAt status }
                 }
               }
             }
@@ -108,7 +120,10 @@ export async function fetchRecentClientRatings(): Promise<ClientRatingNotice[]> 
   for (const edge of data.opportunities?.edges ?? []) {
     if (!edge.node) continue;
     const notice = mapClientRatingNotice(edge.node);
-    if (notice) notices.push(notice);
+    if (!notice) continue;
+    const task = pickTask(edge.node);
+    const assistantIds = parseAssistantIds(task?.equipaAuxiliarIds);
+    notices.push(...expandRatingRecipients(notice, assistantIds));
   }
   return notices;
 }

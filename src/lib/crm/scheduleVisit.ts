@@ -37,6 +37,8 @@ export interface ScheduleVisitCoreInput {
   noteTitle?: string;
   routeStopLabel?: string;
   urgent?: boolean;
+  assistantTechnicianIds?: string[];
+  assistantTechnicianNames?: string[];
 }
 
 export interface ScheduleVisitCoreResult {
@@ -138,6 +140,8 @@ export async function scheduleVisitCore(
     noteTitle = "Instruções de agendamento",
     routeStopLabel,
     urgent = false,
+    assistantTechnicianIds,
+    assistantTechnicianNames,
   } = input;
 
   const plan = buildSchedulePlan({ urgent, currentStage });
@@ -161,6 +165,8 @@ export async function scheduleVisitCore(
     scheduledByMemberId,
     technicianName,
     status: plan.taskStatus,
+    assistantTechnicianIds,
+    assistantTechnicianNames,
   });
 
   if (!task?.id) {
@@ -232,6 +238,10 @@ export async function scheduleVisitCore(
         clientName: clientName || "Cliente",
         address: formatAddress(morada),
         technicianName,
+        assistantTechnicianNames:
+          assistantTechnicianNames && assistantTechnicianNames.length > 0
+            ? assistantTechnicianNames.join(", ")
+            : undefined,
         notes: notes?.trim() || undefined,
         scheduledBy: scheduledByName,
         routeStopLabel,

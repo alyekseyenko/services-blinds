@@ -42,6 +42,9 @@ export const CEO_OPP_NODE_FIELDS = `
           title
           status
           technicianName
+          assigneeId
+          equipaAuxiliarIds
+          equipaAuxiliarNomes
           dueAt
           bodyV2 { markdown }
         }

@@ -36,5 +36,7 @@ export function buildMeasurementSheetFromDb(
     version: sheet.version,
     editedByName: sheet.edited_by_name?.trim() || undefined,
     recordedAtIso: sheet.created_at ? new Date(sheet.created_at).toISOString() : undefined,
+    printedAtIso: sheet.printed_at ? new Date(sheet.printed_at).toISOString() : undefined,
+    printedByName: sheet.printed_by_name?.trim() || undefined,
   };
 }

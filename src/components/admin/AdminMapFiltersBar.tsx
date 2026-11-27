@@ -9,6 +9,7 @@ import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
 import type { UnscheduledWithoutGps } from "@/lib/admin/zoneInsights";
 import { countActiveFilters, formatActiveTypeLabel } from "@/lib/admin/mapFiltersBarHelpers";
+import { technicianFilterBorderStyle } from "@/lib/admin/technicianFilterChip";
 import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import type { MapCategoryFilter, MapStallFilter, ZoneInsight } from "@/types/admin";
 import { MapFilterPanelShell } from "@/components/admin/filters/MapFilterPanelShell";
@@ -289,7 +290,10 @@ export default function AdminMapFiltersBar({
             </span>
           ))}
           {mapTechnicianFilter && (
-            <span className="max-w-[7rem] truncate rounded-lg bg-ink px-2 py-0.5 text-xs font-bold text-ink-foreground">
+            <span
+              className="max-w-[7rem] truncate rounded-lg border-2 bg-card px-2 py-0.5 text-xs font-bold text-foreground"
+              style={technicianFilterBorderStyle(mapTechnicianFilter)}
+            >
               {mapTechnicianFilter}
             </span>
           )}

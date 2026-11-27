@@ -93,6 +93,8 @@ export function buildScheduleFormPrefill(
     time,
     endTime,
     technicianId: mode === "reschedule" ? resolveTechnicianMemberId(opp, members) : "",
+    assistantTechnicianIds: opp.assistantTechnicianIds ?? [],
+    assistantTechnicianNames: opp.assistantTechnicianNames ?? [],
     urgent: false,
     notes: opp.report || "",
     addressStreet1: opp.rawAddress?.addressStreet1 || "",
@@ -106,13 +108,14 @@ export function buildScheduleFormPrefill(
   };
 }
 
-export type AgendaScheduleMutationKind = "reagendada" | "reatribuida";
+export type AgendaScheduleMutationKind = "reagendada" | "reatribuida" | "equipa_atualizada";
 
 export function localAgendaKindsForSchedule(
   opp: Opportunity,
   dueAt: Date,
   newTechnicianMemberId: string,
-  reschedule: boolean
+  reschedule: boolean,
+  newAssistantIds: string[] = []
 ): AgendaScheduleMutationKind[] {
   if (!reschedule) {
     return ["reagendada"];
@@ -137,6 +140,15 @@ export function localAgendaKindsForSchedule(
   ) {
     kinds.push("reatribuida");
   }
+  const prevAssistants = [...(opp.assistantTechnicianIds ?? [])].sort().join("|");
+  const nextAssistants = [...newAssistantIds].sort().join("|");
   if (kinds.length === 0) kinds.push("reagendada");
+  if (
+    prevAssistants !== nextAssistants &&
+    newTechnicianMemberId === (opp.technicianId ?? "") &&
+    !kinds.includes("reatribuida")
+  ) {
+    kinds.push("equipa_atualizada");
+  }
   return kinds;
 }

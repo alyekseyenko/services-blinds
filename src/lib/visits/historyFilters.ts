@@ -1,5 +1,7 @@
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import { isTaskCancelled, isTaskCompleted, isTaskIncomplete } from "@/lib/crm/contract";
+import { isUnassignedTechnicianName } from "@/lib/map/legendTechnicians";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 
 export const HISTORY_TIME_ZONE = "Europe/Lisbon";
 
@@ -190,4 +192,31 @@ export function historyFilterQuery(params: {
   if (tech && tech !== "all") search.set("technician", tech);
   const qs = search.toString();
   return qs ? `?${qs}` : "";
+}
+
+/** Nomes no filtro do Histórico: técnicos da equipa + visitas listadas. */
+export function historyTechnicianFilterOptions(
+  fromApi: readonly string[] | null | undefined,
+  items: ReadonlyArray<{ technician?: string | null }>,
+  knownTechnicians: readonly (string | null | undefined)[] = []
+): string[] {
+  const names = new Set<string>();
+  for (const name of knownTechnicians) {
+    const canonical = canonicalTechnicianName(name);
+    if (canonical && !isUnassignedTechnicianName(canonical)) names.add(canonical);
+  }
+  for (const name of fromApi ?? []) {
+    const canonical = canonicalTechnicianName(name);
+    if (canonical) names.add(canonical);
+  }
+  for (const item of items) {
+    const canonical = canonicalTechnicianName(item.technician);
+    if (canonical) names.add(canonical);
+  }
+  return [...names].sort((a, b) => {
+    const aUnassigned = isUnassignedTechnicianName(a);
+    const bUnassigned = isUnassignedTechnicianName(b);
+    if (aUnassigned !== bUnassigned) return aUnassigned ? 1 : -1;
+    return a.localeCompare(b, "pt-PT");
+  });
 }

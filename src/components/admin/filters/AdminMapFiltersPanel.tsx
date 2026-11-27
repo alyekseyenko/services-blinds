@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin/mapFilterConfig";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { MapTechnicianOption } from "@/lib/admin/opportunityFilters";
+import { technicianFilterBorderStyle } from "@/lib/admin/technicianFilterChip";
 import { serviceTypeConfig } from "@/lib/techniciansConfig";
 import type { MapCategoryFilter, MapStallFilter } from "@/types/admin";
 
@@ -153,11 +154,12 @@ export function AdminMapFiltersPanel(props: {
               key={tech.name}
               type="button"
               onClick={() => setMapTechnicianFilter(tech.name)}
-              className={`flex min-h-10 max-w-full items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-left ${
+              className={`flex min-h-10 max-w-full items-center gap-1.5 rounded-xl border-2 px-2.5 py-1.5 text-left ${
                 mapTechnicianFilter === tech.name
-                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
-                  : "border-border bg-card hover:border-border"
+                  ? "bg-muted ring-1 ring-foreground/20"
+                  : "bg-card hover:bg-muted"
               }`}
+              style={technicianFilterBorderStyle(tech.name)}
               aria-pressed={mapTechnicianFilter === tech.name}
             >
               {tech.isLive && (

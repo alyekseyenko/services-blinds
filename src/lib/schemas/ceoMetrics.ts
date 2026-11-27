@@ -18,6 +18,8 @@ export const CeoServiceItemSchema = z.object({
   amount: z.number().optional().nullable(),
   formattedAmount: z.string(),
   financialStatus: z.enum(["WON", "LOST", "PIPELINE"]),
+  assistantTechnicians: z.array(z.string()).optional(),
+  teamSize: z.number().optional(),
 });
 
 export const MonthlyDataSchema = z.object({
@@ -79,6 +81,8 @@ export const ClientFollowUpSchema = z.object({
   contactPerson: z.string().optional().nullable(),
   amount: z.number().optional().nullable(),
   formattedAmount: z.string(),
+  assistantTechnicians: z.array(z.string()).optional(),
+  teamSize: z.number().optional(),
 });
 
 export const TechnicianOnSiteServiceDurationSchema = z.object({
@@ -101,6 +105,9 @@ export const OnSiteDurationFleetSchema = z.object({
   sampleCount: z.number(),
   avgMinutes: z.number(),
   formattedAvg: z.string(),
+  formattedManHours: z.string().optional().nullable(),
+  teamVisitSampleCount: z.number().optional(),
+  teamVisitFormattedAvg: z.string().optional().nullable(),
 });
 
 export const FairServiceTypeDurationSchema = z.object({
@@ -123,6 +130,7 @@ export const TechnicianRankingSchema = z.object({
   inProgressCount: z.number(),
   successRate: z.number(), // Concluídos / (Concluídos + Incompletos + Cancelados) * 100
   totalKm: z.number(),
+  teamSupportVisits: z.number().optional(),
 });
 
 export const CeoMetricsSchema = z.object({
@@ -178,6 +186,7 @@ export const CeoMetricsSchema = z.object({
   technicianRankings: z.array(TechnicianRankingSchema),
   onSiteDuration: OnSiteDurationFleetSchema,
   fairServiceTypeDurations: z.array(FairServiceTypeDurationSchema),
+  fairTeamServiceTypeDurations: z.array(FairServiceTypeDurationSchema).optional(),
   technicianOnSiteDurations: z.array(TechnicianOnSiteDurationSchema),
   upcomingFollowUps: z.array(ClientFollowUpSchema),
   servicesList: z.array(CeoServiceItemSchema),

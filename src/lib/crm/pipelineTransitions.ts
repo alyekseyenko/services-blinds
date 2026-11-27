@@ -140,7 +140,8 @@ export function resolveStageAfterSchedule(currentStage?: string | null): string 
 
 export function resolveStageAfterTaskStatusChange(
   workflow: OpportunityWorkflow,
-  taskStatus: string
+  taskStatus: string,
+  currentStage?: string | null
 ): string | null {
   const apiStatus = normalizeTaskStatus(taskStatus);
   if (apiStatus === CRM_TASK_STATUS.CONCLUIDO || apiStatus === CRM_TASK_STATUS.DONE) {
@@ -150,7 +151,7 @@ export function resolveStageAfterTaskStatusChange(
     apiStatus === CRM_TASK_STATUS.INCOMPLETO ||
     apiStatus === CRM_TASK_STATUS.CANCELADO
   ) {
-    return getFallbackStageOnIncompleteWorkflow(workflow);
+    return getFallbackStageOnIncompleteWorkflow(workflow, currentStage);
   }
   return null;
 }
@@ -185,7 +186,8 @@ function expectedTargetForReason(
       );
       const expected = resolveStageAfterTaskStatusChange(
         workflow,
-        context?.taskStatus ?? CRM_TASK_STATUS.CONCLUIDO
+        context?.taskStatus ?? CRM_TASK_STATUS.CONCLUIDO,
+        actualFrom
       );
       return expected && normalizeStage(expected) === toN ? expected : null;
     }
@@ -193,7 +195,8 @@ function expectedTargetForReason(
       const workflow = classifyOpportunityWorkflow(actualFrom, context?.opportunityName);
       const expected = resolveStageAfterTaskStatusChange(
         workflow,
-        context?.taskStatus ?? CRM_TASK_STATUS.CANCELADO
+        context?.taskStatus ?? CRM_TASK_STATUS.CANCELADO,
+        actualFrom
       );
       return expected && normalizeStage(expected) === toN ? expected : null;
     }
@@ -259,8 +262,14 @@ function STAGE_MEASUREMENT_OR_REMEDIATION(fromN: string): boolean {
 }
 
 function isAllowedTaskFallbackTransition(fromN: string, toN: string): boolean {
+  if (toN === CRM_STAGES.REMEDICAO) {
+    return isRemediationStage(fromN);
+  }
+  if (toN === CRM_STAGES.TIRAR_MEDIDAS) {
+    return fromN === CRM_STAGES.TIRAR_MEDIDAS || fromN === CRM_STAGES.ENTRADA;
+  }
   if (toN === CRM_STAGES.ENTRADA) {
-    return STAGE_MEASUREMENT_OR_REMEDIATION(fromN) || fromN === CRM_STAGES.ORCAMENTAR;
+    return fromN === CRM_STAGES.ENTRADA || fromN === CRM_STAGES.ORCAMENTAR;
   }
   if (toN === CRM_STAGES.MARCAR_INSTALACAO) {
     return (

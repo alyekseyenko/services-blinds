@@ -1,6 +1,6 @@
 "use server";
 
-import { assertCanMutateTask } from "@/lib/auth/taskAccess";
+import { assertCanControlVisitLifecycle } from "@/lib/auth/taskAccess";
 import { getAppSession } from "@/lib/auth/session.server";
 import { updateTaskCoordinates } from "@/lib/crm/tasks";
 import { serverGeocodeAddress } from "@/lib/geocodeAction";
@@ -38,7 +38,7 @@ export async function updateTaskCoordinatesAction(
   lng: number
 ): Promise<ActionResponse<void>> {
   try {
-    const access = await assertCanMutateTask(taskId);
+    const access = await assertCanControlVisitLifecycle(taskId);
     if (!access.ok) {
       return { success: false, error: access.error };
     }

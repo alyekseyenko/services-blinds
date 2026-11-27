@@ -26,6 +26,7 @@ import {
   getCompletionStageForWorkflow,
   deriveWorkflowMarkerKey,
   getNextStageOnSchedule,
+  getFallbackStageOnIncompleteWorkflow,
   getReusableTaskId,
   isNeedsSchedulingStage,
   mapLegacyServiceTypeToStage,
@@ -45,6 +46,8 @@ describe('CRM Contract Layer', () => {
   it('deve ter todos os campos custom mapeados', () => {
     expect(CRM_FIELDS.opportunity.serviceAddress).toBe('moradaDeServico');
     expect(CRM_FIELDS.task.technicianName).toBe('technicianName');
+    expect(CRM_FIELDS.task.assistantTechnicianIds).toBe('equipaAuxiliarIds');
+    expect(CRM_FIELDS.task.assistantTechnicianNames).toBe('equipaAuxiliarNomes');
     expect(CRM_FIELDS.task.repairAddress).toBe('moradaDaReparacao');
     expect(CRM_FIELDS.serviceItem.prepared).toBe('preparado');
     expect(CRM_FIELDS.serviceItem.warehouseState).toBe('estadoDoArmazem');
@@ -244,6 +247,29 @@ describe('CRM Contract Layer', () => {
     it('deve manter MANUTENCAO e REPARACAO ao agendar', () => {
       expect(getNextStageOnSchedule('MANUTENCAO')).toBe('MANUTENCAO');
       expect(getNextStageOnSchedule('REPARACAO')).toBe('REPARACAO');
+    });
+  });
+
+  describe('getFallbackStageOnIncompleteWorkflow', () => {
+    it('mantém remediação e tirar medidas no tipo de serviço original', () => {
+      expect(getFallbackStageOnIncompleteWorkflow('measurement', CRM_STAGES.REMEDICAO)).toBe(
+        CRM_STAGES.REMEDICAO
+      );
+      expect(getFallbackStageOnIncompleteWorkflow('measurement', CRM_STAGES.TIRAR_MEDIDAS)).toBe(
+        CRM_STAGES.TIRAR_MEDIDAS
+      );
+    });
+
+    it('medição ainda em entrada volta a entrada', () => {
+      expect(getFallbackStageOnIncompleteWorkflow('measurement', CRM_STAGES.ENTRADA)).toBe(
+        CRM_STAGES.ENTRADA
+      );
+    });
+
+    it('instalação e assistência voltam à etapa operacional', () => {
+      expect(getFallbackStageOnIncompleteWorkflow('installation')).toBe(CRM_STAGES.MARCAR_INSTALACAO);
+      expect(getFallbackStageOnIncompleteWorkflow('maintenance')).toBe(CRM_STAGES.MANUTENCAO);
+      expect(getFallbackStageOnIncompleteWorkflow('repair')).toBe(CRM_STAGES.REPARACAO);
     });
   });
 

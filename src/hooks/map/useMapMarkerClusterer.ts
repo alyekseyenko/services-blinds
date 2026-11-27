@@ -73,6 +73,8 @@ export function useMapMarkerClusterer(params: {
           t.delayAlert ?? "",
           t.hasScheduledTask ? "1" : "0",
           t.serviceType ?? "",
+          t.status ?? "",
+          t.taskStatus ?? "",
         ].join(":")
       )
       .join("|"),
@@ -115,6 +117,7 @@ export function useMapMarkerClusterer(params: {
           showTechnicianColors: !!showTechnicianColors,
           techColor: desc.techColor,
           zoom: markerZoom,
+          statusBadge: desc.statusBadge,
         }),
         title: desc.markerTitle,
       });

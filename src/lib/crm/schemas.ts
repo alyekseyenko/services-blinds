@@ -35,6 +35,8 @@ export const CRMTaskSchema = z.object({
   }).optional().nullable(),
   technicianName: z.string().optional().nullable(),
   assigneeId: z.string().uuid().optional().nullable(),
+  equipaAuxiliarIds: z.string().optional().nullable(),
+  equipaAuxiliarNomes: z.string().optional().nullable(),
   scheduledBy: z.string().optional().nullable(),
 });
 
@@ -71,6 +73,9 @@ export interface AppTask {
   scheduledBy: string;
   assigneeId?: string | null;
   technicianName?: string | null;
+  assistantTechnicianIds?: string[];
+  assistantTechnicianNames?: string[];
+  teamSize?: number;
   isOverdue?: boolean;
   services?: VisitService[];
   personId?: string;

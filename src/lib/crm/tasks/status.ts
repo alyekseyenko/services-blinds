@@ -347,7 +347,11 @@ export async function updateTaskStatus(
           linkedOpp.name,
           closeTaskTitle
         );
-        const targetStage = resolveStageAfterTaskStatusChange(workflow, apiStatus);
+        const targetStage = resolveStageAfterTaskStatusChange(
+          workflow,
+          apiStatus,
+          linkedOpp.stage
+        );
         if (!targetStage) continue;
 
         const reason =

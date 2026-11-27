@@ -12,6 +12,7 @@ import {
 import { formatMeasurementPdfPageLabel } from "@/lib/measurementsExport/pdfPageFooter";
 import { measurementClientDetailRows } from "@/lib/measurements/clientContactDisplay";
 import type { MeasurementLineColumnKey } from "@/lib/measurements/sheetDisplay";
+import { sheetHeaderDisplay } from "@/lib/measurements/sheetCrmHeader";
 
 /** Não parte palavras ao meio — o texto desce de linha dentro da célula. */
 Font.registerHyphenationCallback((word) => [word]);
@@ -356,11 +357,11 @@ export function MeasurementPdfDocument({
           <View style={styles.serviceRow}>
             <View style={styles.servicePair}>
               <Text style={styles.serviceLabel}>N.º serviço:</Text>
-              <Text>{sheet.serviceNumber || "—"}</Text>
+              <Text>{sheetHeaderDisplay(sheet.serviceNumber)}</Text>
             </View>
             <View style={styles.servicePair}>
               <Text style={styles.serviceLabel}>NSI:</Text>
-              <Text>{sheet.nsi || "—"}</Text>
+              <Text>{sheetHeaderDisplay(sheet.nsi)}</Text>
             </View>
             <View style={styles.servicePair}>
               <Text style={styles.serviceLabel}>Serviço:</Text>

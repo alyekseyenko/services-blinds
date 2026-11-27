@@ -3,7 +3,7 @@
 import { ActionResponse } from "@/lib/types/action-response";
 import { TaskStatusEnum, TaskStatus } from "@/lib/schemas";
 import { SyncPhotosSchema, parseSyncTaskStatus } from "@/lib/schemas/syncQueue";
-import { assertCanMutateTask } from "@/lib/auth/taskAccess";
+import { assertCanControlVisitLifecycle } from "@/lib/auth/taskAccess";
 import { updateTaskStatus } from "@/lib/crm/tasks";
 import { toUserMessage } from "@/lib/userMessages";
 import { resolveActionErrorCode } from "@/lib/sync/syncQueuePolicy";
@@ -17,9 +17,13 @@ export async function completeTaskAction(
   photos: string[] = []
 ): Promise<ActionResponse<void>> {
   try {
-    const access = await assertCanMutateTask(taskId);
+    const access = await assertCanControlVisitLifecycle(taskId);
     if (!access.ok) {
-      return { success: false, error: access.error };
+      return {
+        success: false,
+        error: access.error,
+        errorCode: access.errorCode ?? resolveActionErrorCode(access.error),
+      };
     }
 
     const normalizedStatus = status
@@ -71,9 +75,13 @@ export async function syncUpdateTaskStatusAction(
   paymentNotes?: RepairPaymentNote[]
 ): Promise<ActionResponse<void>> {
   try {
-    const access = await assertCanMutateTask(taskId);
+    const access = await assertCanControlVisitLifecycle(taskId);
     if (!access.ok) {
-      return { success: false, error: access.error };
+      return {
+        success: false,
+        error: access.error,
+        errorCode: access.errorCode ?? resolveActionErrorCode(access.error),
+      };
     }
 
     const photosResult = SyncPhotosSchema.safeParse(photos);

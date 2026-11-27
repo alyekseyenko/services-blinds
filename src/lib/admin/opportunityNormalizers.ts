@@ -1,4 +1,5 @@
 import type { Opportunity } from "@/types/admin";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import { resolveCalendarEventEnd } from "@/lib/visits/calendarVisitSpan";
 
 export type RawOpportunity = Omit<
@@ -43,7 +44,8 @@ export function normalizeOpportunityDates(o: RawOpportunity): Opportunity {
     client: crmText(raw.client),
     address: crmText(raw.address),
     addressCity: raw.addressCity == null ? undefined : crmText(raw.addressCity),
-    technician: raw.technician == null ? undefined : crmText(raw.technician),
+    technician:
+      raw.technician == null ? undefined : canonicalTechnicianName(crmText(raw.technician)),
     nsi: crmOptionalText(raw.nsi),
     serviceNumber: crmOptionalText(raw.serviceNumber),
     dueDate,

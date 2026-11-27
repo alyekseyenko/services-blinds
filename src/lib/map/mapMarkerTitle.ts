@@ -1,4 +1,10 @@
-import { isNeedsSchedulingStage, isTaskInProgress } from "@/lib/crm/contract";
+import {
+  isNeedsSchedulingStage,
+  isTaskCancelled,
+  isTaskCompleted,
+  isTaskIncomplete,
+  isTaskInProgress,
+} from "@/lib/crm/contract";
 
 export type MapMarkerTitleInput = {
   title: string;
@@ -33,6 +39,16 @@ export function buildMapMarkerHoverTitle(task: MapMarkerTitleInput): string {
   if (isTaskInProgress(task.status)) {
     const visit = task.scheduledAt ? formatTimePt(task.scheduledAt) : null;
     return visit ? `Em curso · ${visit} · ${title}` : `Em curso · ${title}`;
+  }
+
+  if (isTaskCompleted(task.status)) {
+    return `Concluída · ${title}`;
+  }
+  if (isTaskIncomplete(task.status)) {
+    return `Incompleta · ${title}`;
+  }
+  if (isTaskCancelled(task.status)) {
+    return `Cancelada · ${title}`;
   }
 
   const visitAt = task.scheduledAt;

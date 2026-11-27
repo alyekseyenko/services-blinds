@@ -21,7 +21,7 @@ import { isTaskCompleted } from "@/lib/crm/contract";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { Opportunity } from "@/types/admin";
 import { NOT_AVAILABLE_LABEL } from "@/lib/ui/ptPtDisplay";
-import { historyFilterQuery } from "@/lib/visits/historyFilters";
+import { historyFilterQuery, historyTechnicianFilterOptions } from "@/lib/visits/historyFilters";
 import { ClientRatingSummary } from "@/components/visits/ClientRatingSummary";
 
 interface HistoryPageData {
@@ -30,6 +30,7 @@ interface HistoryPageData {
   page: number;
   pageSize: number;
   totalPages: number;
+  technicians?: string[];
   summary: {
     completed: number;
     incomplete: number;
@@ -98,6 +99,11 @@ export default function AdminHistoryView({
   const historyOpportunities = useMemo<Opportunity[]>(
     () => normalizeOpportunityList(historyData?.items ?? []),
     [historyData]
+  );
+
+  const technicianOptions = useMemo(
+    () => historyTechnicianFilterOptions(historyData?.technicians, historyOpportunities, technicians),
+    [historyData?.technicians, historyOpportunities, technicians]
   );
 
   return (
@@ -169,7 +175,7 @@ export default function AdminHistoryView({
               className="mt-1 min-h-12 w-full rounded-xl border border-border bg-muted px-3 text-sm font-semibold text-foreground"
             >
               <option value="all">Todos</option>
-              {technicians.map((tech) => (
+              {technicianOptions.map((tech) => (
                 <option key={tech} value={tech}>
                   {tech}
                 </option>

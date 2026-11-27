@@ -8,11 +8,13 @@ import { toUserMessage } from "@/lib/userMessages";
 import { Panel } from "@/components/ui/Panel";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
 import { formatMeasurementVersionStamp } from "@/lib/measurements/versionStamp";
+import { sheetHeaderDisplay } from "@/lib/measurements/sheetCrmHeader";
 import { updateMeasurementSheetPricesAction } from "@/actions/measurements-actions";
 import { AdminMeasurementRevision } from "@/components/features/measurements/AdminMeasurementRevision";
 import { MeasurementSheetClientContact } from "@/components/features/measurements/MeasurementSheetClientContact";
 import { MeasurementSheetPriceBar } from "@/components/features/measurements/MeasurementSheetPriceBar";
 import { MeasurementSheetGroupPanels } from "@/components/features/measurements/MeasurementSheetGroupPanels";
+import { MeasurementSheetPrintMark } from "@/components/features/measurements/MeasurementSheetPrintMark";
 import { useMeasurementSheetPriceDirtyGuard } from "@/hooks/useMeasurementSheetPriceDirtyGuard";
 
 type Props = {
@@ -233,18 +235,14 @@ export default function MeasurementSheetDetailView({
                 Serviço e ficha
               </h3>
               <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {sheet.serviceNumber ? (
-                  <div>
-                    <dt className="ds-kicker">N.º serviço</dt>
-                    <dd className="ds-num text-sm font-bold">{sheet.serviceNumber}</dd>
-                  </div>
-                ) : null}
-                {sheet.nsi ? (
-                  <div>
-                    <dt className="ds-kicker">NSI</dt>
-                    <dd className="ds-num text-sm font-bold">{sheet.nsi}</dd>
-                  </div>
-                ) : null}
+                <div>
+                  <dt className="ds-kicker">N.º serviço</dt>
+                  <dd className="ds-num text-sm font-bold">{sheetHeaderDisplay(sheet.serviceNumber)}</dd>
+                </div>
+                <div>
+                  <dt className="ds-kicker">NSI</dt>
+                  <dd className="ds-num text-sm font-bold">{sheetHeaderDisplay(sheet.nsi)}</dd>
+                </div>
                 {sheet.serviceLabel ? (
                   <div>
                     <dt className="ds-kicker">Serviço</dt>
@@ -347,6 +345,16 @@ export default function MeasurementSheetDetailView({
             Editar medições
           </button>
         )
+      ) : null}
+
+      {canEditPrices && sheet.sheetId && !phoneLayout && !editingMeasurements ? (
+        <MeasurementSheetPrintMark
+          sheetId={sheet.sheetId}
+          printedAtIso={sheet.printedAtIso}
+          printedByName={sheet.printedByName}
+          canMark
+          onUpdated={() => onPricesSaved?.()}
+        />
       ) : null}
 
       {phoneLayout || editingMeasurements ? null : (

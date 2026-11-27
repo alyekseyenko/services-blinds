@@ -1,4 +1,6 @@
 import { deriveWorkflowMarkerKey, isTaskCompleted } from "@/lib/crm/contract";
+import { parseAssistantIds } from "@/lib/visits/team";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import {
   getServiceTypeColor,
   normalizeServiceTypeKey,
@@ -14,16 +16,22 @@ import {
 export const ON_SITE_DURATION_MIN_MS = 0;
 export const ON_SITE_DURATION_MAX_MS = Number.POSITIVE_INFINITY;
 export const FAIR_ON_SITE_DURATION_MIN_SAMPLES = 5;
+/** Home admin: média aritmética só com amostra mínima, para um outlier não mandar. */
+export const AVG_ON_SITE_DURATION_MIN_SAMPLES = 3;
 export const FAIR_ON_SITE_DURATION_SHRINK_PRIOR = 5;
 export const FAIR_ON_SITE_DURATION_PERCENTILE = 0.8;
 
 export const FAIR_ON_SITE_DURATION_HELP_PT =
-  "Este tempo não é a média de todas as visitas. Para cada técnico olha-se o ponto em que 80% das visitas deste tipo já acabaram. Quem ainda tem poucas visitas encosta-se ao tempo da equipa. O valor mostrado é o do meio entre os técnicos, para um técnico muito rápido ou um caso raro não mandarem no número. Só entram visitas concluídas; o tempo soma cada ida ao local até ao fecho (incompleto faz pausa até ao próximo agendamento). Não entram visitas canceladas. Com menos de 5 visitas concluídas deste tipo, o tempo não aparece.";
+  "Este tempo não é a média de todas as visitas. Para cada técnico olha-se o ponto em que 80% das visitas deste tipo já acabaram (referência Solo, com 1 técnico). Visitas em equipa têm referência à parte, quando há amostra suficiente; caso contrário usa-se a referência geral. Homens-hora multiplica o tempo em obra pelo número de técnicos na visita. Só entram visitas concluídas; o tempo soma cada ida ao local até ao fecho. Com menos de 5 visitas concluídas deste tipo no grupo (Solo ou Equipa), o tempo não aparece.";
 
 export type OnSiteDurationSample = {
   durationMs: number;
   serviceType: string;
   technicianName?: string;
+  /** Técnicos na visita (master + auxiliares); default 1. */
+  teamSize?: number;
+  /** durationMs × teamSize */
+  manHoursMs?: number;
 };
 
 export type OnSiteDurationSummary = {
@@ -41,6 +49,14 @@ export type FairServiceTypeDuration = {
   formattedRecommended: string;
 };
 
+export type ServiceTypeDurationAverage = {
+  serviceType: string;
+  serviceLabel: string;
+  sampleCount: number;
+  avgMinutes: number;
+  formattedAvg: string;
+};
+
 export type OpportunityForOnSiteSamples = {
   stage?: string | null;
   name?: string | null;
@@ -51,6 +67,8 @@ export type OpportunityForOnSiteSamples = {
           status?: string | null;
           technicianName?: string | null;
           title?: string | null;
+          equipaAuxiliarIds?: string | null;
+          equipaAuxiliarNomes?: string | null;
           bodyV2?: { markdown?: string | null } | null;
         } | null;
       } | null;
@@ -112,7 +130,7 @@ export function durationFromVisitSiteTimes(
   return {
     durationMs,
     serviceType,
-    technicianName: technicianName?.trim() || undefined,
+    technicianName: canonicalTechnicianName(technicianName) || undefined,
   };
 }
 
@@ -141,13 +159,45 @@ export function collectOnSiteDurationSamplesFromOpportunities(
     const completedTasks = tasks.filter((task) => isTaskCompleted(task.status));
     const repTask = completedTasks[0] ?? tasks[tasks.length - 1];
     const serviceType = deriveWorkflowMarkerKey(node.stage, repTask?.title ?? node.name);
+    const size = 1 + parseAssistantIds(repTask?.equipaAuxiliarIds).length;
     samples.push({
       durationMs,
       serviceType,
-      technicianName: repTask?.technicianName?.trim() || undefined,
+      technicianName: canonicalTechnicianName(repTask?.technicianName) || undefined,
+      teamSize: size,
+      manHoursMs: durationMs * size,
     });
   }
   return samples;
+}
+
+export function buildAverageServiceTypeDurations(
+  samples: readonly OnSiteDurationSample[]
+): ServiceTypeDurationAverage[] {
+  const byType = new Map<string, OnSiteDurationSample[]>();
+  for (const sample of samples) {
+    if (!isValidOnSiteDurationMs(sample.durationMs)) continue;
+    const key = normalizeServiceTypeKey(sample.serviceType || "GERAL");
+    const list = byType.get(key) ?? [];
+    list.push({ ...sample, serviceType: key });
+    byType.set(key, list);
+  }
+
+  const results: ServiceTypeDurationAverage[] = [];
+  for (const [serviceType, typeSamples] of byType) {
+    if (typeSamples.length < AVG_ON_SITE_DURATION_MIN_SAMPLES) continue;
+    const summary = summarizeOnSiteDurations(typeSamples);
+    if (!summary.avgDurationMs || !summary.formattedAvg) continue;
+    const cfg = getServiceTypeColor(serviceType);
+    results.push({
+      serviceType,
+      serviceLabel: cfg.label,
+      sampleCount: summary.sampleCount,
+      avgMinutes: Math.max(1, Math.round(summary.avgDurationMs / 60_000)),
+      formattedAvg: summary.formattedAvg,
+    });
+  }
+  return results.sort((a, b) => b.sampleCount - a.sampleCount || a.serviceLabel.localeCompare(b.serviceLabel, "pt-PT"));
 }
 
 export function buildFairServiceTypeDurations(
@@ -201,6 +251,70 @@ export function buildFairServiceTypeDurations(
   }
 
   return results.sort((a, b) => b.sampleCount - a.sampleCount);
+}
+
+export function filterOnSiteSamplesByTeamMode(
+  samples: readonly OnSiteDurationSample[],
+  mode: "solo" | "equipa"
+): OnSiteDurationSample[] {
+  return samples.filter((sample) => {
+    const size = sample.teamSize ?? 1;
+    return mode === "solo" ? size <= 1 : size > 1;
+  });
+}
+
+export function buildFairServiceTypeDurationsWithFallback(
+  samples: readonly OnSiteDurationSample[],
+  mode: "solo" | "equipa"
+): FairServiceTypeDuration[] {
+  const scoped = buildFairServiceTypeDurations(filterOnSiteSamplesByTeamMode(samples, mode));
+  if (scoped.length > 0) return scoped;
+  return buildFairServiceTypeDurations(samples);
+}
+
+export function summarizeManHours(samples: readonly OnSiteDurationSample[]): {
+  sampleCount: number;
+  totalManHoursMs: number;
+  formattedTotal: string | null;
+} {
+  let total = 0;
+  let count = 0;
+  for (const sample of samples) {
+    const man = sample.manHoursMs ?? sample.durationMs * (sample.teamSize ?? 1);
+    if (!isValidOnSiteDurationMs(sample.durationMs)) continue;
+    total += man;
+    count += 1;
+  }
+  if (count === 0) return { sampleCount: 0, totalManHoursMs: 0, formattedTotal: null };
+  return {
+    sampleCount: count,
+    totalManHoursMs: total,
+    formattedTotal: formatOnSiteDurationPt(total),
+  };
+}
+
+export function buildTechnicianOnSiteDurationRowsSolo(
+  samples: OnSiteDurationSample[]
+): TechnicianOnSiteDurationRow[] {
+  return buildTechnicianOnSiteDurationRows(filterOnSiteSamplesByTeamMode(samples, "solo"));
+}
+
+export function buildTeamOnSiteDurationSummary(samples: OnSiteDurationSample[]): OnSiteDurationSummary {
+  return summarizeOnSiteDurations(filterOnSiteSamplesByTeamMode(samples, "equipa"));
+}
+
+export function lookupFairServiceTypeDurationForAllocation(
+  fairSolo: readonly FairServiceTypeDuration[],
+  fairEquipa: readonly FairServiceTypeDuration[],
+  fairAll: readonly FairServiceTypeDuration[],
+  serviceType: string | null | undefined,
+  isTeam: boolean
+): FairServiceTypeDuration | undefined {
+  const preferred = isTeam ? fairEquipa : fairSolo;
+  const hit =
+    lookupFairServiceTypeDuration(preferred, serviceType) ??
+    lookupFairServiceTypeDuration(fairAll, serviceType);
+  return hit;
 }
 
 export function lookupFairServiceTypeDuration(

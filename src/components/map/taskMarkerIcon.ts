@@ -7,6 +7,7 @@ import {
   MAP_PIN_TIP_Y,
   MAP_PIN_VIEW_HEIGHT,
   MAP_PIN_VIEW_WIDTH,
+  type MarkerStatusBadge,
 } from "@/lib/map/serviceMarkerArt";
 import { getServiceMarkerPixelSize } from "@/lib/map/markerScale";
 
@@ -19,6 +20,7 @@ export type TaskMarkerIconOptions = {
   showTechnicianColors: boolean;
   techColor: string;
   zoom: number;
+  statusBadge?: MarkerStatusBadge;
 };
 
 const iconCache = new Map<string, google.maps.Icon>();
@@ -41,6 +43,7 @@ function markerIconCacheKey(taskId: string, options: TaskMarkerIconOptions): str
     options.alertColor ?? "",
     options.showTechnicianColors,
     options.techColor,
+    options.statusBadge ?? "",
   ].join("|");
 }
 
@@ -61,11 +64,9 @@ export function buildTaskMarkerIcon(
       : "default";
   const { width, height } = getServiceMarkerPixelSize(options.zoom, focus);
 
-  const status = options.isLate
-    ? "late"
-    : options.isUnscheduled
-      ? "unscheduled"
-      : null;
+  const status =
+    options.statusBadge ??
+    (options.isLate ? "late" : options.isUnscheduled ? "unscheduled" : null);
 
   const svg = buildServiceTypeMarkerSvg(serviceType, {
     status,

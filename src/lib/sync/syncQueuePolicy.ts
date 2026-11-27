@@ -88,6 +88,8 @@ export function isPermanentBusinessSyncError(message: string): boolean {
   const m = message.toLowerCase();
   return (
     m.includes("não está atribuído") ||
+    m.includes("apenas o técnico master") ||
+    m.includes("apenas o técnico master pode") ||
     m.includes("não tem permissão") ||
     m.includes("visita não encontrada") ||
     m.includes("estado de tarefa inválido") ||

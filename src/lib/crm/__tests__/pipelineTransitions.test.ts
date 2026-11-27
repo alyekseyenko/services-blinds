@@ -51,6 +51,16 @@ describe("pipelineTransitions", () => {
     ).toBe(CRM_STAGES.ORCAMENTAR);
   });
 
+  it("cancel of remediação stays in REMEDICAO, not ENTRADA", () => {
+    expect(
+      resolveStageAfterTaskStatusChange(
+        "measurement",
+        CRM_TASK_STATUS.CANCELADO,
+        CRM_STAGES.REMEDICAO
+      )
+    ).toBe(CRM_STAGES.REMEDICAO);
+  });
+
   it("getVisitServiceStage maps extra service types", () => {
     expect(getVisitServiceStage("REPARACAO")).toBe(CRM_STAGES.REPARACAO);
     expect(getVisitServiceStage("TIRAR_MEDIDAS")).toBe(CRM_STAGES.TIRAR_MEDIDAS);
@@ -93,6 +103,16 @@ describe("pipelineTransitions", () => {
           "task_completed"
         )
       ).toBe(true);
+    });
+
+    it("rejects remediação falling back to ENTRADA on cancel", () => {
+      expect(
+        assertAllowedTransition(
+          CRM_STAGES.REMEDICAO,
+          CRM_STAGES.ENTRADA,
+          "task_incomplete_or_cancelled"
+        )
+      ).toBe(false);
     });
   });
 
@@ -201,6 +221,36 @@ describe("pipelineTransitions", () => {
         "opp-1",
         CRM_STAGES.TIRAR_MEDIDAS
       );
+    });
+
+    it("does not write ENTRADA when remediação visit is cancelled", async () => {
+      vi.mocked(fetchOpportunityStageFromCrm).mockResolvedValue(CRM_STAGES.REMEDICAO);
+
+      const stay = await applyOpportunityStageTransition(
+        "opp-remed",
+        CRM_STAGES.REMEDICAO,
+        "task_incomplete_or_cancelled",
+        {
+          currentStage: CRM_STAGES.REMEDICAO,
+          taskStatus: CRM_TASK_STATUS.CANCELADO,
+          opportunityName: "RETIFICAR MEDIDAS -TOLDO",
+        }
+      );
+      expect(stay.status).toBe("unchanged");
+      expect(writeOpportunityStageToCrm).not.toHaveBeenCalled();
+
+      const dumpToEntrada = await applyOpportunityStageTransition(
+        "opp-remed",
+        CRM_STAGES.ENTRADA,
+        "task_incomplete_or_cancelled",
+        {
+          currentStage: CRM_STAGES.REMEDICAO,
+          taskStatus: CRM_TASK_STATUS.CANCELADO,
+          opportunityName: "RETIFICAR MEDIDAS -TOLDO",
+        }
+      );
+      expect(dumpToEntrada.status).toBe("conflict");
+      expect(writeOpportunityStageToCrm).not.toHaveBeenCalled();
     });
 
     it("conflicts on technician complete when CRM moved past measurement funnel", async () => {

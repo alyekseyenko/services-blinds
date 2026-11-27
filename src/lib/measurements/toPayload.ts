@@ -1,4 +1,5 @@
 import type { MeasurementsPayload } from "@/lib/schemas";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import { pickGroupExtras, pickLineExtras } from "@/lib/measurements/extendedFields";
 import { hydrateMeasurementRowFromLegacy } from "@/lib/measurements/rowPayload";
 import type { MeasurementGroupRow, MeasurementLineRow, MeasurementSheetRow } from "./types";
@@ -75,7 +76,9 @@ export function sheetHeaderFromRow(row: MeasurementSheetRow) {
     nsi: row.nsi ?? undefined,
     address: row.address,
     serviceLabel: row.service_label ?? undefined,
-    technicianName: row.technician_name ?? undefined,
+    technicianName: row.technician_name
+      ? canonicalTechnicianName(row.technician_name)
+      : undefined,
     visitDateIso: row.visit_at ? new Date(row.visit_at).toISOString() : undefined,
   };
 }

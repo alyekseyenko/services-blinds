@@ -200,6 +200,7 @@ export function timelineKindLabelPt(kind: AgendaDiffKind): string {
     em_curso: "Em curso",
     removida: "Saiu da agenda",
     reatribuida: "Reatribuída",
+    equipa_atualizada: "Equipa atualizada",
     atrasada: "Atrasada",
     servico_extra: "Serviço extra",
     armazem_pronto: "Armazém pronto",

@@ -11,7 +11,8 @@ import { MapOverlayControls } from "@/components/map/MapOverlayControls";
 import { StreetViewPegman } from "@/components/map/StreetViewPegman";
 import { useMapClusteringEnabled } from "@/hooks/useMapClustering";
 import { MapLegend, useMapLegendOpen } from "@/components/map/MapLegend";
-import { OPERATIONS_MAP_CANVAS, OPERATIONS_MAP_STYLES } from "@/lib/map/googleMapStyles";
+import { useLegendTechnicianNames } from "@/hooks/map/useLegendTechnicianNames";
+import { getOperationsMapOptions, OPERATIONS_MAP_STYLES } from "@/lib/map/googleMapStyles";
 import { setMapStreetViewOpen } from "@/lib/map/streetViewMode";
 import { useMediaMinWidth } from "@/hooks/useMediaMinWidth";
 import { getHqLogoPixelSize, getMapZoomBucket, getUserLocationScale } from "@/lib/map/markerScale";
@@ -62,6 +63,7 @@ interface MapComponentProps {
   routeSelectionMode?: boolean;
   isTaskInRoute?: (task: any) => boolean;
   onToggleRouteFromMap?: (task: any) => void;
+  knownTechnicianNames?: string[];
   isOnline?: boolean;
 }
 
@@ -91,6 +93,7 @@ export default function MapComponent({
   routeSelectionMode = false,
   isTaskInRoute,
   onToggleRouteFromMap,
+  knownTechnicianNames,
   isOnline = true,
 }: MapComponentProps) {
   const useMarkerPopup = markerInteraction === "popup";
@@ -98,22 +101,7 @@ export default function MapComponent({
   const isMapDesktop = useMediaMinWidth(768);
   const hideNativeMapChrome = isTechnicianView || !isMapDesktop;
   const googleMapOptions = useMemo(
-    () => ({
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      zoomControl: !hideNativeMapChrome,
-      zoomControlOptions: hideNativeMapChrome
-        ? undefined
-        : { position: 4 as google.maps.ControlPosition },
-      rotateControl: false,
-      scaleControl: false,
-      keyboardShortcuts: false,
-      gestureHandling: "greedy" as const,
-      clickableIcons: false,
-      backgroundColor: OPERATIONS_MAP_CANVAS,
-      styles: OPERATIONS_MAP_STYLES,
-    }),
+    () => getOperationsMapOptions(hideNativeMapChrome),
     [hideNativeMapChrome]
   );
   const { legendOpen, setLegendOpen } = useMapLegendOpen(overlayVariant);
@@ -138,6 +126,14 @@ export default function MapComponent({
   useEffect(() => {
     onTaskSelectRef.current = onTaskSelect;
   }, [onTaskSelect]);
+
+  const legendTechnicianNames = useLegendTechnicianNames({
+    tasks,
+    allOpportunities,
+    dayHistoryOpportunities,
+    techniciansLocations,
+    knownTechnicianNames,
+  });
 
   useEffect(() => {
     const interval = setInterval(() => setRenderNow(Date.now()), 60_000);
@@ -561,7 +557,12 @@ export default function MapComponent({
               ) : undefined
             }
           />
-          <MapLegend open={legendOpen} onClose={() => setLegendOpen(false)} variant={overlayVariant} />
+          <MapLegend
+            open={legendOpen}
+            onClose={() => setLegendOpen(false)}
+            variant={overlayVariant}
+            technicianNames={legendTechnicianNames}
+          />
           {isTechnicianView && showOwnDayRoute && ownDayStops.length > 0 ? (
             <TechnicianDayRouteBar
               stops={ownDayStops}

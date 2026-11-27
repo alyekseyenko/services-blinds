@@ -262,6 +262,10 @@ export default function AdminMapView({
     () => normalizeOpportunityList(todayHistoryPage?.items ?? []),
     [todayHistoryPage]
   );
+  const knownTechnicianNames = useMemo(
+    () => mapTechnicianOptions.map((option) => option.name),
+    [mapTechnicianOptions]
+  );
 
   const autoFitKey = `${mapTab}-${serviceTypeFilters.join(",")}-${mapTechnicianFilter ?? "all"}-${historyOutcomes.join(",")}-${stallFilter}-${cityFilter ?? "all"}-${mapTextSearch ?? ""}-${mapFocusOpportunityId ?? ""}-${mapOpportunities.length}`;
 
@@ -337,6 +341,7 @@ export default function AdminMapView({
               fuelPrice={fuelPrice}
               fuelConsumption={fuelConsumption}
               techniciansLocations={techniciansLocations}
+              knownTechnicianNames={knownTechnicianNames}
               onRouteUpdate={(data) => {
                 setRealRouteData(data);
                 setUnoptimizedTotalDistance(

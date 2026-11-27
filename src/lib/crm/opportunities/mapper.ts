@@ -23,6 +23,7 @@ import { isOpportunityCreatedOnSite, isOpportunityDeferredInTask } from "../visi
 import { onSiteExtraDisplaysAsCompleted } from "@/lib/visits/onSiteExtraClose";
 import { formatNavigationAddressLine, formatServiceAddressLine } from "@/lib/visits/serviceAddressLine";
 import { formatServiceNumber } from "../serviceNumber";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import {
   formatOnSiteDurationPt,
   parseVisitSiteTimes,
@@ -32,6 +33,7 @@ import { isTerminalHistoryStatus } from "../dateFilters";
 import { extractPhonesFromTwenty, getPrimaryPhone } from "../phones";
 import { normalizeClientNif } from "../clientNif";
 import { opportunityEurosFromAmountMicros } from "../opportunityAmount";
+import { resolveAppTeamFields } from "@/lib/visits/team";
 
 export const OPPORTUNITY_ADMIN_NODE_FIELDS = `
   id
@@ -79,6 +81,8 @@ export const OPPORTUNITY_ADMIN_NODE_FIELDS = `
           horaDeFim
           assigneeId
           technicianName
+          equipaAuxiliarIds
+          equipaAuxiliarNomes
           scheduledBy
           bodyV2 { markdown }
         }
@@ -93,6 +97,8 @@ export type CrmTaskNode = {
   horaDeFim?: string | null;
   assigneeId?: string | null;
   technicianName?: string | null;
+  equipaAuxiliarIds?: string | null;
+  equipaAuxiliarNomes?: string | null;
   scheduledBy?: string | null;
   title?: string | null;
   bodyV2?: { markdown?: string | null } | null;
@@ -165,6 +171,34 @@ export function pickRepresentativeTaskForOpportunity(
   };
 
   return [...tasks].sort((a, b) => taskStatusPriority(b.status || "") - taskStatusPriority(a.status || ""))[0];
+}
+
+export const UNASSIGNED_TECHNICIAN_LABEL = "Não Atribuído";
+
+function taskHasAssignee(task: CrmTaskNode | null | undefined): boolean {
+  return Boolean(task?.technicianName?.trim() || task?.assigneeId);
+}
+
+/**
+ * Who did / owns the visit for history and filters.
+ * Do not blank the name when the representative task is obsolete for the map
+ * (stage already past that visit) — history still needs the technician.
+ */
+export function resolveOpportunityTechnician(
+  representative: CrmTaskNode | null,
+  allTasks: CrmTaskNode[]
+): { technician: string; technicianId: string | null; scheduledBy?: string } {
+  const fallback = [...allTasks]
+    .filter((task) => task.id !== representative?.id)
+    .sort((a, b) => new Date(b.dueAt || 0).getTime() - new Date(a.dueAt || 0).getTime())
+    .find(taskHasAssignee);
+  const named = taskHasAssignee(representative) ? representative : fallback ?? null;
+
+  return {
+    technician: canonicalTechnicianName(named?.technicianName) || UNASSIGNED_TECHNICIAN_LABEL,
+    technicianId: named?.assigneeId ?? null,
+    scheduledBy: named?.scheduledBy || representative?.scheduledBy || undefined,
+  };
 }
 
 export function mapOpportunityNode(node: any) {
@@ -245,6 +279,14 @@ export function mapOpportunityNode(node: any) {
     allTasks.map((t) => t.bodyV2?.markdown)
   );
 
+  const teamSource = taskHasAssignee(task) ? task : allTasks.find(taskHasAssignee) ?? task;
+  const teamFields = resolveAppTeamFields({
+    assigneeId: teamSource?.assigneeId,
+    technicianName: teamSource?.technicianName,
+    equipaAuxiliarIds: teamSource?.equipaAuxiliarIds,
+    equipaAuxiliarNomes: teamSource?.equipaAuxiliarNomes,
+  });
+
   return {
     id: node.id,
     twentyId: node.id,
@@ -285,9 +327,10 @@ export function mapOpportunityNode(node: any) {
         ? null
         : task.horaDeFim ?? null,
     historyAt: task?.dueAt || visitSiteTimes.closedAt || node.createdAt,
-    technician: isTaskObsolete ? "Não Atribuído" : task?.technicianName || "Não Atribuído",
-    technicianId: isTaskObsolete ? null : task?.assigneeId,
-    scheduledBy: isTaskObsolete ? undefined : task?.scheduledBy || undefined,
+    ...resolveOpportunityTechnician(task, allTasks),
+    assistantTechnicianIds: teamFields.assistantTechnicianIds,
+    assistantTechnicianNames: teamFields.assistantTechnicianNames,
+    teamSize: teamFields.teamSize,
     nsi: node.nsi != null && String(node.nsi).trim() !== "" ? String(node.nsi).trim() : "N/A",
     serviceNumber: formatServiceNumber(node.numeroDeServico),
     serviceType: deriveWorkflowMarkerKey(node.stage, node.name),

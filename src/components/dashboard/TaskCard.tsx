@@ -7,6 +7,7 @@ import NavigationChooser from "@/components/dashboard/NavigationChooser";
 import { hapticLight } from "@/lib/haptics";
 import { isOnboardingDemoEntity } from "@/lib/demo/demoIds";
 import { isUrgentVisitMarkdown } from "@/lib/crm/urgentSchedulingUi";
+import { formatTeamSummaryPt } from "@/lib/visits/team";
 
 interface TaskCardProps {
   task: any;
@@ -90,6 +91,11 @@ function TaskCard({ task, setSelectedTask }: TaskCardProps) {
                     <span className="ds-num font-semibold text-muted-foreground"> · NSI {task.nsi}</span>
                   ) : null}
                 </p>
+                {(task.teamSize ?? 1) > 1 ? (
+                  <p className="text-xs font-bold text-muted-foreground">
+                    {formatTeamSummaryPt(task.technicianName || "Técnico", (task.teamSize ?? 1) - 1)}
+                  </p>
+                ) : null}
                 <div className="flex min-w-0 items-start gap-2">
                   <h3 className="line-clamp-2 min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-muted-foreground">
                     {visitTitle}

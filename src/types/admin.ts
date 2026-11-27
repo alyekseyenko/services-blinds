@@ -67,6 +67,9 @@ export interface Opportunity {
   createdOnSite?: boolean;
   technician?: string;
   technicianId?: string | null;
+  assistantTechnicianIds?: string[];
+  assistantTechnicianNames?: string[];
+  teamSize?: number;
   scheduledBy?: string;
   start?: Date;
   end?: Date;

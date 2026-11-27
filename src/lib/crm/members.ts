@@ -7,6 +7,7 @@ import {
   cacheGet,
   cacheSet,
 } from '@/lib/crmCache';
+import { canonicalTechnicianName } from '@/lib/technicianIdentity';
 
 export interface WorkspaceMemberOption {
   id: string;
@@ -39,10 +40,12 @@ export async function fetchWorkspaceMembers(): Promise<WorkspaceMemberOption[]> 
     for (const member of role.workspaceMembers) {
       technicians.push({
         id: member.id,
-        name: buildMemberName(
-          member.name?.firstName,
-          member.name?.lastName,
-          member.userEmail
+        name: canonicalTechnicianName(
+          buildMemberName(
+            member.name?.firstName,
+            member.name?.lastName,
+            member.userEmail
+          )
         ),
         email: member.userEmail || '',
         isWorkspaceMember: true,

@@ -2,13 +2,17 @@
 
 import { canAccessAdminPanel } from "@/lib/auth/session";
 import { getAppSession } from "@/lib/auth/session.server";
-import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
 import { toUserMessage } from "@/lib/userMessages";
-import { fetchFairOnSiteDurationBenchmarks } from "@/lib/visits/fairOnSiteBenchmarks.server";
+import { fetchOnSiteDurationBenchmarks } from "@/lib/visits/fairOnSiteBenchmarks.server";
 import type { ActionResponse } from "@/lib/types/action-response";
+import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
+import type { ServiceTypeDurationAverage } from "@/lib/visits/onSiteDurationStats";
 
 export async function getFairOnSiteDurationBenchmarksAction(): Promise<
-  ActionResponse<FairServiceTypeDuration[]>
+  ActionResponse<{
+    fair: FairServiceTypeDuration[];
+    averages: ServiceTypeDurationAverage[];
+  }>
 > {
   try {
     const auth = await getAppSession();
@@ -16,7 +20,7 @@ export async function getFairOnSiteDurationBenchmarksAction(): Promise<
       return { success: false, error: "Acesso não autorizado." };
     }
 
-    const data = await fetchFairOnSiteDurationBenchmarks();
+    const data = await fetchOnSiteDurationBenchmarks();
     return { success: true, data };
   } catch (error: unknown) {
     console.error("[getFairOnSiteDurationBenchmarksAction]", error);

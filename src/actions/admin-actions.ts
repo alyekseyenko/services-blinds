@@ -5,7 +5,10 @@ import { getAppSession } from "@/lib/auth/session.server";
 import { ActionResponse } from "@/lib/types/action-response";
 import { fetchAdminOpportunities, updateOpportunityCoordinates } from "@/lib/crm/opportunities";
 import { cancelAppointment } from "@/lib/crm/tasks";
-import { findScheduleConflicts } from "@/lib/admin/routeScheduleSlots";
+import {
+  aggregateScheduleConflictWarning,
+  findScheduleConflicts,
+} from "@/lib/admin/routeScheduleSlots";
 import { scheduleVisitCore } from "@/lib/crm/scheduleVisit";
 import { getReusableTaskId, isTaskInProgress } from "@/lib/crm/contract";
 import { getTaskIdForReschedule } from "@/lib/admin/scheduleFormPrefill";
@@ -140,6 +143,8 @@ export interface ScheduleVisitInput {
   urgent?: boolean;
   /** Actualiza a proposta/visita existente (AGENDADO/POR_AGENDAR) sem cancelar. */
   rescheduleExistingTask?: boolean;
+  assistantTechnicianIds?: string[];
+  assistantTechnicianNames?: string[];
 }
 
 export interface ScheduleVisitActionData {
@@ -163,7 +168,7 @@ export async function scheduleTechnicalVisitAction(
     const dueAt = new Date(input.dueAtIso);
     const endAt = input.horaDeFimIso ? new Date(input.horaDeFimIso) : undefined;
 
-    const opportunities = await fetchAdminOpportunities();
+    const opportunities = await fetchAdminOpportunities({ fresh: true });
     const conflicts = findScheduleConflicts(
       [{ title: input.title, dueAt, endAt, opportunityId: input.opportunityId }],
       opportunities,
@@ -171,18 +176,15 @@ export async function scheduleTechnicalVisitAction(
       {
         excludeOpportunityIds: [input.opportunityId],
         technicianId: input.technicianId,
+        assistantTechnicianIds: input.assistantTechnicianIds,
+        assistantTechnicianNames: input.assistantTechnicianNames,
       }
     );
 
-    let conflictWarning: string | undefined;
-    if (conflicts.length > 0) {
-      const first = conflicts[0];
-      const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      conflictWarning = `Aviso: sobreposição com «${first.conflictingTitle}» (início às ${timeLabel}). A visita foi agendada na mesma.`;
-    }
+    const conflictWarning = aggregateScheduleConflictWarning(conflicts);
+    const conflictSuffix = conflictWarning
+      ? `${conflictWarning} A visita foi agendada na mesma.`
+      : undefined;
 
     const existingOpp = opportunities.find((opp) => opp.twentyId === input.opportunityId);
     const taskStatus = existingOpp?.taskStatus;
@@ -223,11 +225,13 @@ export async function scheduleTechnicalVisitAction(
       scheduledByMemberId: auth.userId,
       noteTitle: "Instruções de agendamento",
       urgent: input.urgent,
+      assistantTechnicianIds: input.assistantTechnicianIds,
+      assistantTechnicianNames: input.assistantTechnicianNames,
     });
 
     return {
       success: true,
-      data: conflictWarning ? { conflictWarning } : undefined,
+      data: conflictSuffix ? { conflictWarning: conflictSuffix } : undefined,
     };
   } catch (error: unknown) {
     const message = toUserMessage(error, "Não foi possível agendar a visita.");
@@ -256,7 +260,9 @@ export async function scheduleMassVisitsAction(
   technicianId: string,
   technicianName: string,
   globalNotes?: string,
-  urgent?: boolean
+  urgent?: boolean,
+  assistantTechnicianIds?: string[],
+  assistantTechnicianNames?: string[]
 ): Promise<
   ActionResponse<{
     scheduledCount: number;
@@ -282,7 +288,7 @@ export async function scheduleMassVisitsAction(
       return { success: false, error: "Nenhuma paragem da rota selecionada para agendar." };
     }
 
-    const opportunities = await fetchAdminOpportunities();
+    const opportunities = await fetchAdminOpportunities({ fresh: true });
     const batchOpportunityIds = visitStops.map((stop) => stop.twentyId);
     const conflicts = findScheduleConflicts(
       visitStops.map((stop) => ({
@@ -293,18 +299,18 @@ export async function scheduleMassVisitsAction(
       })),
       opportunities,
       technicianName,
-      { excludeOpportunityIds: batchOpportunityIds, technicianId }
+      {
+        excludeOpportunityIds: batchOpportunityIds,
+        technicianId,
+        assistantTechnicianIds,
+        assistantTechnicianNames,
+      }
     );
 
-    let conflictWarning: string | undefined;
-    if (conflicts.length > 0) {
-      const first = conflicts[0];
-      const timeLabel = first.conflictingTime.toLocaleTimeString("pt-PT", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      conflictWarning = `Aviso: sobreposição com «${first.conflictingTitle}» (início às ${timeLabel}). A rota foi agendada na mesma.`;
-    }
+    const conflictWarning = aggregateScheduleConflictWarning(conflicts);
+    const conflictSuffix = conflictWarning
+      ? `${conflictWarning} A rota foi agendada na mesma.`
+      : undefined;
 
     let scheduledCount = 0;
     const skippedTitles: string[] = [];
@@ -345,6 +351,8 @@ export async function scheduleMassVisitsAction(
           noteTitle: urgent ? "Agendamento urgente" : "Instruções de agendamento",
           routeStopLabel,
           urgent,
+          assistantTechnicianIds,
+          assistantTechnicianNames,
         });
         scheduledCount += 1;
       } catch (error: unknown) {
@@ -369,7 +377,7 @@ export async function scheduleMassVisitsAction(
         scheduledCount,
         skippedCount: skippedTitles.length,
         skippedTitles,
-        conflictWarning,
+        conflictWarning: conflictSuffix,
         failed: failed.length ? failed : undefined,
       },
     };

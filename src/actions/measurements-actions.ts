@@ -2,6 +2,7 @@
 
 import * as measurementQueries from "./measurements/queryActions";
 import * as measurementMutations from "./measurements/mutationActions";
+import * as measurementPrint from "./measurements/printActions";
 
 export type { MeasurementPipelineServiceHit } from "./measurements/queryActions";
 
@@ -117,4 +118,10 @@ export async function restoreAdminMeasurementSheetsBulkAction(
   ...args: Parameters<typeof measurementMutations.restoreAdminMeasurementSheetsBulkAction>
 ) {
   return measurementMutations.restoreAdminMeasurementSheetsBulkAction(...args);
+}
+
+export async function setMeasurementSheetPrintedAction(
+  ...args: Parameters<typeof measurementPrint.setMeasurementSheetPrintedAction>
+) {
+  return measurementPrint.setMeasurementSheetPrintedAction(...args);
 }

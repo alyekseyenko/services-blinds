@@ -11,6 +11,8 @@ import { fetchAllGraphqlPages } from "../graphqlPagination";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import { matchesHistoryOutcomeFilter } from "@/lib/admin/mapHistoryStatus";
 import { matchesHistoryVisitDate, type HistoryDateRange } from "@/lib/visits/historyFilters";
+import { extractTechnicianNames } from "@/lib/admin/opportunityFilters";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import { opportunityMatchesSearch } from "@/lib/admin/opportunitySearch";
 import type { Opportunity } from "@/types/admin";
 import { formatOnSiteDurationPt } from "@/lib/visitSiteTimes";
@@ -156,6 +158,7 @@ export type AdminHistoryPageResult = {
   page: number;
   pageSize: number;
   totalPages: number;
+  technicians: string[];
   summary: {
     completed: number;
     incomplete: number;
@@ -229,11 +232,11 @@ export async function fetchAdminHistoryPage(
       : null;
 
   const textQuery = scope?.q?.trim() ?? "";
-  const technicianFilter = scope?.technician?.trim() ?? "";
+  const technicianFilter = canonicalTechnicianName(scope?.technician);
 
   const scopedItems = dateFiltered.filter((opp) => {
     if (outcomes.length > 0 && !matchesHistoryOutcomeFilter(opp, outcomes)) return false;
-    if (technicianFilter && opp.technician !== technicianFilter) return false;
+    if (technicianFilter && canonicalTechnicianName(opp.technician) !== technicianFilter) return false;
     if (textQuery && !opportunityMatchesSearch(opp as Opportunity, textQuery)) return false;
     if (scope?.withCoordinates) {
       return Array.isArray(opp.coordinates) && opp.coordinates.length === 2;
@@ -255,6 +258,7 @@ export async function fetchAdminHistoryPage(
     page: safePage,
     pageSize: safePageSize,
     totalPages,
+    technicians: extractTechnicianNames(dateFiltered as Opportunity[]),
     summary: {
       completed: dateFiltered.filter((opp) => isCompleted(opp.status || "")).length,
       incomplete: dateFiltered.filter((opp) => isIncomplete(opp.status || "")).length,

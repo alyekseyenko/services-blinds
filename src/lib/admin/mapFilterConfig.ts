@@ -4,6 +4,7 @@ import {
   serviceTypeConfig,
 } from "@/lib/techniciansConfig";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
 
 export const MAP_STATUS_TABS: { value: string; label: string }[] = [
@@ -79,7 +80,14 @@ export function matchesTechnicianFilter(
   technicianFilter: string | null | undefined
 ): boolean {
   if (!technicianFilter) return true;
-  return (opp.technician || "").trim() === technicianFilter;
+  const filterTrim = technicianFilter.trim();
+  if (opp.technicianId === filterTrim) return true;
+  const filterName = canonicalTechnicianName(filterTrim);
+  if (canonicalTechnicianName(opp.technician) === filterName) return true;
+  if ((opp.assistantTechnicianIds ?? []).includes(filterTrim)) return true;
+  return (opp.assistantTechnicianNames ?? []).some(
+    (name) => canonicalTechnicianName(name) === filterName
+  );
 }
 
 export function matchesStallFilter(

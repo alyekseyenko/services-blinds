@@ -48,6 +48,14 @@ describe("service map markers", () => {
     expect(svg).toContain("#dc2626");
   });
 
+  it("incompleta e cancelada têm emblemas distintos", () => {
+    const incomplete = buildServiceTypeMarkerSvg("TIRAR_MEDIDAS", { status: "incomplete" });
+    const cancelled = buildServiceTypeMarkerSvg("REMEDICAO", { status: "cancelled" });
+    expect(incomplete).toContain("#d97706");
+    expect(cancelled).toContain("#dc2626");
+    expect(cancelled).toContain("l4.4 4.4");
+  });
+
   it("técnico aparece como disco sem mudar a cor do serviço", () => {
     const svg = buildServiceTypeMarkerSvg("INSTALACAO", {
       technicianColor: "#ec4899",

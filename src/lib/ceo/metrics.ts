@@ -121,6 +121,7 @@ export async function fetchCeoMetricsFromCRM(
       technicianRankings: field.technicianRankings,
       onSiteDuration: onSite.onSiteDuration,
       fairServiceTypeDurations: onSite.fairServiceTypeDurations,
+      fairTeamServiceTypeDurations: onSite.fairTeamServiceTypeDurations,
       technicianOnSiteDurations: onSite.technicianOnSiteDurations,
       upcomingFollowUps,
       servicesList,

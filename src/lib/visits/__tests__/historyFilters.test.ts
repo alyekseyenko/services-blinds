@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addCalendarDaysYmd,
   historyFilterQuery,
+  historyTechnicianFilterOptions,
   isValidHistoryYmd,
   matchesHistoryDateRange,
   matchesHistoryVisitDate,
@@ -79,5 +80,15 @@ describe("historyFilters", () => {
         outcomes: ["completed", "cancelled"],
       })
     ).toBe("?page=2&from=2026-11-01&to=2026-11-18&outcomes=completed%2Ccancelled");
+  });
+
+  it("o filtro de técnico no Histórico inclui a equipa toda e os nomes das visitas", () => {
+    expect(
+      historyTechnicianFilterOptions(
+        ["Hugo Lança", "Não Atribuído"],
+        [{ technician: "Hugo Lança" }],
+        ["David Monteiro", "Hugo Lança"]
+      )
+    ).toEqual(["David Monteiro", "Hugo Lança", "Não Atribuído"]);
   });
 });

@@ -19,6 +19,8 @@ export type MeasurementSheetRow = {
   service_label: string | null;
   visit_at: Date | null;
   created_at: Date;
+  printed_at?: Date | null;
+  printed_by_name?: string | null;
 };
 
 export type MeasurementGroupRow = {
@@ -76,4 +78,6 @@ export type MeasurementSheetListEntry = {
   totalPriceEur: number | null;
   deletedAt?: string | null;
   deletedByName?: string | null;
+  printedAt?: string | null;
+  printedByName?: string | null;
 };

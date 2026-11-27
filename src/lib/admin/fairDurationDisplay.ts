@@ -1,5 +1,8 @@
 import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
-import { lookupFairServiceTypeDuration } from "@/lib/visitOnSiteDurationStats";
+import {
+  lookupFairServiceTypeDuration,
+  lookupFairServiceTypeDurationForAllocation,
+} from "@/lib/visitOnSiteDurationStats";
 import { normalizeServiceTypeKey, resolveServiceType } from "@/lib/techniciansConfig";
 
 export function resolveOpportunityServiceTypeKey(input: {
@@ -23,8 +26,21 @@ export function fairDurationForOpportunity(
     serviceType?: string | string[] | null;
     title?: string | null;
     stage?: string | null;
+  },
+  options?: {
+    isTeam?: boolean;
+    fairTeamDurations?: readonly FairServiceTypeDuration[];
   }
 ): FairServiceTypeDuration | undefined {
   const key = resolveOpportunityServiceTypeKey(opportunity);
+  if (options?.isTeam || options?.fairTeamDurations) {
+    return lookupFairServiceTypeDurationForAllocation(
+      fairDurations,
+      options.fairTeamDurations ?? [],
+      fairDurations,
+      key,
+      Boolean(options.isTeam)
+    );
+  }
   return lookupFairServiceTypeDuration(fairDurations, key);
 }

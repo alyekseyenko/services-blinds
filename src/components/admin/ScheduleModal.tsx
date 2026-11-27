@@ -24,6 +24,8 @@ import {
 import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
 import { fairDurationForOpportunity } from "@/lib/admin/fairDurationDisplay";
 import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
+import { TeamMemberPicker } from "@/components/admin/TeamMemberPicker";
+import { ScheduleConflictAlert } from "@/components/admin/ScheduleConflictAlert";
 
 export type { ScheduleForm } from "@/lib/admin/scheduleForm";
 
@@ -64,10 +66,10 @@ export default function ScheduleModal({
   fairBenchmarksReady = false,
 }: ScheduleModalProps) {
   const isDesktopLg = useMediaMinWidth(1024);
-  const conflict = useMemo(() => {
-    if (!scheduleForm.date || !scheduleForm.technicianId || !scheduleForm.time) return null;
+  const scheduleConflicts = useMemo(() => {
+    if (!scheduleForm.date || !scheduleForm.technicianId || !scheduleForm.time) return [];
     const dueAt = dueAtFromScheduleDateAndTime(scheduleForm.date, scheduleForm.time);
-    if (!dueAt) return null;
+    if (!dueAt) return [];
     const endTime = scheduleForm.endTime?.trim();
     const proposedEnd = endTime
       ? dueAtFromScheduleDateAndTime(scheduleForm.date, endTime)
@@ -78,20 +80,22 @@ export default function ScheduleModal({
     );
     const technicianName =
       workspaceMembers.find((member) => member.id === scheduleForm.technicianId)?.name || "";
-    return (
-      findScheduleConflicts(
-        [{ title: scheduleForm.title, dueAt, endAt, opportunityId: schedulingOpportunityId }],
-        opportunities,
-        technicianName,
-        {
-          excludeOpportunityIds: schedulingOpportunityId ? [schedulingOpportunityId] : [],
-          technicianId: scheduleForm.technicianId,
-        }
-      )[0] ?? null
+    return findScheduleConflicts(
+      [{ title: scheduleForm.title, dueAt, endAt, opportunityId: schedulingOpportunityId }],
+      opportunities,
+      technicianName,
+      {
+        excludeOpportunityIds: schedulingOpportunityId ? [schedulingOpportunityId] : [],
+        technicianId: scheduleForm.technicianId,
+        assistantTechnicianIds: scheduleForm.assistantTechnicianIds,
+        assistantTechnicianNames: scheduleForm.assistantTechnicianNames,
+      }
     );
   }, [
     scheduleForm.date,
     scheduleForm.technicianId,
+    scheduleForm.assistantTechnicianIds,
+    scheduleForm.assistantTechnicianNames,
     scheduleForm.time,
     scheduleForm.endTime,
     scheduleForm.title,
@@ -115,12 +119,14 @@ export default function ScheduleModal({
       serviceType: undefined,
       stage: undefined,
     };
-    return fairDurationForOpportunity(fairServiceTypeDurations, input);
+    const isTeam = scheduleForm.assistantTechnicianIds.length > 0;
+    return fairDurationForOpportunity(fairServiceTypeDurations, input, { isTeam });
   }, [
     fairBenchmarksReady,
     fairServiceTypeDurations,
     schedulingOpportunity,
     scheduleForm.title,
+    scheduleForm.assistantTechnicianIds.length,
   ]);
 
   const selectedDateTime =
@@ -351,19 +357,24 @@ export default function ScheduleModal({
             </div>
           </div>
 
-          {conflict && (
-            <p className="flex gap-2 rounded-lg border border-warning-border bg-warning-surface px-2.5 py-2 text-xs font-medium text-warning-fg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              <span>
-                Sobreposição com «{conflict.conflictingTitle}» (início às{" "}
-                {conflict.conflictingTime.toLocaleTimeString("pt-PT", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                ). Pode agendar na mesma.
-              </span>
-            </p>
-          )}
+          {scheduleForm.technicianId ? (
+            <TeamMemberPicker
+              members={workspaceMembers}
+              masterId={scheduleForm.technicianId}
+              assistantIds={scheduleForm.assistantTechnicianIds}
+              assistantNames={scheduleForm.assistantTechnicianNames}
+              conflictMemberIds={scheduleConflicts.map((c) => c.memberId)}
+              onChange={(assistantTechnicianIds, assistantTechnicianNames) =>
+                setScheduleForm({
+                  ...scheduleForm,
+                  assistantTechnicianIds,
+                  assistantTechnicianNames,
+                })
+              }
+            />
+          ) : null}
+
+          <ScheduleConflictAlert conflicts={scheduleConflicts} />
 
           <label
             data-tour="admin-schedule-urgent"

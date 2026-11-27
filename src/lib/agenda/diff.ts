@@ -15,6 +15,7 @@ import { formatOnSiteServiceDetail } from "@/lib/agenda/onSiteServiceCopy";
 import { timelineDetailForDiffEvent } from "@/lib/agenda/timelineCopy";
 import type { VisitServiceMode } from "@/lib/schemas";
 import { isVisitDueBeforeToday } from "@/lib/visits/pendingClosure";
+import { formatTeamDetailPt, parseTeamFromArrays } from "@/lib/visits/team";
 
 export type AgendaSnapshotItem = {
   id: string;
@@ -29,6 +30,7 @@ export type AgendaSnapshotItem = {
   opportunityId?: string;
   technicianName?: string;
   assigneeId?: string;
+  assistantTechnicianIds?: string[];
   onSiteOpportunityIds?: string[];
   onSiteServices?: Array<{
     opportunityId: string;
@@ -62,7 +64,8 @@ export type AgendaDiffKind =
   | "armazem_pronto"
   | "medicoes_guardadas"
   | "urgente"
-  | "avaliacao_cliente";
+  | "avaliacao_cliente"
+  | "equipa_atualizada";
 
 export type AgendaDiffEvent = {
   kind: AgendaDiffKind;
@@ -108,6 +111,7 @@ export function buildAgendaSnapshotItem(input: {
   opportunityId?: string | null;
   technicianName?: string | null;
   assigneeId?: string | null;
+  assistantTechnicianIds?: string[] | null;
   onSiteOpportunityIds?: string[] | null;
   onSiteServices?: Array<{
     opportunityId: string;
@@ -149,6 +153,9 @@ export function buildAgendaSnapshotItem(input: {
     opportunityId: input.opportunityId?.trim() || undefined,
     technicianName: input.technicianName?.trim() || undefined,
     assigneeId: input.assigneeId?.trim() || undefined,
+    assistantTechnicianIds: input.assistantTechnicianIds?.length
+      ? [...input.assistantTechnicianIds]
+      : undefined,
     onSiteOpportunityIds: input.onSiteOpportunityIds?.length
       ? [...input.onSiteOpportunityIds]
       : undefined,
@@ -274,6 +281,29 @@ function assigneeChanged(prev: AgendaSnapshotItem, item: AgendaSnapshotItem): bo
   return Boolean(a && b && a !== b && isTaskActive(item.status));
 }
 
+function assistantTeamFingerprint(ids?: string[]): string {
+  return (ids ?? []).map((id) => id.trim()).filter(Boolean).sort().join("|");
+}
+
+function teamAssistantsChanged(prev: AgendaSnapshotItem, item: AgendaSnapshotItem): boolean {
+  if (assigneeChanged(prev, item)) return false;
+  return (
+    assistantTeamFingerprint(prev.assistantTechnicianIds) !==
+      assistantTeamFingerprint(item.assistantTechnicianIds) && isTaskActive(item.status)
+  );
+}
+
+function teamDetailForSnapshot(item: AgendaSnapshotItem): string | undefined {
+  const team = parseTeamFromArrays(
+    item.assigneeId,
+    item.technicianName,
+    item.assistantTechnicianIds,
+    item.assistantTechnicianIds?.map(() => "") ?? []
+  );
+  if (!team || team.assistantIds.length === 0) return undefined;
+  return formatTeamDetailPt(team);
+}
+
 export type DiffAgendaSnapshotsOptions = {
   /** Local calendar day; suppresses «nova»/«removida» for visits due before today. */
   now?: Date;
@@ -306,6 +336,15 @@ export function diffAgendaSnapshots(
 
     if (assigneeChanged(prev, item)) {
       events.push({ kind: "reatribuida", id: item.id, ...snapshotToEventFields(item) });
+    }
+
+    if (teamAssistantsChanged(prev, item)) {
+      events.push({
+        kind: "equipa_atualizada",
+        id: item.id,
+        ...snapshotToEventFields(item),
+        detail: teamDetailForSnapshot(item),
+      });
     }
 
     if (item.urgent && !prev.urgent && !isTaskTerminal(item.status)) {
@@ -500,6 +539,13 @@ export function formatAgendaDiffToast(event: AgendaDiffEvent): { title: string; 
       return {
         title: "Visita reatribuída",
         description: when ? `${who} — ${techLine} · ${when}` : `${who} — ${techLine}`,
+      };
+    }
+    case "equipa_atualizada": {
+      const detail = event.detail?.trim() || "Composição da equipa atualizada.";
+      return {
+        title: "Equipa atualizada",
+        description: when ? `${who} — ${detail} · ${when}` : `${who} — ${detail}`,
       };
     }
     case "atrasada": {

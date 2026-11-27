@@ -4,8 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useSync } from "@/hooks/useSync";
 import { normalizeOpportunityList } from "@/lib/admin/opportunityNormalizers";
 import {
+  buildAdminTechnicianRoster,
   buildMapTechnicianOptions,
-  extractTechnicianNames,
   filterCalendarOpportunities,
   filterMapOpportunities,
 } from "@/lib/admin/opportunityFilters";
@@ -13,16 +13,17 @@ import { searchOpportunities } from "@/lib/admin/opportunitySearch";
 import type { MapHistoryOutcome } from "@/lib/admin/mapHistoryStatus";
 import type { AdminHomeMapFilterAction } from "@/lib/admin/adminHomeMapFilter";
 import { countOpportunitiesPendingTechnicianClosure } from "@/lib/visitPendingClosure";
-import type { MapCategoryFilter, MapStallFilter, Opportunity } from "@/types/admin";
+import type { MapCategoryFilter, MapStallFilter, Opportunity, WorkspaceMember } from "@/types/admin";
 import type { TechnicianLocation } from "@/hooks/useTechnicianLocations";
 import type { AdminMapDisplayMode } from "@/lib/admin/mapDisplayMode";
 
 export function useAdminMapFilters(params: {
   opportunities: Opportunity[];
   techniciansLocations: TechnicianLocation[];
+  workspaceMembers?: WorkspaceMember[];
   changeAdminView: (view: string) => void;
 }) {
-  const { opportunities, techniciansLocations, changeAdminView } = params;
+  const { opportunities, techniciansLocations, workspaceMembers = [], changeAdminView } = params;
 
   const [mapTab, setMapTab] = useState("unscheduled");
   const [cityFilter, setCityFilter] = useState<string | null>(null);
@@ -49,11 +50,23 @@ export function useAdminMapFilters(params: {
     [mapHistoryPage]
   );
 
-  const technicians = useMemo(() => extractTechnicianNames(opportunities), [opportunities]);
+  const technicians = useMemo(
+    () =>
+      buildAdminTechnicianRoster({
+        workspaceMembers,
+        opportunities,
+        techniciansLocations,
+      }),
+    [workspaceMembers, opportunities, techniciansLocations]
+  );
 
   const mapTechnicianOptions = useMemo(
-    () => buildMapTechnicianOptions(opportunities, techniciansLocations),
-    [opportunities, techniciansLocations]
+    () =>
+      buildMapTechnicianOptions(opportunities, techniciansLocations, [
+        ...workspaceMembers.map((m) => m.name),
+        ...mapHistoryItems.map((o) => o.technician),
+      ]),
+    [opportunities, techniciansLocations, workspaceMembers, mapHistoryItems]
   );
 
   const toggleServiceTypeFilter = (key: MapCategoryFilter) => {

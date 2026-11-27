@@ -27,6 +27,7 @@ import { TaskDrawerFinalizeSection } from "@/components/dashboard/drawer/TaskDra
 import { useTaskDrawerVisitActions } from "@/components/dashboard/drawer/useTaskDrawerVisitActions";
 import { useRepairPaymentDrawerState } from "@/components/dashboard/drawer/useRepairPaymentDrawerState";
 import { useTaskDrawerVisitModel } from "@/components/dashboard/drawer/useTaskDrawerVisitModel";
+import { VisitTeamBanner } from "@/components/dashboard/drawer/VisitTeamBanner";
 import {
   TaskDrawerMeasurementsTab,
   TaskDrawerMeasurementsSaveBar,
@@ -183,8 +184,16 @@ export default function TaskDetailsDrawer({
   }, [selectedTask, showMeasurementsUi]);
 
   const mobileDrawerExpanded = !isDesktop;
+  const isAssistantOnVisit = Boolean(
+    technicianId &&
+      selectedTask?.assigneeId &&
+      technicianId !== selectedTask.assigneeId &&
+      (selectedTask.assistantTechnicianIds ?? []).includes(technicianId)
+  );
   const needsArrivalCheckIn =
-    isTaskActive(selectedTask.status) && !isTaskInProgress(selectedTask.status);
+    !isAssistantOnVisit &&
+    isTaskActive(selectedTask.status) &&
+    !isTaskInProgress(selectedTask.status);
 
   const promptArrivalCheckIn = useCallback(
     (detail?: string) => {
@@ -456,6 +465,12 @@ export default function TaskDetailsDrawer({
                   Ver ficha de medições
                 </button>
               ) : null}
+
+              <VisitTeamBanner
+                task={selectedTask}
+                isAssistant={isAssistantOnVisit}
+                onRefresh={mutateTasks}
+              />
 
               <TaskDrawerClientSection
                 selectedTask={selectedTask}

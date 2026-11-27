@@ -29,6 +29,7 @@ function searchableFields(opp: Opportunity): string[] {
     opp.address,
     opp.addressCity,
     opp.technician,
+    ...(opp.assistantTechnicianNames ?? []),
     opp.nsi,
     opp.serviceNumber,
     opp.twentyId,

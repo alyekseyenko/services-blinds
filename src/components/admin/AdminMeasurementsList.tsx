@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Loader2, MapPin, RotateCcw, Ruler, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, MapPin, RotateCcw, Ruler, Trash2 } from "lucide-react";
 import { buildAgendaNotificationDeepLink } from "@/lib/agenda/desktopNotifications";
 import {
   listMeasurementSheetsAction,
@@ -16,12 +16,19 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { MeasurementSheetListEntry } from "@/lib/measurements/types";
 import { Panel } from "@/components/ui/Panel";
 import { formatMeasurementTotalPriceEur } from "@/lib/measurements/measurementPriceTotal";
+import {
+  filterSheetsByPrintState,
+  formatMeasurementPrintLabel,
+  isMeasurementSheetPrinted,
+  type MeasurementPrintFilter,
+} from "@/lib/measurements/printStatus";
 import { appendMeasurementSheetDeParam } from "@/lib/measurements/sheetPageBack";
 import { adminFullBleedShell } from "@/lib/admin/fullBleedShell";
+import { AdminManualMeasurementsDialog } from "@/components/admin/AdminManualMeasurementsDialog";
 import {
-  AdminManualMeasurementsDialog,
-  AdminManualMeasurementsTrigger,
-} from "@/components/admin/AdminManualMeasurementsDialog";
+  AdminMeasurementsListFilters,
+  type MeasurementPriceFilter,
+} from "@/components/admin/AdminMeasurementsListFilters";
 
 function daysUntilPurge(deletedAt?: string | null): number | null {
   if (!deletedAt) return null;
@@ -40,7 +47,8 @@ export default function AdminMeasurementsList() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mode, setMode] = useState<"ativas" | "apagadas">("ativas");
   const [manualOpen, setManualOpen] = useState(false);
-  const [priceFilter, setPriceFilter] = useState<"todas" | "sem-preco" | "com-preco">("todas");
+  const [priceFilter, setPriceFilter] = useState<MeasurementPriceFilter>("todas");
+  const [printFilter, setPrintFilter] = useState<MeasurementPrintFilter>("todas");
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -70,14 +78,14 @@ export default function AdminMeasurementsList() {
   }, [load, query]);
 
   const visibleItems = useMemo(() => {
+    let next = items;
     if (priceFilter === "sem-preco") {
-      return items.filter((item) => item.totalPriceEur == null);
+      next = next.filter((item) => item.totalPriceEur == null);
+    } else if (priceFilter === "com-preco") {
+      next = next.filter((item) => item.totalPriceEur != null);
     }
-    if (priceFilter === "com-preco") {
-      return items.filter((item) => item.totalPriceEur != null);
-    }
-    return items;
-  }, [items, priceFilter]);
+    return filterSheetsByPrintState(next, printFilter);
+  }, [items, priceFilter, printFilter]);
 
   return (
     <div className={adminFullBleedShell.page}>
@@ -102,101 +110,28 @@ export default function AdminMeasurementsList() {
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="relative block min-w-0 flex-1">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Pesquisar por cliente, NSI, morada ou técnico…"
-                className="min-h-12 w-full rounded-xl border-2 border-border bg-card pl-10 pr-3 text-sm font-medium"
-                data-tour="admin-medicoes-search"
-              />
-            </label>
-            {mode === "ativas" ? (
-              <AdminManualMeasurementsTrigger
-                onClick={() => setManualOpen(true)}
-                disabled={loading}
-              />
-            ) : null}
-          </div>
+          <AdminMeasurementsListFilters
+            search={search}
+            onSearchChange={setSearch}
+            loading={loading}
+            mode={mode}
+            onModeChange={(next) => {
+              setMode(next);
+              setSelected([]);
+              setPriceFilter("todas");
+              setPrintFilter("todas");
+            }}
+            priceFilter={priceFilter}
+            onPriceFilterChange={setPriceFilter}
+            printFilter={printFilter}
+            onPrintFilterChange={setPrintFilter}
+            onInsertClick={() => setManualOpen(true)}
+          />
           <AdminManualMeasurementsDialog
             open={manualOpen}
             onClose={() => setManualOpen(false)}
             onSaved={() => void load(query)}
           />
-          {mode === "ativas" ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setPriceFilter("todas")}
-                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
-                  priceFilter === "todas"
-                    ? "border-primary-ink bg-primary-surface text-primary-ink"
-                    : "border-border bg-card text-foreground"
-                }`}
-              >
-                Todas
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriceFilter("sem-preco")}
-                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
-                  priceFilter === "sem-preco"
-                    ? "border-primary-ink bg-primary-surface text-primary-ink"
-                    : "border-border bg-card text-foreground"
-                }`}
-              >
-                Por orçamentar (sem preço)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriceFilter("com-preco")}
-                className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
-                  priceFilter === "com-preco"
-                    ? "border-primary-ink bg-primary-surface text-primary-ink"
-                    : "border-border bg-card text-foreground"
-                }`}
-              >
-                Com preço
-              </button>
-            </div>
-          ) : null}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("ativas");
-                setSelected([]);
-                setPriceFilter("todas");
-              }}
-              className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
-                mode === "ativas"
-                  ? "border-border-strong bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground"
-              }`}
-            >
-              Ativas
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("apagadas");
-                setSelected([]);
-              }}
-              className={`min-h-12 flex-1 rounded-xl border-2 px-3 text-sm font-black ${
-                mode === "apagadas"
-                  ? "border-border-strong bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground"
-              }`}
-            >
-              Apagadas
-            </button>
-          </div>
         </div>
       </header>
 
@@ -363,8 +298,19 @@ export default function AdminMeasurementsList() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-black text-foreground truncate">
-                        {item.clientName}
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-black text-foreground">
+                        <span className="truncate">{item.clientName}</span>
+                        {mode === "ativas" ? (
+                          <span
+                            className={`rounded-lg border px-2 py-0.5 text-xs font-black ${
+                              isMeasurementSheetPrinted(item.printedAt)
+                                ? "border-success-border bg-success-surface text-success-fg"
+                                : "border-border bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isMeasurementSheetPrinted(item.printedAt) ? "Impressa" : "Por imprimir"}
+                          </span>
+                        ) : null}
                       </p>
                       <p className="text-xs font-bold text-muted-foreground">
                         {item.nsi ? `NSI ${item.nsi}` : "Sem NSI"} · v{item.version}
@@ -380,7 +326,7 @@ export default function AdminMeasurementsList() {
                     </div>
                     <ExternalLink className="h-5 w-5 shrink-0 text-primary-ink" aria-hidden />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-5">
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
                     <div>
                       <dt className="font-black uppercase tracking-wider text-muted-foreground">
                         Técnico
@@ -412,6 +358,14 @@ export default function AdminMeasurementsList() {
                         Unidades
                       </dt>
                       <dd className="font-bold">{item.unitCount}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-black uppercase tracking-wider text-muted-foreground">
+                        Impressão
+                      </dt>
+                      <dd className="font-bold">
+                        {formatMeasurementPrintLabel(item.printedAt, item.printedByName)}
+                      </dd>
                     </div>
                     <div>
                       <dt className="font-black uppercase tracking-wider text-muted-foreground">

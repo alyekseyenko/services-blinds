@@ -1,12 +1,13 @@
 import { CRM_STAGES, CRM_TASK_STATUS, parseCrmClientRating } from "@/lib/crm/contract";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
 import { formatServiceNumber } from "@/lib/crm/serviceNumber";
 import { HQ_COORDINATES } from "@/lib/hq";
 import {
-  buildFairServiceTypeDurations,
-  buildTechnicianOnSiteDurationRows,
-  collectOnSiteDurationSamplesFromOpportunities,
-  summarizeOnSiteDurations,
-} from "@/lib/visitOnSiteDurationStats";
+  applyTeamSupportVisitsToRankings,
+  creditTeamSupportVisits,
+  teamFieldsFromCeoServiceTask,
+} from "@/lib/ceo/teamStats";
+export { computeCeoOnSiteDuration } from "@/lib/ceo/onSiteDurationMetrics";
 import type {
   ClientFollowUp,
   CeoServiceItem,
@@ -155,7 +156,7 @@ export function computeCeoFleetKmStats(filteredOpps: OppNode[]): {
     taskTargets.edges.forEach((edge) => {
       const task = edge.node?.task;
       if (!task) return;
-      const tech = String(task.technicianName ?? "").trim();
+      const tech = canonicalTechnicianName(String(task.technicianName ?? ""));
       if (!tech) return;
 
       const dueAt = task.dueAt as string | undefined;
@@ -220,12 +221,20 @@ export function computeCeoServicesList(filteredOpps: OppNode[]): CeoServiceItem[
     const stageInfo = STAGE_LABELS[stageNorm] || { label: String(node.stage || "Desconhecido"), color: "#94a3b8" };
 
     let technician: string | null = null;
+    let assistantTechnicians: string[] = [];
+    let teamSize = 1;
     const taskTargets = node.taskTargets as { edges?: Array<{ node?: { task?: TaskNode } }> } | undefined;
     if (taskTargets?.edges?.length) {
       for (const edge of taskTargets.edges) {
-        const tName = edge.node?.task?.technicianName;
+        const task = edge.node?.task;
+        const tName = task?.technicianName;
         if (tName) {
-          technician = String(tName);
+          technician = canonicalTechnicianName(String(tName));
+          const team = teamFieldsFromCeoServiceTask(
+            task as Parameters<typeof teamFieldsFromCeoServiceTask>[0]
+          );
+          teamSize = team.teamSize;
+          assistantTechnicians = team.assistantTechnicians;
           break;
         }
       }
@@ -257,6 +266,8 @@ export function computeCeoServicesList(filteredOpps: OppNode[]): CeoServiceItem[
       monthName: MONTH_NAMES[mIdx] || "",
       rating: parseCrmClientRating(node.avaliacaoDoCliente),
       technician,
+      assistantTechnicians: assistantTechnicians.length > 0 ? assistantTechnicians : undefined,
+      teamSize: teamSize > 1 ? teamSize : undefined,
       amount: amountVal,
       formattedAmount: amountVal !== null ? formatEUR(amountVal) : "Sob Orçamento",
       financialStatus,
@@ -394,9 +405,13 @@ export function computeCeoFieldEfficiencyAndRankings(
     { completed: number; incomplete: number; cancelled: number; scheduled: number; inProgress: number; total: number }
   > = {};
 
+  const teamSupportByName: Record<string, number> = {};
+
   filteredTasks.forEach((task) => {
     const status = String(task.status || "").toUpperCase();
-    const techName = String(task.technicianName ?? "").trim();
+    const techName = canonicalTechnicianName(String(task.technicianName ?? ""));
+
+    creditTeamSupportVisits(task as Parameters<typeof creditTeamSupportVisits>[0], teamSupportByName);
 
     if (techName) {
       if (!techStatsMap[techName]) {
@@ -439,34 +454,37 @@ export function computeCeoFieldEfficiencyAndRankings(
     techKmByName[t.name] = t.totalKm;
   });
 
-  const technicianRankings: TechnicianRanking[] = Object.entries(techStatsMap)
-    .map(([name, stats]) => {
-      const finishedVolume = stats.completed + stats.incomplete + stats.cancelled;
-      const successRate =
-        finishedVolume > 0
-          ? Number(((stats.completed / finishedVolume) * 100).toFixed(1))
-          : stats.completed > 0
-            ? 100
-            : 0;
+  const technicianRankings: TechnicianRanking[] = applyTeamSupportVisitsToRankings(
+    Object.entries(techStatsMap)
+      .map(([name, stats]) => {
+        const finishedVolume = stats.completed + stats.incomplete + stats.cancelled;
+        const successRate =
+          finishedVolume > 0
+            ? Number(((stats.completed / finishedVolume) * 100).toFixed(1))
+            : stats.completed > 0
+              ? 100
+              : 0;
 
-      return {
-        rank: 1,
-        name,
-        totalTasks: stats.total,
-        completedCount: stats.completed,
-        incompleteCount: stats.incomplete,
-        cancelledCount: stats.cancelled,
-        scheduledCount: stats.scheduled,
-        inProgressCount: stats.inProgress,
-        successRate,
-        totalKm: techKmByName[name] || 0,
-      };
-    })
-    .sort((a, b) => {
-      if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
-      return b.successRate - a.successRate;
-    })
-    .map((t, idx) => ({ ...t, rank: idx + 1 }));
+        return {
+          rank: 1,
+          name,
+          totalTasks: stats.total,
+          completedCount: stats.completed,
+          incompleteCount: stats.incomplete,
+          cancelledCount: stats.cancelled,
+          scheduledCount: stats.scheduled,
+          inProgressCount: stats.inProgress,
+          successRate,
+          totalKm: techKmByName[name] || 0,
+        };
+      })
+      .sort((a, b) => {
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        return b.successRate - a.successRate;
+      })
+      .map((t, idx) => ({ ...t, rank: idx + 1 })),
+    teamSupportByName
+  );
 
   const topTechnicians = technicianRankings
     .map((t) => ({
@@ -577,19 +595,4 @@ export function computeCeoWarehouseStats(
   const pendingItems = totalItems - preparedItems;
   const preparationRate = totalItems > 0 ? Number(((preparedItems / totalItems) * 100).toFixed(1)) : 0;
   return { totalItems, preparedItems, pendingItems, preparationRate };
-}
-
-export function computeCeoOnSiteDuration(filteredOpps: OppNode[]) {
-  const onSiteSamples = collectOnSiteDurationSamplesFromOpportunities(filteredOpps);
-  const fairServiceTypeDurations = buildFairServiceTypeDurations(onSiteSamples);
-  const fleetOnSiteSummary = summarizeOnSiteDurations(onSiteSamples);
-  const technicianOnSiteDurations = buildTechnicianOnSiteDurationRows(onSiteSamples);
-  const onSiteDuration = {
-    sampleCount: fleetOnSiteSummary.sampleCount,
-    avgMinutes: fleetOnSiteSummary.avgDurationMs
-      ? Math.max(1, Math.round(fleetOnSiteSummary.avgDurationMs / 60_000))
-      : 0,
-    formattedAvg: fleetOnSiteSummary.formattedAvg ?? "—",
-  };
-  return { onSiteDuration, fairServiceTypeDurations, technicianOnSiteDurations };
 }

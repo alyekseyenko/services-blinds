@@ -153,6 +153,7 @@ export default function Admin() {
   const mapFilters = useAdminMapFilters({
     opportunities,
     techniciansLocations,
+    workspaceMembers,
     changeAdminView,
   });
 
@@ -414,6 +415,7 @@ export default function Admin() {
                 onOpenMedicoes={() => router.push("/admin/medicoes")}
                 onOpenCreateClient={() => setShowCreateClientSheet(true)}
                 onOpenCreateService={() => setShowCreateServiceSheet(true)}
+                serviceTypeDurationAverages={routePlanner.serviceTypeDurationAverages}
               />
             </div>
             <div

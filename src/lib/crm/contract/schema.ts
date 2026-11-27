@@ -77,6 +77,8 @@ export const CRM_FIELDS = {
     clientAvailability: 'disponibilidadeDoCliente',
     body: 'bodyV2',
     scheduleEndAt: 'horaDeFim',
+    assistantTechnicianIds: 'equipaAuxiliarIds',
+    assistantTechnicianNames: 'equipaAuxiliarNomes',
   },
   address: {
     street1: 'addressStreet1',

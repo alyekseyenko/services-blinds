@@ -9,6 +9,8 @@ import { formatNavigationAddressLine, formatServiceAddressLine } from "@/lib/vis
 import { extractPhonesFromTwenty, getPrimaryPhone } from "../phones";
 import { buildVisitServicesFromTaskNode, resolvePrimaryOpportunityId } from "../visitServicesMarker";
 import { resolveCalendarEventEnd } from "@/lib/visits/calendarVisitSpan";
+import { canonicalTechnicianName } from "@/lib/technicianIdentity";
+import { resolveAppTeamFields } from "@/lib/visits/team";
 
 export const PHONES_FIELDS = `
   primaryPhoneNumber
@@ -30,6 +32,8 @@ export const TASK_NODE_FIELDS = `
   assigneeId
   scheduledBy
   technicianName
+  equipaAuxiliarIds
+  equipaAuxiliarNomes
   bodyV2 { markdown }
   moradaDaReparacao {
     ${CRM_ADDRESS_GRAPHQL_FIELDS}
@@ -170,7 +174,15 @@ export function mapTaskNode(node: any): AppTask {
     serviceType: deriveWorkflowMarkerKey(oppTarget?.stage, node.title),
     scheduledBy: node.scheduledBy || 'Admin',
     assigneeId: node.assigneeId ?? null,
-    technicianName: node.technicianName ?? null,
+    technicianName: node.technicianName
+      ? canonicalTechnicianName(node.technicianName)
+      : null,
+    ...resolveAppTeamFields({
+      assigneeId: node.assigneeId,
+      technicianName: node.technicianName,
+      equipaAuxiliarIds: node.equipaAuxiliarIds,
+      equipaAuxiliarNomes: node.equipaAuxiliarNomes,
+    }),
     clientPhone,
     clientPhones,
     clientRating: parseCrmClientRating(oppTarget?.avaliacaoDoCliente) ?? undefined,

@@ -142,6 +142,7 @@ export default function CommercialServicesTable({
                 <h3 className="text-sm font-black text-foreground">{svc.name}</h3>
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
                   {svc.serviceType || "Geral"} · {svc.technician || "Não atribuído"}
+                  {(svc.teamSize ?? 1) > 1 ? ` · equipa ${svc.teamSize} téc.` : ""}
                 </p>
                 <div className="mt-3 flex items-center justify-between gap-2">
                   {amountBadge(svc)}
@@ -186,6 +187,11 @@ export default function CommercialServicesTable({
                     </td>
                     <td className="px-4 py-3 text-xs font-bold text-muted-foreground">
                       {svc.technician || "Não atribuído"}
+                      {(svc.teamSize ?? 1) > 1 ? (
+                        <span className="ml-1 font-semibold text-info-fg">
+                          +{(svc.teamSize ?? 1) - 1} apoio
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 ds-num">{amountBadge(svc)}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{svc.formattedDate}</td>

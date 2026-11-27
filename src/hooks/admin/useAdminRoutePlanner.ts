@@ -22,6 +22,7 @@ import {
 import { getHqLocation } from "@/lib/hq";
 import { toUserMessage } from "@/lib/userMessages";
 import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
+import type { ServiceTypeDurationAverage } from "@/lib/visits/onSiteDurationStats";
 import type {
   Opportunity,
   WorkspaceMember,
@@ -91,11 +92,16 @@ export function useAdminRoutePlanner({
   const [fairServiceTypeDurations, setFairServiceTypeDurations] = useState<FairServiceTypeDuration[]>(
     []
   );
+  const [serviceTypeDurationAverages, setServiceTypeDurationAverages] = useState<
+    ServiceTypeDurationAverage[]
+  >([]);
   const [fairBenchmarksReady, setFairBenchmarksReady] = useState(false);
 
   const [massScheduleForm, setMassScheduleForm] = useState({
     date: "",
     technicianId: "",
+    assistantTechnicianIds: [] as string[],
+    assistantTechnicianNames: [] as string[],
     globalNotes: "",
     stopNotes: {} as Record<string, string>,
     stopTimes: {} as Record<string, string>,
@@ -108,7 +114,8 @@ export function useAdminRoutePlanner({
     void getFairOnSiteDurationBenchmarksAction().then((result) => {
       if (cancelled) return;
       if (result.success && result.data) {
-        setFairServiceTypeDurations(result.data);
+        setFairServiceTypeDurations(result.data.fair);
+        setServiceTypeDurationAverages(result.data.averages);
       }
       setFairBenchmarksReady(true);
     });
@@ -292,7 +299,9 @@ export function useAdminRoutePlanner({
         massScheduleForm.technicianId,
         selectedTech.name || "",
         massScheduleForm.globalNotes,
-        massScheduleForm.urgent
+        massScheduleForm.urgent,
+        massScheduleForm.assistantTechnicianIds,
+        massScheduleForm.assistantTechnicianNames
       );
 
       if (!result.success) {
@@ -313,6 +322,10 @@ export function useAdminRoutePlanner({
                   ...opp,
                   hasScheduledTask: true,
                   technician: selectedTech.name || opp.technician,
+                  technicianId: massScheduleForm.technicianId,
+                  assistantTechnicianIds: massScheduleForm.assistantTechnicianIds,
+                  assistantTechnicianNames: massScheduleForm.assistantTechnicianNames,
+                  teamSize: 1 + massScheduleForm.assistantTechnicianIds.length,
                   taskStatus: "AGENDADO",
                   status: "AGENDADO",
                 }
@@ -356,12 +369,19 @@ export function useAdminRoutePlanner({
           if (opp?.taskId) keys.push(opp.taskId);
           return keys;
         }),
-        ["nova", "reagendada", "reatribuida"]
+        [
+          "nova",
+          "reagendada",
+          "reatribuida",
+          ...(massScheduleForm.assistantTechnicianIds.length > 0 ? (["equipa_atualizada"] as const) : []),
+        ]
       );
       setShowMassScheduleModal(false);
       setMassScheduleForm({
         date: "",
         technicianId: "",
+        assistantTechnicianIds: [],
+        assistantTechnicianNames: [],
         globalNotes: "",
         stopNotes: {},
         stopTimes: {},
@@ -431,6 +451,7 @@ export function useAdminRoutePlanner({
     showMassScheduleModal,
     setShowMassScheduleModal,
     fairServiceTypeDurations,
+    serviceTypeDurationAverages,
     fairBenchmarksReady,
     massScheduleForm,
     setMassScheduleForm,

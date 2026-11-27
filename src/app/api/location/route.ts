@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { locationStore } from '@/lib/locationStore';
 import { isAdminRole } from '@/lib/auth/session';
 import { getAppSession } from '@/lib/auth/session.server';
+import { canonicalTechnicianName } from '@/lib/technicianIdentity';
 
 // Rate limiting: mínimo de 5 segundos entre atualizações do mesmo técnico
 const rateLimitMap = new Map<string, number>();
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     await locationStore.save({
       technicianId,
-      technicianName: technicianName || "Técnico",
+      technicianName: canonicalTechnicianName(technicianName) || "Técnico",
       lat,
       lng,
       lastUpdate: new Date().toISOString(),
@@ -137,7 +138,10 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
     }
 
-    const activeTechnicians = await locationStore.getActive(5 * 60 * 1000);
+    const activeTechnicians = (await locationStore.getActive(5 * 60 * 1000)).map((tech) => ({
+      ...tech,
+      technicianName: canonicalTechnicianName(tech.technicianName) || tech.technicianName,
+    }));
     return NextResponse.json({ technicians: activeTechnicians });
   } catch (error: any) {
     console.error("[Location API] Error:", error);

@@ -1,25 +1,16 @@
-import {
-  isScheduleEndAfterStart,
-  resolveCalendarEventEnd,
-  schedulingIntervalsOverlap,
-} from "@/lib/visits/calendarVisitSpan";
+import { isScheduleEndAfterStart } from "@/lib/visits/calendarVisitSpan";
 
-export interface ConflictCheckOpportunity {
-  title: string;
-  twentyId?: string;
-  scheduledAt?: string | Date | null;
-  scheduledEndAt?: string | Date | null;
-  status?: string;
-  technician?: string;
-  technicianId?: string | null;
-}
-
-export interface ScheduleConflictOptions {
-  /** Opportunities being (re)scheduled in this batch — ignore their existing slots. */
-  excludeOpportunityIds?: string[];
-  /** Assignee being scheduled. Other technicians never count as a conflict. */
-  technicianId?: string;
-}
+export type {
+  ConflictCheckOpportunity,
+  ScheduleConflict,
+  ScheduleConflictOptions,
+  ScheduleConflictSeverity,
+} from "@/lib/admin/scheduleConflictEngine";
+export {
+  findScheduleConflicts,
+  formatScheduleConflictPt,
+  aggregateScheduleConflictWarning,
+} from "@/lib/admin/scheduleConflictEngine";
 
 const SLOT_DURATION_MIN = 105;
 const DAY_START_HOUR = 8;
@@ -146,97 +137,4 @@ export function computeRouteSlots(dateIso: string, stopCount: number): RouteSlot
   }
 
   return slots;
-}
-
-export interface ScheduleConflict {
-  stopTitle: string;
-  stopTime: Date;
-  conflictingTitle: string;
-  conflictingTime: Date;
-}
-
-function normalizeTechName(value?: string | null): string {
-  return (value || "")
-    .trim()
-    .toLocaleLowerCase("pt-PT")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function isSameTechnician(
-  opp: ConflictCheckOpportunity,
-  technicianName: string,
-  technicianId?: string
-): boolean {
-  if (technicianId && opp.technicianId) {
-    return opp.technicianId === technicianId;
-  }
-  const existing = normalizeTechName(opp.technician);
-  const selected = normalizeTechName(technicianName);
-  if (!existing || !selected || existing === "nao atribuido") return false;
-  return existing === selected;
-}
-
-function resolveSlotInterval(
-  start: Date,
-  explicitEnd?: Date | string | null
-): { start: Date; end: Date } | null {
-  if (Number.isNaN(start.getTime())) return null;
-  const end = explicitEnd
-    ? resolveCalendarEventEnd(start, explicitEnd)
-    : resolveCalendarEventEnd(start, null);
-  if (!end) return null;
-  return { start, end };
-}
-
-export function findScheduleConflicts(
-  slots: Array<{ title: string; dueAt: Date; endAt?: Date | null; opportunityId?: string }>,
-  opportunities: ConflictCheckOpportunity[],
-  technicianName: string,
-  options: ScheduleConflictOptions = {}
-): ScheduleConflict[] {
-  if (!technicianName && !options.technicianId) return [];
-
-  const excludedIds = new Set(options.excludeOpportunityIds || []);
-  const conflicts: ScheduleConflict[] = [];
-
-  for (const slot of slots) {
-    if (slot.opportunityId) {
-      excludedIds.add(slot.opportunityId);
-    }
-
-    const slotInterval = resolveSlotInterval(slot.dueAt, slot.endAt);
-    if (!slotInterval) continue;
-
-    for (const opp of opportunities) {
-      if (!opp.scheduledAt || opp.status === "Cancelado" || opp.status === "Concluído") continue;
-      if (!isSameTechnician(opp, technicianName, options.technicianId)) continue;
-      if (opp.twentyId && excludedIds.has(opp.twentyId)) continue;
-      if (slot.opportunityId && opp.twentyId === slot.opportunityId) continue;
-
-      const oppStart = new Date(opp.scheduledAt);
-      const oppInterval = resolveSlotInterval(oppStart, opp.scheduledEndAt ?? null);
-      if (!oppInterval) continue;
-
-      if (
-        !schedulingIntervalsOverlap(
-          slotInterval.start,
-          slotInterval.end,
-          oppInterval.start,
-          oppInterval.end
-        )
-      ) {
-        continue;
-      }
-
-      conflicts.push({
-        stopTitle: slot.title,
-        stopTime: slot.dueAt,
-        conflictingTitle: opp.title,
-        conflictingTime: oppStart,
-      });
-    }
-  }
-
-  return conflicts;
 }

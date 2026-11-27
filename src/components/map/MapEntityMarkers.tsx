@@ -6,11 +6,13 @@ import { buildTaskMarkerDescriptor } from "@/lib/map/taskMarkerDescriptor";
 import { buildRouteStopTeardropSvg, MAP_PIN_VIEW_HEIGHT, MAP_PIN_VIEW_WIDTH } from "@/lib/map/serviceMarkerArt";
 import { teardropAnchor, routeStopLabelOrigin } from "@/lib/map/mapPinAnchors";
 import { itineraryStopKind } from "@/lib/map/technicianDayItinerary";
+import { routeStopMarkerArt } from "@/lib/map/routeStopPin";
 import {
   getRouteStopPixelSize,
   getTechnicianVanPixelSize,
   shouldShowDenseLabels,
 } from "@/lib/map/markerScale";
+import { technicianVanDataUrl } from "@/lib/map/technicianVanMarker";
 
 type TechnicianLocation = {
   technicianId: string;
@@ -64,22 +66,13 @@ export function MapEntityMarkers(props: {
         const vanSize = getTechnicianVanPixelSize(mapZoomBucket, isSelectedTech);
         const showTechLabel = shouldShowDenseLabels(mapZoomBucket) || isSelectedTech;
 
-        const vanSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${vanSize}" height="${vanSize}" viewBox="0 0 40 40">
-            <circle cx="20" cy="20" r="18" fill="#090d16" stroke="#84cc16" stroke-width="3"/>
-            <circle cx="20" cy="20" r="13" fill="#0284c7" fill-opacity="0.25"/>
-            <path d="M11 23h18l-2.5-7h-13z" fill="#84cc16"/>
-            <circle cx="15" cy="24" r="2.2" fill="#ffffff"/>
-            <circle cx="25" cy="24" r="2.2" fill="#ffffff"/>
-            <rect x="17" y="18" width="4" height="2.5" fill="#090d16"/>
-          </svg>`;
-
         return (
           <Marker
             key={`tech-${tech.technicianId}`}
             position={{ lat: tech.lat, lng: tech.lng }}
             onClick={() => onTechnicianClick(tech)}
             icon={{
-              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(vanSvg)}`,
+              url: technicianVanDataUrl(vanSize),
               scaledSize: new window.google.maps.Size(vanSize, vanSize),
               anchor: new window.google.maps.Point(vanSize / 2, vanSize / 2),
             }}
@@ -104,22 +97,11 @@ export function MapEntityMarkers(props: {
         if (!stop.coordinates || !Array.isArray(stop.coordinates)) return null;
 
         const kind = itineraryStopKind(stop);
-        const isDone = kind === "done";
-        const isInc = kind === "incomplete";
-        const isCanc = kind === "cancelled";
-        const isLate = kind === "late";
-        const isNext = idx === nextStopIndex;
-
-        const pinColor = isDone
-          ? "#10b981"
-          : isInc
-            ? "#f59e0b"
-            : isCanc
-              ? "#ef4444"
-              : isNext
-                ? "#2563eb"
-                : "#0284c7";
-        const symbolText = isDone ? "✓" : isCanc ? "✕" : isInc ? "!" : `${idx + 1}`;
+        const { pinColor, isLate, isNext, symbolText, statusTitle } = routeStopMarkerArt(
+          kind,
+          idx,
+          nextStopIndex
+        );
 
         const stopWidth = getRouteStopPixelSize(mapZoomBucket);
         const stopHeight = Math.round(stopWidth * (MAP_PIN_VIEW_HEIGHT / MAP_PIN_VIEW_WIDTH));
@@ -129,18 +111,6 @@ export function MapEntityMarkers(props: {
           isNext,
           width: stopWidth,
         });
-
-        const statusTitle = isDone
-          ? "Concluído"
-          : isInc
-            ? "Incompleto"
-            : isCanc
-              ? "Cancelado"
-              : isLate
-                ? "Atrasada"
-                : isNext
-                  ? "Próxima"
-                  : "Pendente";
 
         return (
           <Marker
@@ -196,6 +166,7 @@ export function MapEntityMarkers(props: {
                 showTechnicianColors: !!showTechnicianColors,
                 techColor: desc.techColor,
                 zoom: mapZoomBucket,
+                statusBadge: desc.statusBadge,
               })}
               title={desc.markerTitle}
             />

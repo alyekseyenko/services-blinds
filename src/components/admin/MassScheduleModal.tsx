@@ -23,10 +23,14 @@ import { cn } from "@/lib/cn";
 import type { FairServiceTypeDuration } from "@/lib/schemas/ceoMetrics";
 import { fairDurationForOpportunity } from "@/lib/admin/fairDurationDisplay";
 import { FairOnSiteDurationHelpButton } from "@/components/admin/FairOnSiteDurationHelpButton";
+import { TeamMemberPicker } from "@/components/admin/TeamMemberPicker";
+import { ScheduleConflictAlert } from "@/components/admin/ScheduleConflictAlert";
 
 export interface MassScheduleForm {
   date: string;
   technicianId: string;
+  assistantTechnicianIds: string[];
+  assistantTechnicianNames: string[];
   globalNotes: string;
   stopNotes: Record<string, string>;
   stopTimes: Record<string, string>;
@@ -114,11 +118,15 @@ export default function MassScheduleModal({
       {
         excludeOpportunityIds: visitStops.map((stop) => stop.twentyId),
         technicianId: massScheduleForm.technicianId,
+        assistantTechnicianIds: massScheduleForm.assistantTechnicianIds,
+        assistantTechnicianNames: massScheduleForm.assistantTechnicianNames,
       }
     );
   }, [
     massScheduleForm.date,
     massScheduleForm.technicianId,
+    massScheduleForm.assistantTechnicianIds,
+    massScheduleForm.assistantTechnicianNames,
     selectedTechnician?.name,
     slots,
     visitStops,
@@ -274,6 +282,23 @@ export default function MassScheduleModal({
                 ))}
               </select>
             </div>
+            {massScheduleForm.technicianId ? (
+              <TeamMemberPicker
+                members={workspaceMembers}
+                masterId={massScheduleForm.technicianId}
+                assistantIds={massScheduleForm.assistantTechnicianIds}
+                assistantNames={massScheduleForm.assistantTechnicianNames}
+                conflictMemberIds={conflicts.map((c) => c.memberId)}
+                onChange={(assistantTechnicianIds, assistantTechnicianNames) =>
+                  setMassScheduleForm({
+                    ...massScheduleForm,
+                    assistantTechnicianIds,
+                    assistantTechnicianNames,
+                  })
+                }
+              />
+            ) : null}
+            <ScheduleConflictAlert conflicts={conflicts} />
             <div className="space-y-1.5">
               <label className={cn(labelClass, "flex items-center gap-1")}>
                 <CalendarIcon className="h-3 w-3" aria-hidden />

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAppSession } from "@/lib/auth/session.server";
 import { canViewMeasurementSheets } from "@/actions/measurements/shared";
-import { fetchMeasurementSheet } from "@/lib/crm/measurements";
+import {
+  attachOpportunityServiceNumber,
+  fetchMeasurementSheet,
+} from "@/lib/crm/measurements";
 import { createOnboardingDemoMeasurementSheet } from "@/lib/demo/demoMeasurementSheet";
 import { isOnboardingDemoId } from "@/lib/demo/demoIds";
 import { getSheetByOpportunityVersion } from "@/lib/measurements/repo/read";
@@ -67,14 +70,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Versão inválida." }, { status: 400 });
     }
 
-    const sheet = await resolveExportSheet(id, versionParam);
+    const rawSheet = await resolveExportSheet(id, versionParam);
 
-    if (!sheet) {
+    if (!rawSheet) {
       return NextResponse.json(
         { error: "Sem medições registadas para esta oportunidade." },
         { status: 404 }
       );
     }
+
+    const sheet = await attachOpportunityServiceNumber(rawSheet);
 
     const filename = buildMeasurementsExportFilename(sheet, format, layout);
     if (format === "xlsx") {

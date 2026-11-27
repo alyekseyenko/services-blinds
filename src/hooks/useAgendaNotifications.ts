@@ -75,6 +75,7 @@ function snapshotFingerprint(items: AgendaSnapshotItem[]): string {
       i.dueAt,
       i.status,
       i.assigneeId ?? "",
+      (i.assistantTechnicianIds ?? []).join("|"),
       (i.onSiteOpportunityIds ?? []).join(","),
       i.statusNote ?? "",
       i.urgent ? "1" : "",

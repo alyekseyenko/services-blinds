@@ -11,7 +11,7 @@ import {
   deleteVisitService,
   updateVisitService,
 } from "@/lib/crm/visitServices";
-import { assertCanMutateTask } from "@/lib/auth/taskAccess";
+import { assertCanControlVisitLifecycle } from "@/lib/auth/taskAccess";
 import { getAppSession } from "@/lib/auth/session.server";
 import { isTaskInProgress } from "@/lib/crm/contract";
 import { getTaskStatusForPublicPortal } from "@/lib/crm/tasks";
@@ -20,7 +20,7 @@ import { toUserMessage } from "@/lib/userMessages";
 async function assertCanManageVisit(
   taskId: string
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  const access = await assertCanMutateTask(taskId);
+  const access = await assertCanControlVisitLifecycle(taskId);
   if (!access.ok) {
     return { ok: false, error: access.error };
   }

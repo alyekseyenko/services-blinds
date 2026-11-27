@@ -122,7 +122,14 @@ export function deriveWorkflowMarkerKey(stage?: string | null, title?: string | 
   return 'GERAL';
 }
 
-export function getFallbackStageOnIncompleteWorkflow(workflow: OpportunityWorkflow): string {
+/**
+ * After cancel/incomplete, keep the operational service type — do not dump
+ * remediação (or a visit already in TIRAR_MEDIDAS) back to ENTRADA.
+ */
+export function getFallbackStageOnIncompleteWorkflow(
+  workflow: OpportunityWorkflow,
+  currentStage?: string | null
+): string {
   switch (workflow) {
     case 'installation':
       return CRM_STAGES.MARCAR_INSTALACAO;
@@ -130,7 +137,12 @@ export function getFallbackStageOnIncompleteWorkflow(workflow: OpportunityWorkfl
       return CRM_STAGES.MANUTENCAO;
     case 'repair':
       return CRM_STAGES.REPARACAO;
-    case 'measurement':
+    case 'measurement': {
+      const stageNorm = normalizeString(currentStage);
+      if (isRemediationStage(stageNorm)) return CRM_STAGES.REMEDICAO;
+      if (stageNorm === CRM_STAGES.TIRAR_MEDIDAS) return CRM_STAGES.TIRAR_MEDIDAS;
+      return CRM_STAGES.ENTRADA;
+    }
     default:
       return CRM_STAGES.ENTRADA;
   }

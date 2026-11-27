@@ -12,7 +12,11 @@ import {
 } from "@/lib/measurementsUtils";
 import { formatVisitServiceTypeLabel } from "@/lib/visitServiceTypeLabel";
 import { CRM_ADDRESS_GRAPHQL_FIELDS } from "./contract";
-import { formatServiceNumber } from "./serviceNumber";
+import { formatNsi, formatServiceNumber } from "./serviceNumber";
+import {
+  applySheetCrmHeader,
+  sheetNeedsCrmEnrichment,
+} from "@/lib/measurements/sheetCrmHeader";
 import { extractPhonesFromTwenty, getPrimaryPhone } from "./phones";
 import { isMeasurementsDbConfigured } from "@/lib/measurements/db/client";
 import { processMeasurementsOutboxBatch } from "@/lib/measurements/processOutbox";
@@ -156,7 +160,7 @@ async function fetchOpportunityMeasurementContext(
     clientNif,
     clientPhone,
     clientEmail,
-    nsi: node.nsi ? String(node.nsi) : undefined,
+    nsi: formatNsi(node.nsi),
     serviceNumber: formatServiceNumber(node.numeroDeServico),
     address: formatServiceAddress(
       node.moradaDeServico as {
@@ -241,15 +245,6 @@ export async function fetchMeasurementsPayloadForOpportunity(
   return resolveMeasurementsPayloadFromCrm(opportunityId, notes);
 }
 
-function sheetNeedsCrmEnrichment(sheet: MeasurementSheet): boolean {
-  if (!sheet.opportunityId) return false;
-  if (!sheet.serviceNumber?.trim()) return true;
-  if (!sheet.clientNif?.trim() || !sheet.clientPhone?.trim() || !sheet.clientEmail?.trim()) {
-    return true;
-  }
-  return false;
-}
-
 export async function attachOpportunityServiceNumber(
   sheet: MeasurementSheet
 ): Promise<MeasurementSheet> {
@@ -257,13 +252,7 @@ export async function attachOpportunityServiceNumber(
   try {
     const ctx = await fetchOpportunityMeasurementContext(sheet.opportunityId);
     if (!ctx) return sheet;
-    return {
-      ...sheet,
-      serviceNumber: sheet.serviceNumber?.trim() || ctx.serviceNumber,
-      clientNif: sheet.clientNif?.trim() || ctx.clientNif,
-      clientPhone: sheet.clientPhone?.trim() || ctx.clientPhone,
-      clientEmail: sheet.clientEmail?.trim() || ctx.clientEmail,
-    };
+    return applySheetCrmHeader(sheet, ctx);
   } catch {
     return sheet;
   }

@@ -71,6 +71,8 @@ export function useAdminScheduleAndGeoActions({
     time: "09:00",
     endTime: "",
     technicianId: "",
+    assistantTechnicianIds: [],
+    assistantTechnicianNames: [],
     urgent: false,
     notes: "",
     addressStreet1: "",
@@ -422,6 +424,8 @@ export function useAdminScheduleAndGeoActions({
         currentStage: selectedOpportunity.stage,
         urgent: scheduleForm.urgent,
         rescheduleExistingTask: reschedule,
+        assistantTechnicianIds: scheduleForm.assistantTechnicianIds,
+        assistantTechnicianNames: scheduleForm.assistantTechnicianNames,
       });
 
       if (!result.success) {
@@ -444,7 +448,8 @@ export function useAdminScheduleAndGeoActions({
             selectedOpportunity,
             dueAt,
             scheduleForm.technicianId,
-            true
+            true,
+            scheduleForm.assistantTechnicianIds
           )
         : (["nova"] as const);
       if (selectedOpportunity.taskId) {
